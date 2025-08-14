@@ -1,5 +1,4 @@
-import { ClerkProvider } from '@clerk/nextjs'
-import { ClerkZustandProvider } from '@/components/providers/ClerkZustandProvider';
+import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -32,20 +31,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <ClerkZustandProvider>
-        <html lang="en">
-          <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
-          >
-            <div id="root" className="relative flex min-h-screen flex-col">
-              <main className="flex-1">
-                {children}
-              </main>
-            </div>
-          </body>
-        </html>
-      </ClerkZustandProvider>
-    </ClerkProvider>
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
+      >
+        <SupabaseProvider>
+          <div id="root" className="relative flex min-h-screen flex-col">
+            <main className="flex-1">
+              {children}
+            </main>
+          </div>
+        </SupabaseProvider>
+      </body>
+    </html>
   );
 }

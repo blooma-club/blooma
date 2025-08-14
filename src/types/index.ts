@@ -17,8 +17,9 @@ export interface Project {
   title: string
   description?: string
   is_public: boolean
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
+  has_cards?: boolean
 }
 
 // 스토리보드 타입
@@ -29,8 +30,8 @@ export interface Storyboard {
   title: string
   description?: string
   is_public: boolean
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 // 카드 타입
@@ -41,18 +42,16 @@ export interface Card {
   type: 'hook' | 'problem' | 'solution' | 'evidence' | 'benefit' | 'cta'
   title: string
   content: string
-  image_url?: string
+  user_input?: string // User input prompt for generating/editing content
+  image_urls?: string[] // JSON array of up to 3 image URLs
+  selected_image_url?: number // Index of the selected image (0, 1, or 2)
   position_x: number
   position_y: number
   width: number
   height: number
-  background_color: string
-  text_color: string
-  font_size: number
-  font_weight: string
   order_index: number
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 // 버전 타입
@@ -95,15 +94,13 @@ export interface CardInput {
   type: Card['type']
   title: string
   content: string
-  image_url?: string
+  user_input?: string // User input prompt for generating/editing content
+  image_urls?: string[] // JSON array of up to 3 image URLs
+  selected_image_url?: number // Index of the selected image (0, 1, or 2)
   position_x?: number
   position_y?: number
   width?: number
   height?: number
-  background_color?: string
-  text_color?: string
-  font_size?: number
-  font_weight?: string
   order_index?: number
 }
 
@@ -183,5 +180,7 @@ export interface InitialCardData {
 export interface CustomCardNodeData extends Record<string, unknown> {
   title?: string
   content?: string
-  imageUrl?: string
+  userInput?: string // User input prompt for generating/editing content
+  imageUrls?: string[] // Array of image URLs
+  selectedImageUrl?: number // Index of selected image
 } 

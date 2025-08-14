@@ -92,6 +92,7 @@ REPLICATE_API_TOKEN=your_replicate_api_token_here
 4. Add the key to your `.env.local` file
 
 **Benefits of OpenRouter**:
+
 - Access to Gemini 2.0 Flash Experimental model
 - Unified API for multiple AI models
 - Better pricing and performance
@@ -169,6 +170,7 @@ npm run type-check   # Run type checking
 **Error**: `Invalid URL` or `NEXT_PUBLIC_SUPABASE_URL environment variable not set`
 
 **Solution**:
+
 1. Ensure `.env.local` exists in your project root
 2. Replace placeholder values with actual Supabase credentials
 3. Restart your development server after updating environment variables
@@ -183,6 +185,7 @@ echo $NEXT_PUBLIC_SUPABASE_URL
 **Error**: `Module not found: Can't resolve '@/components/...'`
 
 **Solution**:
+
 1. Check that the file exists in the correct location
 2. Verify the component is properly exported
 3. Ensure TypeScript path mapping is configured in `tsconfig.json`
@@ -192,6 +195,7 @@ echo $NEXT_PUBLIC_SUPABASE_URL
 **Error**: Authentication or database access denied
 
 **Solution**:
+
 1. Verify Row Level Security (RLS) policies are properly configured
 2. Check if your database schema matches the type definitions
 3. Ensure you're using the correct anon key (not the service role key)
@@ -201,6 +205,7 @@ echo $NEXT_PUBLIC_SUPABASE_URL
 **Error**: Port already in use
 
 **Solution**:
+
 ```bash
 # Kill process using port 3000
 lsof -ti:3000 | xargs kill -9

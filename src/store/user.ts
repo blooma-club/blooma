@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import type { UserResource } from '@clerk/types';
+import type { User } from '@supabase/supabase-js';
 
 interface UserState {
   userId: string | null;
-  user: UserResource | null;
+  user: User | null;
   isLoaded: boolean;
-  setUserState: (state: { user: UserResource | null; userId: string | null; isLoaded: boolean }) => void;
+  setUserState: (state: { user: User | null; userId: string | null; isLoaded: boolean }) => void;
 }
 
 export const useUserStore = create<UserState>((set) => ({
