@@ -3,30 +3,22 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
+import { GripVertical, Loader2, Plus, Trash2 } from 'lucide-react'
 import {
-  Plus,
-  Trash2,
-  ChevronDown,
-  Camera,
-  Palette,
-  LayoutTemplate,
-  GripVertical,
-  Loader2,
-} from 'lucide-react'
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu'
 import { InitialCardData, Storyboard, Card, Project } from '@/types'
 import { useCanvasStore } from '@/store/canvas'
 import { useUserStore } from '@/store/user'
 import { generateImageWithEnhancedPrompt, generateStoryboardImage } from '@/lib/imageGeneration'
 import { supabase } from '@/lib/supabase'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from '@/components/ui/dropdown-menu'
+// Dropdown components removed with merged layout
 import {
   DndContext,
   closestCenter,
@@ -134,7 +126,7 @@ type SetupFormProps = {
   onSubmit?: (data: { steps: InitialCardData[] }) => void
 }
 
-type SettingsView = 'structure' | 'camera' | 'style'
+// Removed settings view / frameworks sidebar in merged layout
 
 // Sortable Card Component
 interface SortableCardProps {
@@ -143,21 +135,13 @@ interface SortableCardProps {
   form: StepForm
   hasImage: boolean
   onStepChange: (index: number, field: keyof StepForm, value: string) => void
-  onDeleteStep: (index: number) => void
-  stepsLength: number
+  onTitleChange: (index: number, title: string) => void
+  onDelete: (index: number) => void
   isGeneratingImage?: boolean
+  stepsLength: number
 }
 
-function SortableCard({
-  step,
-  index,
-  form,
-  hasImage,
-  onStepChange,
-  onDeleteStep,
-  stepsLength,
-  isGeneratingImage,
-}: SortableCardProps) {
+function SortableCard({ step, index, form, hasImage, onStepChange, onTitleChange, onDelete, isGeneratingImage, stepsLength }: SortableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: step.key,
   })
@@ -173,44 +157,48 @@ function SortableCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`border-1 border-gray-900 rounded-md bg-white flex flex-col h-full shadow-[2px_2px_0_0_#000000] ${isDragging ? 'ring-2 ring-gray-900 scale-[1.01] shadow-lg' : ''}`}
+      className={`border-1 border-gray-900 rounded-md bg-[#F9F2E7] flex flex-col h-full shadow-[2px_2px_0_0_#000000] ${isDragging ? 'ring-2 ring-gray-900 scale-[1.01] shadow-lg' : ''}`}
     >
-      <div className="flex justify-between items-center p-3 border-b-1 border-gray-700">
+  <div className="flex justify-between items-center p-3 gap-2 bg-[#2B6CB0] text-white rounded-t-md">
         <div className="flex items-center gap-2">
           <div
             {...attributes}
             {...listeners}
             className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
           >
-            <GripVertical className="h-4 w-4 text-gray-500" />
+            <GripVertical className="h-4 w-4 text-white" />
           </div>
-          <h3 className="text-lg font-bold text-gray-800">{step.title}</h3>
+          <input
+            value={step.title}
+            onChange={e => {
+              onTitleChange(index, e.target.value)
+            }}
+            className="bg-transparent font-bold text-lg outline-none w-full text-white placeholder:text-white"
+          />
         </div>
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onDeleteStep(index)}
+          onClick={() => onDelete(index)}
           disabled={stepsLength <= 1}
-          className="rounded-md border-1 border-gray-900 hover:bg-red-500 hover:text-white"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md border-1 border-gray-900 text-gray-100 hover:bg-red-500 hover:text-white disabled:opacity-40"
         >
           <Trash2 className="h-4 w-4" />
-        </Button>
+        </button>
       </div>
-      <div className="flex-grow space-y-3 p-4">
+      <div className="flex-grow space-y-3 p-4 bg-[#F9F2E7]">
         {hasImage && (
           <div className="w-full">
-            <label className="text-sm font-bold text-gray-700 mb-1.5 block">
+            <label className="text-sm font-bold text-gray-800 mb-1.5 block">
               Image Prompt
               {isGeneratingImage && (
-                <span className="ml-2 inline-flex items-center gap-1 text-blue-600">
+                <span className="ml-2 inline-flex items-center gap-1 text-white">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Generating...
                 </span>
               )}
             </label>
             <textarea
-              className="w-full border-1 border-gray-900 rounded-md p-2 text-sm min-h-[90px] outline-none"
+              className="w-full border-1 border-gray-900 rounded-md p-2 text-sm min-h-[90px] outline-none bg-white"
               placeholder={step.promptPlaceholder}
               value={form.prompt || ''}
               onChange={e => onStepChange(index, 'prompt', e.target.value)}
@@ -219,9 +207,9 @@ function SortableCard({
           </div>
         )}
         <div className="w-full">
-          <label className="text-sm font-bold text-gray-700 mb-1.5 block">Description</label>
+          <label className="text-sm font-bold text-gray-800 mb-1.5 block">Description</label>
           <textarea
-            className={`w-full border-1 border-gray-900 rounded-md p-2 text-sm ${hasImage ? 'min-h-[90px]' : 'min-h-[180px]'} outline-none`}
+            className={`w-full border-1 border-gray-900 rounded-md p-2 text-sm ${hasImage ? 'min-h-[90px]' : 'min-h-[180px]'} outline-none bg-white`}
             placeholder="Write your content here..."
             value={form.desc || ''}
             onChange={e => onStepChange(index, 'desc', e.target.value)}
@@ -234,19 +222,18 @@ function SortableCard({
 }
 
 export default function SetupForm({ id, onSubmit }: SetupFormProps) {
-  const [steps, setSteps] = useState<Step[]>(
-    templates.standard.steps.map(t => generateStep(t.key, t.title, templates.standard.hasImage))
+  // Dynamic steps: start from template only
+  const initialTemplate = templates.standard
+  const initialSteps = initialTemplate.steps.map(t =>
+    generateStep(t.key, t.title, initialTemplate.hasImage),
   )
-  const [form, setForm] = useState<StepForm[]>(
-    templates.standard.steps.map(() => ({ prompt: '', desc: '' }))
-  )
+  const [steps, setSteps] = useState<Step[]>(initialSteps)
+  const [form, setForm] = useState<StepForm[]>(initialSteps.map(() => ({ prompt: '', desc: '' })))
   const [activeTemplate, setActiveTemplate] = useState('standard')
-  const [activeFramework, setActiveFramework] = useState<'marketing' | 'storytelling' | 'all'>(
-    'marketing'
-  )
   const [hasImage, setHasImage] = useState(true)
+  // Track if the user has manually changed mode so template switches don't override
+  const [modeManuallySet, setModeManuallySet] = useState(false)
   const [selectedRatio, setSelectedRatio] = useState<'1:1' | '9:16' | '16:9'>('16:9')
-  const [activeSettingsView, setActiveSettingsView] = useState<SettingsView>('structure')
   const [isGeneratingImages, setIsGeneratingImages] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [useFluxPrompts, setUseFluxPrompts] = useState(true) // Toggle for FLUX vs Storyboard prompts
@@ -342,15 +329,21 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
 
   const handleTemplateChange = (templateKey: keyof typeof templates) => {
     const template = templates[templateKey]
-    const newSteps = template.steps.map(t => generateStep(t.key, t.title, template.hasImage))
-    setSteps(newSteps)
-    setForm(newSteps.map(() => ({ prompt: '', desc: '' })))
+    const baseSteps = template.steps.map(t => generateStep(t.key, t.title, template.hasImage))
+    setSteps(baseSteps)
+    setForm(baseSteps.map(() => ({ prompt: '', desc: '' })))
+    // Only apply template default image mode if user hasn't manually chosen
+    if (!modeManuallySet) {
+      setHasImage(template.hasImage)
+    }
     setActiveTemplate(templateKey)
-
-    // Update project title if it's empty or still using default
     if (!projectTitle || projectTitle.startsWith('Project ')) {
       setProjectTitle(`Project ${template.name}`)
     }
+  }
+
+  const handleTitleChange = (index: number, title: string) => {
+    setSteps(prev => prev.map((s, i) => (i === index ? { ...s, title } : s)))
   }
 
   const handleChange = (index: number, field: keyof StepForm, value: string) => {
@@ -377,22 +370,20 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   }
 
   const handleAddStep = () => {
-    if (steps.length >= 8) {
-      alert('You can add a maximum of 8 steps.')
+    const template = templates[activeTemplate as keyof typeof templates]
+    if (steps.length >= 10) {
+      alert('You can add up to 10 cards only.')
       return
     }
-    const newStepKey = `custom-${Date.now()}`
-    const template = templates[activeTemplate as keyof typeof templates]
-    const newStep = generateStep(newStepKey, `New Step ${steps.length + 1}`, template.hasImage)
+    const index = steps.length + 1
+    const newKey = `custom-${Date.now()}`
+    const newStep = generateStep(newKey, `Step ${index}`, template.hasImage)
     setSteps(prev => [...prev, newStep])
     setForm(prev => [...prev, { prompt: '', desc: '' }])
   }
 
   const handleDeleteStep = (indexToDelete: number) => {
-    if (steps.length <= 1) {
-      alert('You must have at least one step.')
-      return
-    }
+    if (steps.length <= 1) return
     setSteps(prev => prev.filter((_, i) => i !== indexToDelete))
     setForm(prev => prev.filter((_, i) => i !== indexToDelete))
   }
@@ -706,7 +697,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   // Show loading state if user is not loaded
   if (!userId && isLoaded) {
     return (
-      <div className="bg-[#F5F2ED] min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+  <div className="bg-white min-h-screen py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[1920px] mx-auto">
           <div className="text-center">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Authentication Required</h2>
@@ -720,7 +711,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   // Show loading state while user is being loaded
   if (!isLoaded) {
     return (
-      <div className="bg-[#F5F2ED] min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+  <div className="bg-white min-h-screen py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[1920px] mx-auto">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
@@ -737,264 +728,132 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   }
 
   return (
-    <div className="bg-[#F5F2ED] min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-[1920px] mx-auto">
-        <div className="mb-12">
-          <h2 className="text-4xl font-bold text-gray-900">Quick Start</h2>
-          <p className="mt-2 text-lg text-gray-500">
-            Get started with templates or create your own story flow.
-          </p>
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Left Panel: Settings */}
-          <div className="lg:w-1/4">
-            <div className="sticky top-12 bg-white p-8 rounded-md border-2 border-gray-900 shadow-[2px_2px_0_0_#000000]">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">Templates</h3>
-
-              {/* Project Title Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Project Title</label>
-                <input
-                  type="text"
-                  value={projectTitle}
-                  onChange={e => setProjectTitle(e.target.value)}
-                  placeholder="Enter project title..."
-                  className="w-full border-2 border-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-opacity-50"
-                />
-              </div>
-
-              <div className="w-full mb-10">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="reverse"
-                      className="w-full justify-between rounded-md transition-all"
-                    >
-                      <span className="flex items-center gap-2">
-                        {activeSettingsView === 'structure' && (
-                          <LayoutTemplate className="w-5 h-5" />
-                        )}
-                        {activeSettingsView === 'camera' && <Camera className="w-5 h-5" />}
-                        {activeSettingsView === 'style' && <Palette className="w-5 h-5" />}
-                        {activeSettingsView === 'structure'
-                          ? 'Structure'
-                          : activeSettingsView === 'camera'
-                            ? 'Camera'
-                            : 'Style'}
-                      </span>
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-white border-2 border-gray-900 rounded-md">
-                    <DropdownMenuLabel>Menu</DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-gray-900" />
-                    <DropdownMenuRadioGroup
-                      value={activeSettingsView}
-                      onValueChange={value => setActiveSettingsView(value as SettingsView)}
-                    >
-                      <DropdownMenuRadioItem
-                        value="structure"
-                        className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                      >
-                        <LayoutTemplate className="w-4 h-4 mr-2" />
-                        Structure
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="camera"
-                        className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                      >
-                        <Camera className="w-4 h-4 mr-2" />
-                        Camera
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="style"
-                        className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                      >
-                        <Palette className="w-4 h-4 mr-2" />
-                        Style
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <div className="border-t-2 border-gray-900 pt-4">
-                {activeSettingsView === 'structure' && (
-                  <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-gray-900">Frameworks</h3>
-                    <div className="mb-6">
-                      <DropdownMenu>
+    <div className="flex flex-col">
+      <div className="mb-6">
+        <label htmlFor="project-title" className="sr-only">Project title</label>
+        <input
+          id="project-title"
+          type="text"
+          value={projectTitle}
+          onChange={e => setProjectTitle(e.target.value)}
+          placeholder="Untitled Project"
+          className="w-full text-2xl font-semibold text-gray-900 bg-transparent border-0 p-0 outline-none placeholder-gray-400"
+        />
+        <p className="mt-1 text-sm text-gray-500">Choose a template and add cards as needed.</p>
+      </div>
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-10"
+      >
+  {/* Top Controls */}
+  <div className="flex flex-wrap items-end gap-6">
+                <div className="flex flex-wrap gap-4 ml-auto items-end">
+                  <div className="min-w-[160px]">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Template</label>
+                    <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="reverse" className="w-full justify-between rounded-md">
-                            <span className="flex items-center gap-2">
-                              Frameworks:{' '}
-                              {activeFramework.charAt(0).toUpperCase() + activeFramework.slice(1)}
-                            </span>
-                            <ChevronDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-white border-2 border-gray-900 rounded-md">
-                          <DropdownMenuLabel>Frameworks</DropdownMenuLabel>
+                        <Button variant="primary" className="w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full">
+                          <span className="truncate text-left">{templates[activeTemplate as keyof typeof templates].name}</span>
+                          <span className="ml-2 text-gray-600">▼</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-64 p-0">
+                        <DropdownMenuLabel className="px-3 py-2 text-xs font-bold tracking-wide">Choose Template</DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-gray-900" />
+                        <DropdownMenuRadioGroup value={activeTemplate} onValueChange={val => handleTemplateChange(val as keyof typeof templates)}>
+                          {Object.entries(templates).map(([key, t]) => (
+                            <DropdownMenuRadioItem
+                              key={key}
+                              value={key}
+                              className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200"
+                            >
+                              {t.name}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="min-w-[150px]">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Mode</label>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button variant="primary" className="w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full">
+                          <span>{hasImage ? 'Image' : 'Text'}</span>
+                          <span className="ml-2 text-gray-600">▼</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
+                        <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Select Mode</DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-gray-900" />
+                        <DropdownMenuRadioGroup value={hasImage ? 'image' : 'text'} onValueChange={val => { setHasImage(val === 'image'); setModeManuallySet(true) }}>
+                          <DropdownMenuRadioItem value="image" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Image</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="text" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Text</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="min-w-[150px]">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Aspect</label>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="primary"
+                          disabled={!hasImage}
+                          className={`w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full ${!hasImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span>{selectedRatio}</span>
+                          <span className="ml-2 text-gray-600">▼</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      {hasImage && (
+                        <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
+                          <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Aspect Ratio</DropdownMenuLabel>
                           <DropdownMenuSeparator className="bg-gray-900" />
-                          <DropdownMenuRadioGroup
-                            value={activeFramework}
-                            onValueChange={value =>
-                              setActiveFramework(value as 'marketing' | 'storytelling' | 'all')
-                            }
-                          >
-                            <DropdownMenuRadioItem
-                              value="marketing"
-                              className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                            >
-                              Marketing
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem
-                              value="storytelling"
-                              className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                            >
-                              Storytelling
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem
-                              value="all"
-                              className="focus:bg-gray-200 data-[state=checked]:bg-gray-100 data-[state=checked]:text-gray-900"
-                            >
-                              All
-                            </DropdownMenuRadioItem>
+                          <DropdownMenuRadioGroup value={selectedRatio} onValueChange={val => setSelectedRatio(val as '1:1' | '9:16' | '16:9')}>
+                            {(['1:1', '9:16', '16:9'] as const).map(r => (
+                              <DropdownMenuRadioItem
+                                key={r}
+                                value={r}
+                                className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200"
+                              >
+                                {r}
+                              </DropdownMenuRadioItem>
+                            ))}
                           </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <div className="space-y-4">
-                      {Object.entries(templates)
-                        .filter(
-                          ([, template]) =>
-                            activeFramework === 'all' || template.category === activeFramework
-                        )
-                        .map(([key, template]) => (
-                          <Button
-                            key={key}
-                            type="button"
-                            variant="reverse"
-                            onClick={() => handleTemplateChange(key as keyof typeof templates)}
-                            className={`w-full justify-start text-left h-auto py-4 px-5 rounded-md ${activeTemplate === key ? 'bg-gray-900 text-white hover:shadow-none' : ''}`}
-                          >
-                            <div>
-                              <div className="font-bold">{template.name}</div>
-                              <div className="text-xs">{template.steps.length} steps</div>
-                            </div>
-                          </Button>
-                        ))}
-                      {Object.entries(templates).filter(
-                        ([, template]) =>
-                          activeFramework === 'all' || template.category === activeFramework
-                      ).length === 0 && (
-                        <div className="text-sm text-gray-500">
-                          No templates for this category yet.
-                        </div>
                       )}
-                    </div>
+                    </DropdownMenu>
+                    {/* Aspect helper text removed for text mode */}
                   </div>
-                )}
-
-                {activeSettingsView === 'camera' && (
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-gray-900">Camera Settings</h3>
-                    <p className="text-gray-600">
-                      Camera settings will be available in future updates.
-                    </p>
-                  </div>
-                )}
-
-                {activeSettingsView === 'style' && (
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-gray-900">Style Settings</h3>
-                    <p className="text-gray-600">
-                      Style settings will be available in future updates.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Panel: Storyboard Grid */}
-          <div className="lg:w-3/4">
-            <form
-              onSubmit={handleSubmit}
-              className="bg-white p-8 rounded-md border-2 border-gray-700 shadow-[2px_2px_0_0_#000000]"
-            >
-              {/* Image/Text Mode Toggle */}
-              <div className="flex justify-end mb-4">
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="reverse"
-                    onClick={() => setHasImage(true)}
-                    className={`px-4 py-2 h-10 min-w-[96px] border-2 border-gray-900 rounded-md text-sm font-medium transition-all ${
-                      hasImage
-                        ? 'bg-gray-900 text-white hover:bg-gray-800'
-                        : 'bg-white text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    With Image
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="reverse"
-                    onClick={() => setHasImage(false)}
-                    className={`px-4 py-2 h-10 min-w-[96px] border-2 border-gray-900 rounded-md text-sm font-medium transition-all ${
-                      !hasImage
-                        ? 'bg-gray-900 text-white hover:bg-gray-800'
-                        : 'bg-white text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Text Only
-                  </Button>
-                </div>
-              </div>
-              {hasImage && (
-                <div className="flex justify-end mb-4">
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="reverse"
-                      onClick={() => setSelectedRatio('1:1')}
-                      className={`px-4 py-2 h-10 min-w-[96px] border-2 border-gray-900 rounded-md text-sm font-medium transition-all ${
-                        selectedRatio === '1:1'
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'bg-white text-gray-900 hover:bg-gray-100'
-                      }`}
-                    >
-                      1:1
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="reverse"
-                      onClick={() => setSelectedRatio('9:16')}
-                      className={`px-4 py-2 h-10 min-w-[96px] border-2 border-gray-900 rounded-md text-sm font-medium transition-all ${
-                        selectedRatio === '9:16'
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'bg-white text-gray-900 hover:bg-gray-100'
-                      }`}
-                    >
-                      9:16
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="reverse"
-                      onClick={() => setSelectedRatio('16:9')}
-                      className={`px-4 py-2 h-10 min-w-[96px] border-2 border-gray-900 rounded-md text-sm font-medium transition-all ${
-                        selectedRatio === '16:9'
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'bg-white text-gray-900 hover:bg-gray-100'
-                      }`}
-                    >
-                      16:9
-                    </Button>
+                  <div className="min-w-[150px]">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Image Style</label>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="primary"
+                          disabled={!hasImage}
+                          className={`w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full ${!hasImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span>{useFluxPrompts ? 'Realistic' : 'Sketch'}</span>
+                          <span className="ml-2 text-gray-600">▼</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      {hasImage && (
+                        <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
+                          <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Image Style</DropdownMenuLabel>
+                          <DropdownMenuSeparator className="bg-gray-900" />
+                          <DropdownMenuRadioGroup value={useFluxPrompts ? 'realistic' : 'sketch'} onValueChange={val => setUseFluxPrompts(val === 'realistic')}>
+                            <DropdownMenuRadioItem value="realistic" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Realistic</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="sketch" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Sketch</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      )}
+                    </DropdownMenu>
                   </div>
                 </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+  </div>
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -1013,11 +872,23 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
                         form={form[idx]}
                         hasImage={hasImage}
                         onStepChange={handleChange}
-                        onDeleteStep={handleDeleteStep}
+                        onTitleChange={handleTitleChange}
+                        onDelete={handleDeleteStep}
                         stepsLength={steps.length}
                         isGeneratingImage={imageGenerationProgress[step.key]}
                       />
                     ))}
+          {steps.length < 10 && (
+                      <button
+                        type="button"
+                        onClick={handleAddStep}
+                        className="flex flex-col items-center justify-center border-1 border-gray-900 border-dashed rounded-md bg-gray-50 hover:bg-white transition-all min-h-[200px] md:min-h-[240px] group shadow-[2px_2px_0_0_#000000] hover:shadow-[4px_4px_0_0_#000000]"
+                      >
+                        <Plus className="h-12 w-12 mb-3 text-gray-500 group-hover:text-gray-900 transition-all" />
+                        <span className="text-base font-bold text-gray-600 group-hover:text-gray-900">Add Card</span>
+            <span className="mt-1 text-[10px] text-gray-400 group-hover:text-gray-600">{10 - steps.length} remaining</span>
+                      </button>
+                    )}
                   </SortableContext>
                   <DragOverlay dropAnimation={null}>
                     {activeId ? (
@@ -1033,56 +904,9 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
                     ) : null}
                   </DragOverlay>
                 </DndContext>
-                {steps.length < 8 && (
-                  <button
-                    type="button"
-                    onClick={handleAddStep}
-                    className="flex items-center justify-center border-2 border-dashed border-gray-400 rounded-md bg-gray-50 hover:bg-gray-100 hover:border-gray-900 transition-all min-h-[280px] group"
-                  >
-                    <div className="text-center text-gray-500 group-hover:text-gray-900 transition-all">
-                      <Plus className="h-10 w-10 mx-auto mb-2" />
-                      <span className="text-base font-bold">Add Step</span>
-                    </div>
-                  </button>
-                )}
-              </div>
-              {hasImage && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-700">Image Style:</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setUseFluxPrompts(true)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                          useFluxPrompts
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        Realistic
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUseFluxPrompts(false)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                          !useFluxPrompts
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        Sketch
-                      </button>
-                    </div>
-                    <span className="text-xs text-gray-500 ml-2">
-                      {useFluxPrompts
-                        ? 'High-quality realistic images'
-                        : 'Quick sketch-style drawings'}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-end mt-8 pt-6 border-t-2 border-gray-900 gap-4">
+  </div>
+  
+  <div className="flex justify-end pt-6 border-t border-gray-200 gap-4">
                 <Button type="button" variant="reverse" onClick={handleSkip}>
                   Skip to Editor
                 </Button>
@@ -1106,11 +930,8 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
                     'Generate Storyboard'
                   )}
                 </Button>
-              </div>
-            </form>
-          </div>
         </div>
-      </div>
+      </form>
     </div>
   )
 }

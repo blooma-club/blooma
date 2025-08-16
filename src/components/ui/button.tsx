@@ -21,7 +21,7 @@ const buttonVariants = cva(
 
         // 기존 primary 스타일 (네오-브루탈리즘 적용)
         primary:
-          "bg-primary text-primary-foreground border border-black font-semibold shadow-neo hover:translate-x-1 hover:translate-y-1 hover:shadow-none active:translate-x-px active:translate-y-px",
+          "bg-white text-black border border-black font-semibold hover:bg-blue-600 hover:text-white",
         
         // 그림자 없는 기본 스타일
         ghost: "hover:bg-black/10",
