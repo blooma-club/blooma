@@ -79,6 +79,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 # OpenRouter API for Gemini 2.0 Flash Experimental
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 
+# Image Generation (FAL AI Flux Schnell)
+# Get key at https://fal.ai -> Dashboard -> API Keys
+FAL_KEY=your_fal_api_key_here
+
 # Alternative AI Services (Optional)
 OPENAI_API_KEY=your_openai_api_key_here
 REPLICATE_API_TOKEN=your_replicate_api_token_here
@@ -98,7 +102,16 @@ REPLICATE_API_TOKEN=your_replicate_api_token_here
 - Better pricing and performance
 - Simplified authentication
 
-#### Step 2.2: Alternative AI Setup
+#### Step 2.2: FAL AI Setup (Image Generation)
+
+1. Create an account at https://fal.ai
+2. Generate an API key
+3. Add `FAL_KEY` to `.env.local`
+4. The app will use the `fal-ai/flux/schnell` model for storyboard frame images.
+
+If `FAL_KEY` is missing, placeholder images are used as a fallback.
+
+#### Step 2.3: Alternative AI Setup
 
 If you prefer to use other AI services directly:
 

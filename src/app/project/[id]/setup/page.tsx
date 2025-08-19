@@ -15,11 +15,7 @@ export default async function ProjectSetupPage({ params }: { params: Promise<{ i
         </header>
         <main className="flex-1 overflow-auto bg-white">
           <div className="w-full p-4 md:p-6 lg:p-8">
-            <div className="w-full rounded-xl shadow-lg border border-gray-700 bg-white flex flex-col">
-              <div className="flex-1 p-6 md:p-8">
-                <SetupForm id={id} />
-              </div>
-            </div>
+            <SetupForm id={id} />
           </div>
         </main>
       </div>

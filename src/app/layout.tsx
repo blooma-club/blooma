@@ -1,4 +1,5 @@
 import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
+import ToasterProvider from '@/components/ui/toast';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -36,11 +37,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
       >
         <SupabaseProvider>
-          <div id="root" className="relative flex min-h-screen flex-col">
-            <main className="flex-1">
-              {children}
-            </main>
-          </div>
+          <ToasterProvider>
+            <div id="root" className="relative flex min-h-screen flex-col">
+              <main className="flex-1">
+                {children}
+              </main>
+            </div>
+          </ToasterProvider>
         </SupabaseProvider>
       </body>
     </html>

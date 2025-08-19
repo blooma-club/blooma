@@ -183,4 +183,5 @@ export interface CustomCardNodeData extends Record<string, unknown> {
   userInput?: string // User input prompt for generating/editing content
   imageUrls?: string[] // Array of image URLs
   selectedImageUrl?: number // Index of selected image
+  imageUrl?: string // Single primary image URL for backward compatibility
 } 

@@ -1,937 +1,560 @@
-'use client'
+"use client"
 
-import React, { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
-import { GripVertical, Loader2, Plus, Trash2 } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from '@/components/ui/dropdown-menu'
-import { InitialCardData, Storyboard, Card, Project } from '@/types'
-import { useCanvasStore } from '@/store/canvas'
-import { useUserStore } from '@/store/user'
-import { generateImageWithEnhancedPrompt, generateStoryboardImage } from '@/lib/imageGeneration'
-import { supabase } from '@/lib/supabase'
-// Dropdown components removed with merged layout
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-} from '@dnd-kit/sortable'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-
-const templates = {
-  standard: {
-    category: 'marketing',
-    name: 'Standard Marketing',
-    hasImage: true,
-    steps: [
-      { key: 'hook', title: 'Hook' },
-      { key: 'problem', title: 'Problem' },
-      { key: 'solution', title: 'Solution' },
-      { key: 'evidence', title: 'Evidence' },
-      { key: 'benefit', title: 'Benefit' },
-      { key: 'cta', title: 'Call to Action' },
-    ],
-  },
-  pas: {
-    category: 'marketing',
-    name: 'PAS Framework',
-    hasImage: false,
-    steps: [
-      { key: 'problem', title: 'Problem' },
-      { key: 'agitate', title: 'Agitate' },
-      { key: 'solution', title: 'Solution' },
-    ],
-  },
-  aida: {
-    category: 'marketing',
-    name: 'AIDA Framework',
-    hasImage: false,
-    steps: [
-      { key: 'attention', title: 'Attention' },
-      { key: 'interest', title: 'Interest' },
-      { key: 'desire', title: 'Desire' },
-      { key: 'action', title: 'Action' },
-    ],
-  },
-  fab: {
-    category: 'marketing',
-    name: 'FAB Analysis',
-    hasImage: false,
-    steps: [
-      { key: 'features', title: 'Features' },
-      { key: 'advantages', title: 'Advantages' },
-      { key: 'benefits', title: 'Benefits' },
-    ],
-  },
-  problemSolution: {
-    category: 'marketing',
-    name: 'Problem & Solution',
-    hasImage: true,
-    steps: [
-      { key: 'problem', title: 'Problem' },
-      { key: 'solution', title: 'Solution' },
-      { key: 'benefits', title: 'Benefits' },
-    ],
-  },
-}
-
-const generateStep = (key: string, title: string, hasImage: boolean): Step => ({
-  key,
-  title,
-  hasImage,
-  promptLabel: hasImage ? 'Image Prompt' : '',
-  promptPlaceholder: hasImage ? 'Enter your prompt here...' : '',
-  descLabel: 'Description',
-  descPlaceholder: 'Write your Script here...',
-})
-
-type Step = {
-  key: string
-  title: string
-  hasImage: boolean
-  promptLabel: string
-  promptPlaceholder: string
-  descLabel: string
-  descPlaceholder: string
-}
-
-type StepForm = {
-  prompt: string
-  desc: string
-}
+import React, { useRef, useState } from 'react'
+import type { StoryboardFrame, BuildStoryboardOptions, StoryboardBuildResponse } from '@/types/storyboard'
+import { useParams } from 'next/navigation'
 
 type SetupFormProps = {
-  id: string
-  onSubmit?: (data: { steps: InitialCardData[] }) => void
+  id?: string
+  onSubmit?: (payload: { mode: 'write' | 'upload'; text?: string; file?: File | null }) => void
 }
 
-// Removed settings view / frameworks sidebar in merged layout
+export default function SetupForm({ onSubmit }: SetupFormProps) {
 
-// Sortable Card Component
-interface SortableCardProps {
-  step: Step
-  index: number
-  form: StepForm
-  hasImage: boolean
-  onStepChange: (index: number, field: keyof StepForm, value: string) => void
-  onTitleChange: (index: number, title: string) => void
-  onDelete: (index: number) => void
-  isGeneratingImage?: boolean
-  stepsLength: number
-}
+  const [mode, setMode] = useState<'paste' | 'upload'>('paste')
+  const [textValue, setTextValue] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [storyboardLoading, setStoryboardLoading] = useState(false)
+  const [view, setView] = useState<'script' | 'storyboard'>('script')
+  // Storyboard frames state
+  const [frames, setFrames] = useState<StoryboardFrame[]>([])
+  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
+  const [storyboardTitle, setStoryboardTitle] = useState<string>('Storyboard')
+  const [genResult, setGenResult] = useState<string | null>(null)
+  const [showGenModal, setShowGenModal] = useState(false)
 
-function SortableCard({ step, index, form, hasImage, onStepChange, onTitleChange, onDelete, isGeneratingImage, stepsLength }: SortableCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: step.key,
-  })
+  // Visual / layout settings (right panel)
+  const [ratio, setRatio] = useState<'16:9' | '4:3' | '1:1' | '9:16'>('16:9')
+  const [visualStyle, setVisualStyle] = useState<string>('photo')
+  // Removed advanced visual settings (lighting, tone, mood, camera, grid, guides) per simplification request
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.95 : 1,
-    zIndex: isDragging ? 50 : 'auto',
-  } as React.CSSProperties
+  const stylePresets: { id: string; label: string; img: string; desc: string }[] = [
+  { id: 'photo', label: 'Photo realistic', img: '/styles/photo.jpg', desc: 'Photorealistic imagery' },
+    { id: 'cinematic', label: 'Cinematic', img: '/styles/cinematic.jpg', desc: 'Film-like lighting & depth' },
+    { id: 'watercolor', label: 'Watercolor', img: '/styles/watercolor.jpg', desc: 'Soft pigment wash' },
+    { id: 'lineart', label: 'Line Art', img: '/styles/lineart.jpg', desc: 'Clean monochrome lines' },
+    { id: 'pixel', label: 'Pixel', img: '/styles/pixel.jpg', desc: 'Retro low-res charm' },
+  ]
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`border-1 border-gray-900 rounded-md bg-[#F9F2E7] flex flex-col h-full shadow-[2px_2px_0_0_#000000] ${isDragging ? 'ring-2 ring-gray-900 scale-[1.01] shadow-lg' : ''}`}
-    >
-  <div className="flex justify-between items-center p-3 gap-2 bg-[#2B6CB0] text-white rounded-t-md">
-        <div className="flex items-center gap-2">
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
-          >
-            <GripVertical className="h-4 w-4 text-white" />
-          </div>
-          <input
-            value={step.title}
-            onChange={e => {
-              onTitleChange(index, e.target.value)
-            }}
-            className="bg-transparent font-bold text-lg outline-none w-full text-white placeholder:text-white"
-          />
+  // Carousel & modal state (may have been removed earlier)
+  const carouselRef = useRef<HTMLDivElement | null>(null)
+  const [showGalleryModal, setShowGalleryModal] = useState(false)
+  const [gallerySearch, setGallerySearch] = useState('')
+
+  const scrollByPage = (dir: number) => {
+    const el = carouselRef.current
+    if (!el) return
+    const step = Math.max(160, Math.floor(el.clientWidth * 0.6))
+    el.scrollBy({ left: dir * step, behavior: 'smooth' })
+  }
+
+  const fileRef = useRef<HTMLInputElement | null>(null)
+
+  const ACCEPTED = [
+    'text/plain',
+    'text/markdown',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
+  const MAX_MB = 10
+
+  const resetAll = () => {
+    setMode('paste')
+    setTextValue('')
+    setFile(null)
+    setFileError(null)
+    setSuccess(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError(null)
+    const f = e.target.files?.[0] ?? null
+    if (!f) { setFile(null); return }
+    const name = f.name.toLowerCase()
+    if (
+      !ACCEPTED.includes(f.type) &&
+      !name.endsWith('.txt') &&
+      !name.endsWith('.md') &&
+      !name.endsWith('.pdf') &&
+      !name.endsWith('.docx')
+    ) {
+      setFileError('Unsupported file type. Please provide TXT, MD, PDF, or DOCX.')
+      setFile(null)
+      return
+    }
+    if (f.size > MAX_MB * 1024 * 1024) {
+      setFileError(`File too large. Max ${MAX_MB}MB.`)
+      setFile(null)
+      return
+    }
+    setFile(f)
+    if (
+      f.type === 'text/plain' ||
+      f.type === 'text/markdown' ||
+      name.endsWith('.txt') ||
+      name.endsWith('.md')
+    ) {
+      try {
+        const txt = await f.text()
+        setTextValue(txt)
+      } catch {
+        setFileError('Failed to read TXT or MD file.')
+      }
+    } else if (f.type === 'application/pdf' || name.endsWith('.pdf')) {
+      setTextValue('PDF file uploaded. Preview not available.')
+    } else if (
+      f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      name.endsWith('.docx')
+    ) {
+      setTextValue('DOCX file uploaded. Preview not available.')
+    } else {
+      // Keep existing text value (user may have written something previously); don't overwrite
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const f = e.dataTransfer.files?.[0] ?? null
+    if (f) {
+      await handleFileChange({ target: { files: [f] } } as unknown as React.ChangeEvent<HTMLInputElement>)
+      setMode('upload')
+    }
+  }
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    setFileError(null)
+  if (mode === 'upload' && !file) { setFileError('Please upload a file or switch to Write mode.'); return }
+  if (mode === 'paste' && !textValue.trim()) { setFileError('Please enter text or switch to Upload mode.'); return }
+
+    setSubmitting(true)
+    try {
+  const payload: { mode: 'write' | 'upload'; text?: string; file?: File | null } = { mode: mode === 'paste' ? 'write' : 'upload', text: textValue, file }
+      onSubmit?.(payload)
+  setSuccess('Saved successfully.')
+      setTimeout(() => setSuccess(null), 4000)
+    } catch {
+      setFileError('Submission failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleGenerateScript = async () => {
+    // Use existing Script (textValue) as the brief for AI generation.
+    setFileError(null)
+  if (mode !== 'paste') { setFileError('Please switch to Write mode to use AI generation.'); return }
+  if (!textValue.trim()) { setFileError('Please enter a script.'); return }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/script/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brief: textValue })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      if (typeof data.script === 'string') {
+        // show preview modal so user can accept/append
+        setGenResult(data.script)
+        setShowGenModal(true)
+        setMode('paste')
+      } else {
+        setFileError('The generated script is empty.')
+      }
+    } catch (e: any) {
+      setFileError(e.message || 'Generation failed')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const params = useParams()
+  const projectIdFromParams = (params as any)?.id
+
+  // SSE stream management (encapsulated for clarity)
+  const sseRef = React.useRef<EventSource | null>(null)
+  const startStoryboardStream = (id: string) => {
+    if (sseRef.current) { sseRef.current.close(); sseRef.current = null }
+    const attach = (attempt = 0) => {
+      const es = new EventSource(`/api/storyboard/stream?id=${encodeURIComponent(id)}`)
+      sseRef.current = es
+      const parseJSON = (raw: string) => { try { return JSON.parse(raw) } catch { return null } }
+      es.addEventListener('init', (e: MessageEvent) => {
+  const data = parseJSON(e.data)
+  if (data?.title) setStoryboardTitle(data.title)
+  if (data?.frames) setFrames(data.frames as StoryboardFrame[])
+      })
+      es.addEventListener('frame', (e: MessageEvent) => {
+        const data = parseJSON(e.data)
+        const frame: StoryboardFrame | undefined = data?.frame
+        if (frame?.id) {
+          setFrames(prev => {
+            const idx = prev.findIndex(f => f.id === frame.id)
+            if (idx === -1) return [...prev, frame]
+            const copy = [...prev]; copy[idx] = { ...prev[idx], ...frame }; return copy
+          })
+        }
+      })
+      es.addEventListener('complete', (e: MessageEvent) => {
+        const data = parseJSON(e.data)
+        if (Array.isArray(data?.frames)) setFrames(data.frames as StoryboardFrame[])
+      })
+      es.addEventListener('end', () => { es.close(); sseRef.current = null })
+      es.onerror = () => {
+        es.close()
+        if (attempt < 5) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 8000)
+          setTimeout(() => attach(attempt + 1), delay)
+        } else {
+          setFileError('SSE 연결 실패. 잠시 후 다시 시도하세요.')
+        }
+      }
+    }
+    attach()
+  }
+  React.useEffect(() => () => { if (sseRef.current) sseRef.current.close() }, [])
+
+  const handleGenerateStoryboard = async () => {
+    setFileError(null)
+    if (!textValue.trim()) { setFileError('Please enter a script before generating storyboard.'); return }
+    setStoryboardLoading(true)
+    try {
+    const payload: BuildStoryboardOptions = { projectId: projectIdFromParams, script: textValue, visualStyle, ratio, mode: 'async' }
+      const res = await fetch('/api/storyboard/build', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      })
+    let data: StoryboardBuildResponse | null = null
+    try {
+      data = await res.json()
+    } catch (jsonErr) {
+      const txt = await res.text().catch(() => '')
+      console.error('Non-JSON response from /api/storyboard/build', res.status, txt)
+      throw new Error(`Server returned ${res.status}: ${txt || 'Non-JSON response'}`)
+    }
+      if (!res.ok) throw new Error((data && (data as any).error) || 'Failed to build storyboard')
+      if (!data) throw new Error('Invalid server response')
+      const sbId = data.storyboardId
+      if (sbId) {
+        if (Array.isArray(data.frames)) setFrames(data.frames as StoryboardFrame[])
+        if (data.title) setStoryboardTitle(data.title)
+  startStoryboardStream(sbId)
+        setView('storyboard')
+      } else {
+        setFileError('No storyboard ID returned.')
+      }
+    } catch (e: any) {
+      setFileError(e.message || 'Storyboard generation failed')
+    } finally {
+      setStoryboardLoading(false)
+    }
+  }
+
+  // Removed polling in favor of SSE
+  // viewport width to tune grid behavior
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  React.useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth)
+    if (typeof window !== 'undefined') window.addEventListener('resize', onResize)
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('resize', onResize) }
+  }, [])
+
+  // Decide how many columns to show based on aspect ratio and viewport width
+  const colsForRatio = (r: string) => {
+    // wide monitor -> favor larger cards (fewer cols)
+    const wide = viewportWidth >= 1600
+    if (r === '1:1') return wide ? 4 : 3
+    if (r === '9:16') return wide ? 2 : 1
+    // default 16:9 and others
+    return wide ? 3 : 2
+  }
+
+  const gridClassesForRatio = (r: string) => {
+    const cols = colsForRatio(r)
+    // produce responsive classes: base 1, sm 2, md 2, lg = cols
+    return `grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-${cols} gap-8 w-full px-4`
+  }
+
+  const imageStyleForRatio = (r: string) => {
+    const parts = (r || '16:9').split(':').map(n => Number(n) || 1)
+    return { aspectRatio: `${parts[0]}/${parts[1]}` }
+  }
+  // Pre-built views for clarity
+  const scriptView = (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      {/* Left: Script form */}
+      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-10 rounded-xl ring-1 ring-gray-200 shadow-sm flex flex-col lg:col-span-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Storyboard Script</h2>
+          <div className="text-xs text-gray-500">Upload or write directly</div>
         </div>
-        <button
-          type="button"
-          onClick={() => onDelete(index)}
-          disabled={stepsLength <= 1}
-          className="h-8 w-8 inline-flex items-center justify-center rounded-md border-1 border-gray-900 text-gray-100 hover:bg-red-500 hover:text-white disabled:opacity-40"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="flex-grow space-y-3 p-4 bg-[#F9F2E7]">
-        {hasImage && (
-          <div className="w-full">
-            <label className="text-sm font-bold text-gray-800 mb-1.5 block">
-              Image Prompt
-              {isGeneratingImage && (
-                <span className="ml-2 inline-flex items-center gap-1 text-white">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Generating...
-                </span>
-              )}
-            </label>
-            <textarea
-              className="w-full border-1 border-gray-900 rounded-md p-2 text-sm min-h-[90px] outline-none bg-white"
-              placeholder={step.promptPlaceholder}
-              value={form.prompt || ''}
-              onChange={e => onStepChange(index, 'prompt', e.target.value)}
-              required
-            />
+        <div className="space-y-4">
+          <div className="border-t pt-4 space-y-3">
+            <div role="tablist" aria-label="Mode" className="inline-flex items-center rounded-md bg-gray-100 p-1 gap-1">
+              <button type="button" role="tab" aria-selected={mode==='paste'} onClick={() => setMode('paste')} className={`px-4 py-2 text-sm focus:outline-none rounded-md ${mode==='paste' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>Write</button>
+              <button type="button" role="tab" aria-selected={mode==='upload'} onClick={() => setMode('upload')} className={`px-4 py-2 text-sm focus:outline-none rounded-md ${mode==='upload' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>Upload</button>
+            </div>
+            {mode==='paste' && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Script</label>
+                <textarea value={textValue} onChange={e=>setTextValue(e.target.value)} placeholder="Write your storyboard script here..." className="w-full p-4 border border-gray-700 rounded-md min-h-[320px] text-sm focus:outline-none focus:ring-1 focus:ring-gray-700" />
+                <div className="mt-1 text-[11px] text-gray-500 flex justify-between"><span>{textValue.length} chars</span><span>Shift+Enter for line break</span></div>
+              </div>
+            )}
+            {mode==='upload' && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Attach TXT, MD, PDF, or DOCX</label>
+                <div onDrop={handleDrop} onDragOver={e=>e.preventDefault()} onClick={() => fileRef.current?.click()} className="border border-dashed border-gray-700 rounded-md p-6 text-center cursor-pointer hover:bg-gray-50 transition w-full min-h-[320px] flex flex-col justify-center">
+                  <input ref={fileRef} type="file" accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
+                  {!file && <div className="text-sm text-gray-600">Drag & drop or <span className="underline">browse</span></div>}
+                  {file && <div className="text-sm text-gray-800">{file.name} • {(file.size/1024).toFixed(1)} KB</div>}
+                  <p className="mt-2 text-[11px] text-gray-500">TXT/MD preview • PDF/DOCX upload only</p>
+                </div>
+                {file && (file.type==='text/plain' || file.type==='text/markdown' || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) && (
+                  <div className="mt-3">
+                    <div className="text-xs font-medium text-gray-600 mb-1">Preview</div>
+                    <div className="p-3 border border-gray-700 rounded-md bg-white text-xs max-h-56 overflow-auto whitespace-pre-wrap">{textValue.slice(0,800) || 'Empty file'}</div>
+                    {textValue.length>800 && <div className="text-[10px] text-gray-500 mt-1">(Truncated)</div>}
+                  </div>
+                )}
+                {file && (file.type==='application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && <div className="mt-3 text-xs text-gray-500">PDF uploaded. Preview not available.</div>}
+                {file && (file.type==='application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) && <div className="mt-3 text-xs text-gray-500">DOCX uploaded. Preview not available.</div>}
+                {fileError && <div className="mt-2 text-sm text-red-600">{fileError}</div>}
+              </div>
+            )}
           </div>
-        )}
-        <div className="w-full">
-          <label className="text-sm font-bold text-gray-800 mb-1.5 block">Description</label>
-          <textarea
-            className={`w-full border-1 border-gray-900 rounded-md p-2 text-sm ${hasImage ? 'min-h-[90px]' : 'min-h-[180px]'} outline-none bg-white`}
-            placeholder="Write your content here..."
-            value={form.desc || ''}
-            onChange={e => onStepChange(index, 'desc', e.target.value)}
-            required
-          />
+          {mode==='paste' && <div className="text-[11px] text-gray-500">Your script will be used to generate the storyboard.</div>}
+          {success && <div className="text-sm text-green-700">{success}</div>}
+          {fileError && <div className="text-sm text-red-600">{fileError}</div>}
         </div>
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <button type="button" onClick={handleGenerateScript} disabled={generating} className="px-5 py-2 rounded-md bg-black text-white min-w-[160px] disabled:opacity-60">{generating ? 'Generating...' : 'Generate Script'}</button>
+        </div>
+      </form>
+      {/* Right: Visual settings */}
+      <div className="lg:col-span-1 flex flex-col gap-4">
+        <div className="rounded-xl bg-white ring-1 ring-gray-200 shadow-sm p-6 md:p-7 flex flex-col overflow-hidden">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Visual Settings</h3>
+          <div className="flex-1 pr-1 space-y-6 text-[13px]">
+            <section>
+              <div className="font-medium mb-2 flex items-center justify-between"><span>Aspect Ratio</span></div>
+              <div className="flex flex-wrap gap-2">
+                {(['16:9','4:3','1:1','9:16'] as const).map(r => (
+                  <button key={r} type="button" aria-pressed={ratio===r} onClick={() => setRatio(r)} className={`px-3 py-1.5 rounded-md border text-xs font-medium transition ${ratio===r ? 'bg-black text-white border-black' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'}`}>{r}</button>
+                ))}
+              </div>
+            </section>
+            <section>
+              <div className="font-medium mb-2 flex items-center justify-between"><span>Visual Style</span></div>
+              <button type="button" onClick={() => setShowGalleryModal(true)} className="group relative flex flex-col rounded-lg overflow-hidden border ring-2 ring-black border-black text-left focus:outline-none transition w-full" aria-label={`Current visual style ${stylePresets.find(s=>s.id===visualStyle)?.label} (selected)`}>
+                <div className="aspect-[4/3] w-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-500">
+                  <img src={stylePresets.find(s=>s.id===visualStyle)?.img} alt={stylePresets.find(s=>s.id===visualStyle)?.label} className="absolute inset-0 w-full h-full object-cover" />
+                  <span className="relative z-10 bg-black/60 text-white px-1 rounded-sm">Selected</span>
+                </div>
+                <div className="px-2 py-1.5 text-xs font-medium flex items-center gap-1 bg-black text-white relative">{stylePresets.find(s=>s.id===visualStyle)?.label}</div>
+              </button>
+            </section>
+          </div>
+        </div>
+        <button type="button" onClick={handleGenerateStoryboard} disabled={storyboardLoading || !textValue.trim()} className="w-full py-2.5 rounded-md bg-black text-white text-sm font-medium hover:bg-black/90 transition disabled:opacity-50 disabled:cursor-not-allowed">{storyboardLoading ? 'Generating Storyboard…' : (frames.length ? 'Regenerate Storyboard' : 'Generate Storyboard')}</button>
       </div>
     </div>
   )
-}
 
-export default function SetupForm({ id, onSubmit }: SetupFormProps) {
-  // Dynamic steps: start from template only
-  const initialTemplate = templates.standard
-  const initialSteps = initialTemplate.steps.map(t =>
-    generateStep(t.key, t.title, initialTemplate.hasImage),
-  )
-  const [steps, setSteps] = useState<Step[]>(initialSteps)
-  const [form, setForm] = useState<StepForm[]>(initialSteps.map(() => ({ prompt: '', desc: '' })))
-  const [activeTemplate, setActiveTemplate] = useState('standard')
-  const [hasImage, setHasImage] = useState(true)
-  // Track if the user has manually changed mode so template switches don't override
-  const [modeManuallySet, setModeManuallySet] = useState(false)
-  const [selectedRatio, setSelectedRatio] = useState<'1:1' | '9:16' | '16:9'>('16:9')
-  const [isGeneratingImages, setIsGeneratingImages] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [useFluxPrompts, setUseFluxPrompts] = useState(true) // Toggle for FLUX vs Storyboard prompts
-  const [imageGenerationProgress, setImageGenerationProgress] = useState<{
-    [key: string]: boolean
-  }>({})
-  const [projectData, setProjectData] = useState<Project | null>(null)
-  const [projectTitle, setProjectTitle] = useState('')
-  const router = useRouter()
-
-  // Store hooks
-  const setStoryboard = useCanvasStore(s => s.setStoryboard)
-  const setCards = useCanvasStore(s => s.setCards)
-  const { userId, isLoaded } = useUserStore()
-  const [isAuthenticating, setIsAuthenticating] = useState(false)
-
-  // Debug function to check authentication status
-  const debugAuthStatus = async () => {
-    try {
-      // Check Supabase session
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-
-      // Check browser cookies
-      if (typeof window !== 'undefined') {
-        const cookies = document.cookie.split(';').map(c => c.trim())
-        const supabaseCookies = cookies.filter(c => c.startsWith('sb-'))
-      }
-
-      // Test API endpoint
-      try {
-        const response = await fetch('/api/cards?debug=auth')
-        const debugData = await response.json()
-      } catch (apiError) {
-        console.error('API debug failed:', apiError)
-      }
-    } catch (error) {
-      console.error('Debug function failed:', error)
-    }
-  }
-
-  // Debug user state
-  useEffect(() => {
-    // Debug auth status when user state changes
-    if (userId && isLoaded) {
-      debugAuthStatus()
-    }
-  }, [userId, isLoaded])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  const [activeId, setActiveId] = useState<string | null>(null)
-
-  // Fetch existing project data if it exists
-  useEffect(() => {
-    const fetchProjectData = async () => {
-      if (!id || !userId) return
-
-      try {
-        const response = await fetch(`/api/projects?user_id=${userId}`)
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.data) {
-            const existingProject = result.data.find((p: Project) => p.id === id)
-            if (existingProject) {
-              setProjectData(existingProject)
-              setProjectTitle(existingProject.title)
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching project data:', error)
-      }
-    }
-
-    fetchProjectData()
-  }, [id, userId])
-
-  // Initialize project title with default template
-  useEffect(() => {
-    if (!projectTitle && !projectData) {
-      const template = templates[activeTemplate as keyof typeof templates]
-      setProjectTitle(`Project ${template.name}`)
-    }
-  }, [projectTitle, projectData, activeTemplate])
-
-  const handleTemplateChange = (templateKey: keyof typeof templates) => {
-    const template = templates[templateKey]
-    const baseSteps = template.steps.map(t => generateStep(t.key, t.title, template.hasImage))
-    setSteps(baseSteps)
-    setForm(baseSteps.map(() => ({ prompt: '', desc: '' })))
-    // Only apply template default image mode if user hasn't manually chosen
-    if (!modeManuallySet) {
-      setHasImage(template.hasImage)
-    }
-    setActiveTemplate(templateKey)
-    if (!projectTitle || projectTitle.startsWith('Project ')) {
-      setProjectTitle(`Project ${template.name}`)
-    }
-  }
-
-  const handleTitleChange = (index: number, title: string) => {
-    setSteps(prev => prev.map((s, i) => (i === index ? { ...s, title } : s)))
-  }
-
-  const handleChange = (index: number, field: keyof StepForm, value: string) => {
-    const newForm = [...form]
-    newForm[index][field] = value
-    setForm(newForm)
-  }
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(String(event.active.id))
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (active.id !== over?.id) {
-      const oldIndex = steps.findIndex(step => step.key === active.id)
-      const newIndex = steps.findIndex(step => step.key === over?.id)
-
-      setSteps(arrayMove(steps, oldIndex, newIndex))
-      setForm(arrayMove(form, oldIndex, newIndex))
-    }
-    setActiveId(null)
-  }
-
-  const handleAddStep = () => {
-    const template = templates[activeTemplate as keyof typeof templates]
-    if (steps.length >= 10) {
-      alert('You can add up to 10 cards only.')
-      return
-    }
-    const index = steps.length + 1
-    const newKey = `custom-${Date.now()}`
-    const newStep = generateStep(newKey, `Step ${index}`, template.hasImage)
-    setSteps(prev => [...prev, newStep])
-    setForm(prev => [...prev, { prompt: '', desc: '' }])
-  }
-
-  const handleDeleteStep = (indexToDelete: number) => {
-    if (steps.length <= 1) return
-    setSteps(prev => prev.filter((_, i) => i !== indexToDelete))
-    setForm(prev => prev.filter((_, i) => i !== indexToDelete))
-  }
-
-  const generateImagesForSteps = async (): Promise<{ [key: string]: string }> => {
-    const imageUrls: { [key: string]: string } = {}
-
-    // Only generate images for steps that have image prompts and are set to have images
-    const stepsWithImages = steps.filter((step, index) => hasImage && form[index]?.prompt?.trim())
-
-    if (stepsWithImages.length === 0) {
-      return imageUrls
-    }
-
-    setIsGeneratingImages(true)
-    setImageGenerationProgress({})
-
-    try {
-      for (const step of stepsWithImages) {
-        const stepIndex = steps.findIndex(s => s.key === step.key)
-        const prompt = form[stepIndex]?.prompt?.trim()
-
-        if (!prompt) continue
-
-        setImageGenerationProgress(prev => ({ ...prev, [step.key]: true }))
-
-        const result = useFluxPrompts
-          ? await generateImageWithEnhancedPrompt(prompt)
-          : await generateStoryboardImage(prompt)
-
-        if (result.success && result.imageUrl) {
-          imageUrls[step.key] = result.imageUrl
-        } else {
-          console.error(`Failed to generate image for step ${step.title}:`, result.error)
-        }
-
-        setImageGenerationProgress(prev => ({ ...prev, [step.key]: false }))
-      }
-    } catch (error) {
-      console.error('Error generating images:', error)
-    } finally {
-      setIsGeneratingImages(false)
-      setImageGenerationProgress({})
-    }
-
-    return imageUrls
-  }
-
-  const createOrUpdateProject = async (): Promise<string> => {
-    if (!userId) {
-      throw new Error('User not authenticated')
-    }
-
-    const projectPayload = {
-      title:
-        projectTitle ||
-        `Project ${activeTemplate.charAt(0).toUpperCase() + activeTemplate.slice(1)}`,
-      description: `Generated from ${templates[activeTemplate as keyof typeof templates].name} template`,
-      user_id: userId,
-      is_public: false,
-    }
-
-    if (projectData) {
-      // Update existing project
-
-      const response = await fetch('/api/projects', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...projectPayload, id }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Failed to update project:', response.status, errorText)
-        throw new Error('Failed to update project')
-      }
-
-      const result = await response.json()
-
-      return id
-    } else {
-      // Create new project
-
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projectPayload),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Failed to create project:', response.status, errorText)
-        throw new Error('Failed to create project')
-      }
-
-      const result = await response.json()
-
-      return result.data.id
-    }
-  }
-
-  const createStoryboard = async (projectId: string): Promise<string> => {
-    if (!userId) {
-      throw new Error('User not authenticated')
-    }
-
-    const storyboardPayload = {
-      title: `${templates[activeTemplate as keyof typeof templates].name} Storyboard`,
-      description: `Generated from ${activeTemplate} template`,
-      project_id: projectId,
-      user_id: userId,
-      is_public: false,
-    }
-
-    const response = await fetch('/api/storyboards', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(storyboardPayload),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to create storyboard')
-    }
-
-    const result = await response.json()
-    return result.data.id
-  }
-
-  const createCards = async (
-    storyboardId: string,
-    imageUrls: { [key: string]: string }
-  ): Promise<void> => {
-    if (!userId) {
-      throw new Error('User not authenticated')
-    }
-
-    const cardsPayload = steps.map((step, index) => ({
-      storyboard_id: storyboardId,
-      user_id: userId,
-      type: step.key as 'hook' | 'problem' | 'solution' | 'evidence' | 'benefit' | 'cta',
-      title: step.title,
-      content: form[index]?.desc || '',
-      user_input: form[index]?.prompt || '',
-      image_urls: imageUrls[step.key] ? [imageUrls[step.key]] : [],
-      selected_image_url: imageUrls[step.key] ? 0 : 0,
-      position_x: 80 + index * 340,
-      position_y: 80,
-      width: 400,
-      height: 220,
-      // Styling is now hardcoded for consistency
-      order_index: index,
-    }))
-
-    const response = await fetch('/api/cards', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cardsPayload),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('Cards API error:', response.status, errorData)
-      throw new Error(`Failed to create cards: ${response.status} ${errorData.error || ''}`)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    // Double-check authentication state
-    if (!userId || !isLoaded) {
-      console.error('No userId found or user not fully loaded - user not authenticated')
-      alert('Please log in to continue')
-      return
-    }
-
-    // Ensure user is fully authenticated before proceeding
-    const ensureAuthenticated = async (retryCount = 0): Promise<any> => {
-      if (!userId || !isLoaded) {
-        throw new Error('User not authenticated')
-      }
-
-      setIsAuthenticating(true)
-      try {
-        // Double-check with Supabase directly
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-        if (error || !session?.user) {
-          console.error('Session validation failed:', error)
-
-          // If this is a retry and we still have userId, try to refresh the session
-          if (retryCount < 2 && userId) {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-            if (refreshError || !refreshData.session) {
-              throw new Error('Session refresh failed')
-            }
-            // Retry with refreshed session
-            return ensureAuthenticated(retryCount + 1)
-          }
-
-          throw new Error('Session validation failed')
-        }
-
-        if (session.user.id !== userId) {
-          console.error('User ID mismatch between store and session')
-          throw new Error('User ID mismatch')
-        }
-
-        return session.user
-      } catch (error) {
-        // If this is a retry and we still have userId, try to refresh the session
-        if (retryCount < 2 && userId) {
-          try {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-            if (!refreshError && refreshData.session) {
-              // Retry with refreshed session
-              return ensureAuthenticated(retryCount + 1)
-            }
-          } catch (refreshError) {
-            console.error('Session refresh failed:', refreshError)
-          }
-        }
-        throw error
-      } finally {
-        setIsAuthenticating(false)
-      }
-    }
-
-    try {
-      // Generate images first if needed
-      const imageUrls = await generateImagesForSteps()
-
-      // 1) Create or update project in database
-
-      const projectId = await createOrUpdateProject()
-
-      // 2) Create storyboard in database
-
-      const storyboardId = await createStoryboard(projectId)
-
-      // 3) Create cards in database
-      await createCards(storyboardId, imageUrls)
-
-      // 4) Map current steps + form data to InitialCardData shape
-      const mappedSteps: InitialCardData[] = steps.map((s, i) => ({
-        title: s.title,
-        content: form[i]?.desc || '',
-      }))
-      const submissionData = { steps: mappedSteps }
-
-      // 5) Optionally notify parent
-      if (onSubmit) onSubmit(submissionData)
-
-      // 6) Build a temporary storyboard and cards for the editor
-      const newStoryboard: Storyboard = {
-        id: storyboardId,
-        user_id: userId,
-        project_id: projectId,
-        title: `${templates[activeTemplate as keyof typeof templates].name} Storyboard`,
-        description: `Template: ${activeTemplate}`,
-        is_public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      const newCards: Card[] = mappedSteps.map((ms, index) => ({
-        id: `temp-card-${index + 1}-${Date.now()}`,
-        storyboard_id: storyboardId,
-        user_id: userId,
-        title: ms.title || `Step ${index + 1}`,
-        content: ms.content || '',
-        user_input: form[index]?.prompt || '',
-        type: steps[index].key as 'hook' | 'problem' | 'solution' | 'evidence' | 'benefit' | 'cta',
-        image_urls: imageUrls[steps[index].key] ? [imageUrls[steps[index].key]] : [],
-        selected_image_url: imageUrls[steps[index].key] ? 0 : 0,
-        // Styling is now hardcoded for consistency
-        position_x: 80 + index * 340,
-        position_y: 80,
-        width: 400,
-        height: 220,
-        order_index: index,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }))
-
-      // 7) Save to store so the editor can render it
-      setStoryboard(newStoryboard)
-      setCards(newStoryboard.id, newCards)
-
-      // 8) Navigate to editor
-
-      router.push(`/project/${projectId}/editor`)
-    } catch (error) {
-      console.error('Storyboard creation error:', error)
-      alert(`An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleSkip = async () => {
-    try {
-      router.push(`/project/${id}/editor`)
-    } catch (error) {
-      console.error('Skip setup error:', error)
-      alert('An unexpected error occurred during storyboard setup.')
-    }
-  }
-
-  // Show loading state if user is not loaded
-  if (!userId && isLoaded) {
-    return (
-  <div className="bg-white min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-[1920px] mx-auto">
-          <div className="text-center">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Authentication Required</h2>
-            <p className="text-lg text-gray-500">Please log in to create or edit projects.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show loading state while user is being loaded
-  if (!isLoaded) {
-    return (
-  <div className="bg-white min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-[1920px] mx-auto">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-900" />
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Loading...</h2>
-            <p className="text-lg text-gray-500">
-              Please wait while we verify your authentication.
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col">
-      <div className="mb-6">
-        <label htmlFor="project-title" className="sr-only">Project title</label>
-        <input
-          id="project-title"
-          type="text"
-          value={projectTitle}
-          onChange={e => setProjectTitle(e.target.value)}
-          placeholder="Untitled Project"
-          className="w-full text-2xl font-semibold text-gray-900 bg-transparent border-0 p-0 outline-none placeholder-gray-400"
-        />
-        <p className="mt-1 text-sm text-gray-500">Choose a template and add cards as needed.</p>
-      </div>
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-10"
-      >
-  {/* Top Controls */}
-  <div className="flex flex-wrap items-end gap-6">
-                <div className="flex flex-wrap gap-4 ml-auto items-end">
-                  <div className="min-w-[160px]">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Template</label>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="primary" className="w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full">
-                          <span className="truncate text-left">{templates[activeTemplate as keyof typeof templates].name}</span>
-                          <span className="ml-2 text-gray-600">▼</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-64 p-0">
-                        <DropdownMenuLabel className="px-3 py-2 text-xs font-bold tracking-wide">Choose Template</DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-gray-900" />
-                        <DropdownMenuRadioGroup value={activeTemplate} onValueChange={val => handleTemplateChange(val as keyof typeof templates)}>
-                          {Object.entries(templates).map(([key, t]) => (
-                            <DropdownMenuRadioItem
-                              key={key}
-                              value={key}
-                              className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200"
-                            >
-                              {t.name}
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+  const storyboardView = (
+    <div>
+      {frames.length === 0 && <div className="text-center text-sm text-gray-500 py-12">No frames. Generate a storyboard first.</div>}
+      {frames.length > 0 && (
+        <div className="flex justify-center">
+          <div className={gridClassesForRatio(ratio)}>
+            {frames.map((f, i) => (
+              <div key={f.id || i} className="mx-auto w-full group" style={{ maxWidth: 420 }}>
+                <div className="flex flex-col rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden h-full relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingFrame({ ...f })
+                    }}
+                    className="absolute top-2 right-2 z-30 px-2 py-1 text-[11px] rounded-md bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >Edit</button>
+                  <div className="relative w-full" style={imageStyleForRatio(ratio)}>
+                    {/* Image or Loading Skeleton */}
+                    {f.status === 'ready' && f.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={f.imageUrl}
+                        alt={f.shotDescription || `Frame ${i + 1}`}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    )}
+                    {f.status !== 'ready' && f.status !== 'error' && (
+                      <div className="absolute inset-0 flex items-center justify-center select-none">
+                        <div className="w-full h-full bg-[linear-gradient(110deg,#e5e7eb_8%,#f3f4f6_18%,#e5e7eb_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
+                        <style jsx>{`
+                          @keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
+                        `}</style>
+                        <div className="absolute bottom-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded bg-black/60 text-white capitalize tracking-wide">
+                          {f.status}
+                        </div>
+                      </div>
+                    )}
+                    {f.status === 'error' && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-red-500 text-[11px] bg-red-50">
+                        <span>Image Error</span>
+                        <span className="text-[10px] text-red-400">Retry Regenerate Later</span>
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm rounded-sm px-1.5 py-0.5 text-white text-[10px] font-medium tracking-wide">
+                      {i + 1}
+                    </div>
                   </div>
-                  <div className="min-w-[150px]">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Mode</label>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="primary" className="w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full">
-                          <span>{hasImage ? 'Image' : 'Text'}</span>
-                          <span className="ml-2 text-gray-600">▼</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
-                        <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Select Mode</DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-gray-900" />
-                        <DropdownMenuRadioGroup value={hasImage ? 'image' : 'text'} onValueChange={val => { setHasImage(val === 'image'); setModeManuallySet(true) }}>
-                          <DropdownMenuRadioItem value="image" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Image</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="text" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Text</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="min-w-[150px]">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Aspect</label>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="primary"
-                          disabled={!hasImage}
-                          className={`w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full ${!hasImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <span>{selectedRatio}</span>
-                          <span className="ml-2 text-gray-600">▼</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      {hasImage && (
-                        <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
-                          <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Aspect Ratio</DropdownMenuLabel>
-                          <DropdownMenuSeparator className="bg-gray-900" />
-                          <DropdownMenuRadioGroup value={selectedRatio} onValueChange={val => setSelectedRatio(val as '1:1' | '9:16' | '16:9')}>
-                            {(['1:1', '9:16', '16:9'] as const).map(r => (
-                              <DropdownMenuRadioItem
-                                key={r}
-                                value={r}
-                                className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200"
-                              >
-                                {r}
-                              </DropdownMenuRadioItem>
-                            ))}
-                          </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                      )}
-                    </DropdownMenu>
-                    {/* Aspect helper text removed for text mode */}
-                  </div>
-                  <div className="min-w-[150px]">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1 tracking-wide">Image Style</label>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="primary"
-                          disabled={!hasImage}
-                          className={`w-full justify-between h-12 px-4 text-sm font-medium border-2 border-gray-900 rounded-full ${!hasImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <span>{useFluxPrompts ? 'Realistic' : 'Sketch'}</span>
-                          <span className="ml-2 text-gray-600">▼</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      {hasImage && (
-                        <DropdownMenuContent className="bg-white border-2 border-gray-900 rounded-md w-56 p-0">
-                          <DropdownMenuLabel className="px-3 py-2 text-[10px] font-bold tracking-wide">Image Style</DropdownMenuLabel>
-                          <DropdownMenuSeparator className="bg-gray-900" />
-                          <DropdownMenuRadioGroup value={useFluxPrompts ? 'realistic' : 'sketch'} onValueChange={val => setUseFluxPrompts(val === 'realistic')}>
-                            <DropdownMenuRadioItem value="realistic" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Realistic</DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="sketch" className="text-xs px-3 py-2 cursor-pointer focus:bg-gray-100 data-[state=checked]:bg-gray-200">Sketch</DropdownMenuRadioItem>
-                          </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                      )}
-                    </DropdownMenu>
+                  <div className="p-3 flex flex-col gap-1">
+                      <div className="text-[11px] font-medium text-gray-500 tracking-wide">Scene {f.scene}</div>
+                      {(() => {
+                        const titleText = (f.title || '').trim()
+                        const firstLine = (f.shotDescription || '').split(/\r?\n/)[0].trim()
+                        if (titleText && titleText.toLowerCase() !== firstLine.toLowerCase()) {
+                          return <div className="text-xs font-semibold text-gray-800 line-clamp-1">{titleText}</div>
+                        }
+                        return null
+                      })()}
+                      <div className="text-[12px] text-gray-900 leading-5 break-words whitespace-pre-wrap">
+                        {(f.shotDescription && f.shotDescription.trim()) ? f.shotDescription : '—'}
+                      </div>
                   </div>
                 </div>
-  </div>
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={steps.map(step => step.key)}
-                    strategy={rectSortingStrategy}
-                  >
-                    {steps.map((step, idx) => (
-                      <SortableCard
-                        key={step.key}
-                        step={step}
-                        index={idx}
-                        form={form[idx]}
-                        hasImage={hasImage}
-                        onStepChange={handleChange}
-                        onTitleChange={handleTitleChange}
-                        onDelete={handleDeleteStep}
-                        stepsLength={steps.length}
-                        isGeneratingImage={imageGenerationProgress[step.key]}
-                      />
-                    ))}
-          {steps.length < 10 && (
-                      <button
-                        type="button"
-                        onClick={handleAddStep}
-                        className="flex flex-col items-center justify-center border-1 border-gray-900 border-dashed rounded-md bg-gray-50 hover:bg-white transition-all min-h-[200px] md:min-h-[240px] group shadow-[2px_2px_0_0_#000000] hover:shadow-[4px_4px_0_0_#000000]"
-                      >
-                        <Plus className="h-12 w-12 mb-3 text-gray-500 group-hover:text-gray-900 transition-all" />
-                        <span className="text-base font-bold text-gray-600 group-hover:text-gray-900">Add Card</span>
-            <span className="mt-1 text-[10px] text-gray-400 group-hover:text-gray-600">{10 - steps.length} remaining</span>
-                      </button>
-                    )}
-                  </SortableContext>
-                  <DragOverlay dropAnimation={null}>
-                    {activeId ? (
-                      <div className="border-1 border-gray-900 rounded-md bg-white shadow-xl opacity-90 pointer-events-none p-4 w-[280px]">
-                        <div className="flex items-center gap-2 mb-2">
-                          <GripVertical className="h-4 w-4 text-gray-500" />
-                          <span className="font-bold">
-                            {steps.find(s => s.key === activeId)?.title}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded" />
-                      </div>
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
-  </div>
-  
-  <div className="flex justify-end pt-6 border-t border-gray-200 gap-4">
-                <Button type="button" variant="reverse" onClick={handleSkip}>
-                  Skip to Editor
-                </Button>
-                <Button
-                  type="submit"
-                  variant="reverse"
-                  disabled={isGeneratingImages || isSubmitting || isAuthenticating}
-                  className="min-w-[180px]"
-                >
-                  {isGeneratingImages ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Images...
-                    </>
-                  ) : isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Generate Storyboard'
-                  )}
-                </Button>
+              </div>
+            ))}
+          </div>
         </div>
-      </form>
+      )}
+    </div>
+  )
+
+  return (
+  <div className="max-w-7xl mx-auto p-6">
+      <header className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold">{view === 'script' ? 'Storyboard Script' : storyboardTitle || 'Storyboard'}</h1>
+          {view === 'storyboard' && <span className="text-xs text-gray-500">{frames.length} frames</span>}
+        </div>
+        <nav className="flex gap-2">
+          <button type="button" onClick={() => setView('script')} disabled={view==='script'} className="px-4 py-1.5 rounded-md border text-sm disabled:opacity-50">Previous</button>
+          <button type="button" onClick={() => setView('storyboard')} disabled={view==='storyboard' || frames.length===0} className="px-4 py-1.5 rounded-md bg-black text-white text-sm disabled:opacity-50">Next</button>
+        </nav>
+      </header>
+      {view === 'script' ? scriptView : storyboardView}
+      {showGalleryModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowGalleryModal(false)} />
+          <div className="relative max-w-4xl w-full bg-white rounded-xl ring-1 ring-gray-200 shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <h4 className="text-sm font-medium">Select Visual Style</h4>
+                <input value={gallerySearch} onChange={e=>setGallerySearch(e.target.value)} placeholder="Search styles" className="text-xs px-3 py-1 rounded-md border border-gray-200" />
+              </div>
+              <div className="flex items-center gap-2"><button className="text-xs text-gray-600 underline" onClick={() => setShowGalleryModal(false)}>Close</button></div>
+            </div>
+            <div className="p-4 grid grid-cols-4 gap-4 max-h-[60vh] overflow-auto text-xs">
+              {stylePresets.filter(s=>s.label.toLowerCase().includes(gallerySearch.toLowerCase())).map(s => {
+                const active = visualStyle === s.id
+                return (
+                  <button key={s.id} onClick={() => { setVisualStyle(s.id); setShowGalleryModal(false) }} className={`relative rounded-md overflow-hidden border focus:outline-none transition ${active ? 'ring-2 ring-black border-black' : 'border-gray-200 hover:border-gray-400'}`}>
+                    <img src={s.img} alt={s.label} className="w-full h-24 object-cover" loading="lazy" />
+                    <div className={`px-2 py-1 font-medium ${active ? 'bg-black text-white' : 'bg-white text-gray-700'}`}>{s.label}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      {editingFrame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEditingFrame(null)} />
+          <div className="relative w-full max-w-5xl bg-white rounded-xl border border-gray-300 shadow-xl p-0 overflow-hidden">
+            <div className="flex flex-col md:flex-row h-full max-h-[85vh]">
+              {/* Left large image */}
+              <div className="md:w-1/2 w-full bg-black relative flex items-center justify-center">
+                {editingFrame.imageUrl ? (
+                  <img src={editingFrame.imageUrl} alt="frame" className="w-full h-full object-contain max-h-[85vh]" />
+                ) : (
+                  <div className="text-gray-500 text-xs">No image</div>
+                )}
+                <button type="button" onClick={() => setEditingFrame(null)} className="absolute top-2 right-2 bg-black/60 text-white rounded-md px-2 py-1 text-[11px]">Close</button>
+                <div className="absolute bottom-2 left-2 bg-white/80 backdrop-blur px-2 py-0.5 rounded text-[11px] font-medium">
+                  Scene {editingFrame.scene}
+                </div>
+              </div>
+              {/* Right metadata panel */}
+              <div className="md:w-1/2 w-full flex flex-col p-6 overflow-y-auto text-sm">
+                <h3 className="text-sm font-semibold mb-4">Frame Metadata</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!editingFrame) return
+                    setFrames(prev => prev.map(fr => fr.id === editingFrame.id ? { ...fr, ...editingFrame } : fr))
+                    setEditingFrame(null)
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Scene</label>
+                    <input type="number" min={1} value={editingFrame.scene || 1} onChange={e=>setEditingFrame(p=>p?{...p,scene:Number(e.target.value)}:p)} className="px-2 py-1.5 rounded border text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Shot Description (원본)</label>
+                    <textarea value={editingFrame.shotDescription || ''} onChange={e=>setEditingFrame(p=>p?{...p,shotDescription:e.target.value}:p)} rows={4} className="px-2 py-1.5 rounded border text-xs resize-y" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Image Prompt (인핸싱)</label>
+                    <textarea value={editingFrame.imagePrompt || ''} onChange={e=>setEditingFrame(p=>p?{...p,imagePrompt:e.target.value}:p)} rows={4} className="px-2 py-1.5 rounded border text-xs resize-y font-mono" placeholder="Enhanced prompt for image generation" />
+                    <p className="text-[10px] text-gray-500">Shot Description 과 분리된 이미지 생성용 프롬프트.</p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Shot</label>
+                    <input type="text" value={editingFrame.shot} onChange={e=>setEditingFrame(p=>p?{...p,shot:e.target.value}:p)} required className="px-2 py-1.5 rounded border text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Dialogue / VO</label>
+                    <input type="text" value={editingFrame.dialogue} onChange={e=>setEditingFrame(p=>p?{...p,dialogue:e.target.value}:p)} required className="px-2 py-1.5 rounded border text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Sound</label>
+                    <input type="text" value={editingFrame.sound} onChange={e=>setEditingFrame(p=>p?{...p,sound:e.target.value}:p)} required className="px-2 py-1.5 rounded border text-xs" />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <button type="button" onClick={()=>setEditingFrame(null)} className="px-4 py-1.5 rounded border text-xs">Cancel</button>
+                    <button type="submit" className="px-5 py-1.5 rounded bg-black text-white text-xs">Save</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showGenModal && genResult && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowGenModal(false)} />
+          <div className="relative max-w-3xl w-full bg-white rounded-xl ring-1 ring-gray-200 shadow-xl overflow-hidden p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium">Generated Script Preview</h4>
+              <button className="text-xs text-gray-600" onClick={() => setShowGenModal(false)}>Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-auto p-3 border rounded-md bg-gray-50 text-sm whitespace-pre-wrap">{genResult}</div>
+            <div className="flex justify-end gap-2 mt-3">
+              <button className="px-3 py-2 text-sm rounded-md border" onClick={() => { setTextValue(prev => (prev ? prev + '\n\n' + genResult : genResult)); setShowGenModal(false); setGenResult(null); }}>Append</button>
+              <button className="px-4 py-2 text-sm rounded-md bg-black text-white" onClick={() => { setTextValue(genResult || ''); setShowGenModal(false); setGenResult(null); }}>Replace</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
