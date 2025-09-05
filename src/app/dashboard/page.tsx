@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
-import { ProjectCreateModal } from '@/components/dashboard/ProjectCreateModal'
+import { ProjectModal } from '@/components/dashboard/ProjectModal'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import { useEffect } from 'react'
@@ -181,9 +181,9 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 flex flex-col">
+    <div className="w-full min-h-screen bg-black flex flex-col">
       {/* 헤더: Projects 타이틀 + Create 버튼만 */}
-      <header className="w-full bg-white border-b-2 border-gray-900 px-6 py-4 flex items-center">
+      <header className="w-full bg-black border-b-2 border-neutral-800 px-6 py-4 flex items-center">
         <div className="flex items-center gap-2 min-w-0">
           <img
             src="/blooma.svg"
@@ -192,7 +192,7 @@ export default function DashboardPage() {
             className="w-10 h-10 object-contain select-none"
             draggable={false}
           />
-          <span className="text-2xl font-bold text-gray-900 select-none ml-1">Blooma</span>
+          <span className="text-2xl font-bold text-white select-none ml-1">Blooma</span>
         </div>
       </header>
       {/* Main Content */}
@@ -200,20 +200,20 @@ export default function DashboardPage() {
         {/* 제목/버튼/부제목 */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-4xl font-bold text-gray-900">Projects</h1>
-            <Button
-              variant="default"
-              onClick={() => setIsCreateModalOpen(true)}
-              disabled={creatingProject || !user?.id}
-              className="flex items-center mt-2"
-              aria-label="New project"
-              tabIndex={0}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {creatingProject ? 'Creating...' : 'New Project'}
-            </Button>
+            <h1 className="text-4xl font-bold text-white">Projects</h1>
+                         <Button
+               variant="default"
+               onClick={() => setIsCreateModalOpen(true)}
+               disabled={creatingProject || !user?.id}
+               className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+               aria-label="New project"
+               tabIndex={0}
+             >
+               <Plus className="h-4 w-4 mr-2" />
+               {creatingProject ? 'Creating...' : 'New Project'}
+             </Button>
           </div>
-          <p className="text-lg text-gray-500 mb-0">
+          <p className="text-lg text-neutral-300 mb-0">
             Manage, search and create your projects easily
           </p>
         </div>
@@ -226,51 +226,54 @@ export default function DashboardPage() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               disabled={!user?.id}
-              className="w-full border border-gray-300 rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-black pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full border border-neutral-700 bg-neutral-900 text-white rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-white pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed placeholder-neutral-400"
               aria-label="Search projects"
               tabIndex={0}
             />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 w-5 h-5 pointer-events-none" />
           </div>
           <div className="flex flex-row-reverse gap-4 flex-shrink-0">
-            <Button
-              variant="reverse"
-              size="icon"
-              onClick={() => fetchProjects()}
-              disabled={projectsLoading || !user?.id}
-              aria-label="Refresh projects"
-              tabIndex={0}
-            >
-              <RefreshCw className={`w-5 h-5 ${projectsLoading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button
-              variant="reverse"
-              size="icon"
-              onClick={() => setViewMode('grid')}
-              disabled={!user?.id}
-              aria-label="Grid view"
-              tabIndex={0}
-            >
-              <Grid className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="reverse"
-              size="icon"
-              onClick={() => setViewMode('list')}
-              disabled={!user?.id}
-              aria-label="List view"
-              tabIndex={0}
-            >
-              <List className="w-5 h-5" />
-            </Button>
+                         <Button
+               variant="outline"
+               size="icon"
+               onClick={() => fetchProjects()}
+               disabled={projectsLoading || !user?.id}
+               aria-label="Refresh projects"
+               tabIndex={0}
+               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+             >
+               <RefreshCw className={`w-5 h-5 ${projectsLoading ? 'animate-spin' : ''}`} />
+             </Button>
+                         <Button
+               variant="outline"
+               size="icon"
+               onClick={() => setViewMode('grid')}
+               disabled={!user?.id}
+               aria-label="Grid view"
+               tabIndex={0}
+               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+             >
+               <Grid className="w-5 h-5" />
+             </Button>
+                         <Button
+               variant="outline"
+               size="icon"
+               onClick={() => setViewMode('list')}
+               disabled={!user?.id}
+               aria-label="List view"
+               tabIndex={0}
+               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+             >
+               <List className="w-5 h-5" />
+             </Button>
           </div>
         </div>
 
         {/* Loading states and error handling */}
         {loading ? (
           <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <div className="text-gray-400 mb-4">
+            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
+              <div className="text-neutral-400 mb-4">
                 <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
@@ -287,16 +290,16 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading...</h3>
-              <p className="text-gray-500">
+              <h3 className="text-lg font-medium text-white mb-2">Loading...</h3>
+              <p className="text-neutral-300">
                 Please wait while we check your authentication status.
               </p>
             </div>
           </div>
         ) : projectsLoading ? (
           <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <div className="text-gray-400 mb-4">
+            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
+              <div className="text-neutral-400 mb-4">
                 <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
@@ -313,34 +316,34 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading projects...</h3>
-              <p className="text-gray-500">Please wait while we fetch your projects.</p>
+              <h3 className="text-lg font-medium text-white mb-2">Loading projects...</h3>
+              <p className="text-neutral-300">Please wait while we fetch your projects.</p>
             </div>
           </div>
         ) : projectsError ? (
           <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
+            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
               <div className="text-red-400 mb-4">
                 <AlertCircle className="mx-auto h-12 w-12" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading projects</h3>
-              <p className="text-gray-500 mb-4">{projectsError}</p>
+              <h3 className="text-lg font-medium text-white mb-2">Error loading projects</h3>
+              <p className="text-neutral-300 mb-4">{projectsError}</p>
               <div className="space-y-2">
-                <Button
-                  variant="default"
-                  onClick={() => fetchProjects()}
-                  className="flex items-center mx-auto"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
+                                 <Button
+                   variant="default"
+                   onClick={() => fetchProjects()}
+                   className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                 >
+                   <RefreshCw className="h-4 w-4 mr-2" />
+                   Try Again
+                 </Button>
               </div>
             </div>
           </div>
         ) : !user?.id ? (
           <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <div className="text-gray-400 mb-4">
+            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
+              <div className="text-neutral-400 mb-4">
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -355,14 +358,14 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Please sign in</h3>
-              <p className="text-gray-500 mb-4">You need to be signed in to view your projects.</p>
+              <h3 className="text-lg font-medium text-white mb-2">Please sign in</h3>
+              <p className="text-neutral-300 mb-4">You need to be signed in to view your projects.</p>
             </div>
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <div className="text-gray-400 mb-4">
+            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
+              <div className="text-neutral-400 mb-4">
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -377,23 +380,23 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <h3 className="text-lg font-medium text-white mb-2">
                 {searchTerm ? 'No projects found' : 'You have no projects yet'}
               </h3>
-              <p className="text-gray-500 mb-6">
+              <p className="text-neutral-300 mb-6">
                 {searchTerm
                   ? 'Try a different search term.'
                   : 'Get started by creating your first project.'}
               </p>
               {!searchTerm && (
-                <Button
-                  variant="default"
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center mx-auto"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Project
-                </Button>
+                                 <Button
+                   variant="default"
+                   onClick={() => setIsCreateModalOpen(true)}
+                   className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                 >
+                   <Plus className="h-4 w-4 mr-2" />
+                   Create Your First Project
+                 </Button>
               )}
             </div>
           </div>
@@ -417,10 +420,11 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
-      <ProjectCreateModal
+      <ProjectModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateProject}
+        mode="create"
       />
     </div>
   )

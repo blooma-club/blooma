@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Palette, Zap, Users, Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { AuthForm } from '@/components/auth/AuthForm'
@@ -13,7 +12,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header (로고+네비+액션) */}
-      <div className="bg-white border-b-2 border-gray-900 h-16 flex items-center">
+      <div className="bg-black border-b-2 border-neutral-800 h-16 flex items-center">
         <div className="flex items-center justify-between w-full max-w-5xl mx-auto gap-x-24 px-4">
           {/* 좌측: 로고 */}
           <div className="flex items-center">
@@ -24,31 +23,31 @@ export default function Home() {
               className="w-14 h-14 object-contain"
               draggable={false}
             />
-            <span className="text-2xl font-bold text-gray-900 select-none ml-3">Blooma</span>
+            <span className="text-2xl font-bold text-white select-none ml-3">Blooma</span>
           </div>
           {/* 중앙: 네비게이션 */}
           <nav className="hidden md:flex gap-8">
             <a
               href="#features"
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-neutral-300 hover:text-white font-medium transition-colors"
             >
               Features
             </a>
             <a
               href="#pricing"
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-neutral-300 hover:text-white font-medium transition-colors"
             >
               Pricing
             </a>
             <a
               href="#about"
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-neutral-300 hover:text-white font-medium transition-colors"
             >
               About
             </a>
             <a
               href="#contact"
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-neutral-300 hover:text-white font-medium transition-colors"
             >
               Contact
             </a>
@@ -57,25 +56,17 @@ export default function Home() {
           <div className="flex items-center gap-3 -mt-1 group">
             {!user ? (
               <>
-                <Button
-                  variant="fadeinoutline"
-                  className="py-1 px-3"
-                  onClick={() => router.push('/auth')}
-                >
+                <Button variant="ghost" className="py-1 px-3 text-white hover:bg-neutral-800" onClick={() => router.push('/auth')}>
                   Login
                 </Button>
-                <Button
-                  variant="fadeinoutline"
-                  className="py-1 px-3"
-                  onClick={() => router.push('/auth')}
-                >
+                <Button variant="outline" className="py-1 px-3 border-neutral-700 text-white hover:bg-neutral-800" onClick={() => router.push('/auth')}>
                   Get Started Free
                 </Button>
               </>
             ) : (
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-600">{user.email}</span>
-                <Button variant="ghost" size="sm" onClick={signOut}>
+                <span className="text-sm text-neutral-300">{user.email}</span>
+                <Button variant="ghost" size="sm" className="text-white hover:bg-neutral-800" onClick={signOut}>
                   Sign Out
                 </Button>
               </div>
@@ -84,89 +75,51 @@ export default function Home() {
         </div>
       </div>
       {/* Hero Section */}
-      <section className="flex-1 flex items-center justify-center px-4 py-16 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-            Visualize <span className="text-primary">Your Story</span>
+      <section className="relative isolate flex-1 overflow-hidden">
+        {/* 배경 이미지 (목업) */}
+        <img
+          src="/styles/cinematic.jpg"
+          alt="hero background"
+          className="absolute inset-0 h-full w-full object-cover opacity-70"
+          draggable={false}
+        />
+        {/* 오버레이 */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.06),transparent_40%)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/65 to-black" />
+
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-28 pb-24">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/70 backdrop-blur">
+            Blooma Studio • Storyboard
+          </div>
+          <h1 className="mt-6 text-5xl font-semibold leading-[1.1] sm:text-6xl lg:text-7xl">
+            Craft cinematic storyboards
           </h1>
-          <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-2xl mx-auto">
-            The AI-powered content planning tool for creators. Turn your ideas into complete
-            storyboards in minutes.
+          <p className="mt-6 max-w-2xl text-neutral-300 text-lg leading-relaxed">
+            High-fidelity layouts for film, fashion, and brand storytelling. Designed for studios that obsess over detail.
           </p>
-          <div className="mt-10 flex items-center justify-center gap-x-6">
-            <Button variant="default">Get Started Free</Button>
-            <Button variant="default" onClick={() => router.push('/dashboard')}>
-              Watch Demo
+          <div className="mt-10 flex items-center gap-4">
+            <Button className="bg-white text-black hover:bg-neutral-200" onClick={() => router.push('/auth')}>
+              Get Started
+            </Button>
+            <Button variant="outline" className="border-neutral-700 text-white hover:bg-neutral-800" onClick={() => router.push('/dashboard')}>
+              View Demo
             </Button>
           </div>
         </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="py-16 bg-secondary/50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Reduce Planning Time by 70%
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              Create fast and accurate storyboards with AI-powered automation.
-            </p>
-          </div>
-
-          <div className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Palette className="h-12 w-12 text-primary" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">Card-Based Design</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Structured storyboard with 6 card types: Hook, Problem, Solution, Evidence, Benefit,
-                and CTA.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Zap className="h-12 w-12 text-primary" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">AI Auto-Generation</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Simply enter keywords, and AI automatically generates content and images.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Users className="h-12 w-12 text-primary" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                Real-time Collaboration
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Work together with team members through real-time feedback and sharing.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Download className="h-12 w-12 text-primary" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                Multiple Export Options
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Export in various formats, including PNG, PDF, and MP4.
-              </p>
-            </div>
-          </div>
+        {/* 스크롤 힌트 */}
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-[11px] text-neutral-400">
+          <div className="h-6 w-px bg-neutral-600 mb-2" />
+          Scroll
         </div>
       </section>
 
+
+
       {/* Footer */}
-      <footer className="border-t border-border py-8">
+      <footer className="border-t border-neutral-800 py-8 bg-black">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="text-center text-sm text-neutral-400">
             <p>&copy; 2025 Blooma. All rights reserved.</p>
           </div>
         </div>

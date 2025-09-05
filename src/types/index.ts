@@ -34,22 +34,40 @@ export interface Storyboard {
   updated_at?: string
 }
 
-// 카드 타입
+// 카드 타입 (Editor + Storyboard 통합) - 메타데이터 완전 통합
 export interface Card {
   id: string
   storyboard_id: string
   user_id: string
-  type: 'hook' | 'problem' | 'solution' | 'evidence' | 'benefit' | 'cta'
+  type: 'scene' | 'card'
   title: string
   content: string
   user_input?: string // User input prompt for generating/editing content
-  image_urls?: string[] // JSON array of up to 3 image URLs
+  image_url?: string // 단일 이미지 URL (새로운 방식)
+  image_urls?: string[] // JSON array of up to 3 image URLs (기존 방식)
   selected_image_url?: number // Index of the selected image (0, 1, or 2)
-  position_x: number
-  position_y: number
-  width: number
-  height: number
+  image_key?: string // R2 키 (삭제용)
+  image_size?: number // 파일 크기
+  image_type?: string // uploaded/generated
+
   order_index: number
+
+  // Scene 흐름 필드
+  next_card_id?: string // 다음 Scene을 가리키는 외래키
+  prev_card_id?: string // 이전 Scene을 가리키는 외래키
+
+  // Storyboard 메타데이터 필드 (완전 통합)
+  scene_number?: number        // 씬 번호
+  shot_type?: string          // 촬영 타입 (CU, MS, LS 등)
+  dialogue?: string           // 대사/내레이션
+  sound?: string              // 음향 효과
+  image_prompt?: string       // AI 이미지 생성 프롬프트
+  storyboard_status?: string  // 처리 상태 (ready, pending, error 등)
+  shot_description?: string   // 촬영 설명 (content와 별도)
+
+  // 확장성을 위한 메타데이터
+  metadata?: Record<string, unknown>
+
   created_at?: string
   updated_at?: string
 }
@@ -62,7 +80,7 @@ export interface Version {
   version_number: number
   title: string
   description?: string
-  data: any // JSONB 타입
+  data: Record<string, unknown> // JSONB 타입
   created_at: string
 }
 
@@ -78,30 +96,29 @@ export interface ProjectWithStoryboards extends Project {
   storyboards: Storyboard[]
 }
 
-export interface CardWithPosition extends Card {
-  position: {
-    x: number
-    y: number
-  }
-  size: {
-    width: number
-    height: number
-  }
-}
-
-// 카드 생성/수정을 위한 입력 타입
+// 카드 생성/수정을 위한 입력 타입 (완전 통합)
 export interface CardInput {
-  type: Card['type']
+  id?: string
+  type: Card['type'] // 'scene' | 'card'
   title: string
   content: string
   user_input?: string // User input prompt for generating/editing content
   image_urls?: string[] // JSON array of up to 3 image URLs
   selected_image_url?: number // Index of the selected image (0, 1, or 2)
-  position_x?: number
-  position_y?: number
-  width?: number
-  height?: number
+
   order_index?: number
+
+  // Storyboard 메타데이터 필드 (완전 통합)
+  scene_number?: number
+  shot_type?: string
+  dialogue?: string
+  sound?: string
+  image_prompt?: string
+  storyboard_status?: string
+  shot_description?: string
+
+  // 확장성을 위한 메타데이터
+  metadata?: Record<string, unknown>
 }
 
 // 스토리보드 생성/수정을 위한 입력 타입
@@ -152,17 +169,6 @@ export interface PaginatedResponse<T> {
   success?: boolean
 }
 
-// Canvas types (기존 호환성 유지)
-export interface CanvasPosition {
-  x: number
-  y: number
-}
-
-export interface CanvasSize {
-  width: number
-  height: number
-}
-
 // 오류 타입
 export interface DatabaseError {
   message: string
@@ -175,13 +181,3 @@ export interface InitialCardData {
   title: string
   content: string
 }
-
-// ReactFlow Custom Node Data 타입 (공식 가이드 패턴)
-export interface CustomCardNodeData extends Record<string, unknown> {
-  title?: string
-  content?: string
-  userInput?: string // User input prompt for generating/editing content
-  imageUrls?: string[] // Array of image URLs
-  selectedImageUrl?: number // Index of selected image
-  imageUrl?: string // Single primary image URL for backward compatibility
-} 

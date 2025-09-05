@@ -62,7 +62,7 @@ export function AuthForm() {
         <Button
           type="button"
           variant="ghost"
-          className="w-full mb-4 border border-gray-300 hover:bg-gray-50"
+          className="w-full mb-4 border border-gray-600 hover:bg-gray-800 text-white"
           onClick={handleGoogleSignIn}
           disabled={googleLoading}
         >
@@ -121,7 +121,7 @@ export function AuthForm() {
             />
           </div>
 
-          {error && <div className="text-red-500 text-sm">{error}</div>}
+          {error && <div className="text-red-400 text-sm">{error}</div>}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
@@ -132,7 +132,7 @@ export function AuthForm() {
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-blue-400 hover:underline"
           >
             {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>

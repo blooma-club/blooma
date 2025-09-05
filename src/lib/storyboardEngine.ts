@@ -1,7 +1,9 @@
 import { parseScript, ParsedScene, extractTitle, stripTitle } from './scriptParser'
 import { openrouter } from './openrouter'
 import { EventEmitter } from 'events'
-import { fal } from '@fal-ai/client'
+import { generateImageWithModel, DEFAULT_MODEL } from './fal-ai'
+import { uploadImageToR2 } from './r2'
+import { supabase } from './supabase'
 
 export interface FrameRecord {
   id: string
@@ -9,7 +11,6 @@ export interface FrameRecord {
   sceneOrder: number
   order: number
   baseDescription: string
-  title?: string
   shotType?: string
   dialogue?: string
   sound?: string
@@ -30,19 +31,55 @@ export interface StoryboardRecord {
   status: 'pending' | 'processing' | 'ready' | 'partial' | 'error'
   frames: FrameRecord[]
   title?: string
+  // AI Model settings
+  aiModel?: string
+  aiQuality?: 'fast' | 'balanced' | 'high'
 }
 
 const storyboards = new Map<string, StoryboardRecord>()
 const storyboardEmitters = new Map<string, EventEmitter>()
+const emitterTimeouts = new Map<string, NodeJS.Timeout>()
 
 function ensureEmitter(id: string) {
   let em = storyboardEmitters.get(id)
-  if (!em) { em = new EventEmitter(); storyboardEmitters.set(id, em) }
+  if (!em) { 
+    em = new EventEmitter()
+    em.setMaxListeners(50) // 더 많은 리스너 허용
+    storyboardEmitters.set(id, em)
+    
+    // 1시간 후 자동 정리
+    const timeout = setTimeout(() => {
+      console.log(`[Engine] Auto-cleaning emitter for storyboard: ${id}`)
+      cleanupEmitter(id)
+    }, 60 * 60 * 1000) // 1시간
+    
+    emitterTimeouts.set(id, timeout)
+  }
   return em
+}
+
+function cleanupEmitter(id: string) {
+  const em = storyboardEmitters.get(id)
+  if (em) {
+    em.removeAllListeners()
+    storyboardEmitters.delete(id)
+  }
+  
+  const timeout = emitterTimeouts.get(id)
+  if (timeout) {
+    clearTimeout(timeout)
+    emitterTimeouts.delete(id)
+  }
+  
+  console.log(`[Engine] Cleaned up emitter for storyboard: ${id}`)
 }
 
 export function getStoryboardEmitter(id: string) {
   return ensureEmitter(id)
+}
+
+export function removeStoryboardEmitter(id: string) {
+  cleanupEmitter(id)
 }
 
 export function getStoryboardRecord(id: string) {
@@ -62,10 +99,16 @@ export async function createStoryboard(params: {
   aspectRatio: string
   style: string
   processMode?: 'async' | 'sync'
+  topTitle?: string
+  // AI Model settings
+  aiModel?: string
 }) {
-  // Extract and remove top-level title if present to avoid duplication into first frame
-  const topTitle = extractTitle(params.rawScript)
-  const scriptWithoutTitle = topTitle ? stripTitle(params.rawScript) : params.rawScript
+  // Allow callers to provide a top-level title (extracted earlier). If not provided,
+  // attempt to extract it here. If a top title exists we strip it from the script
+  // before parsing so it doesn't appear as a first frame description.
+  const providedTop = params.topTitle
+  const detectedTop = providedTop ?? extractTitle(params.rawScript)
+  const scriptWithoutTitle = providedTop ? params.rawScript : (detectedTop ? stripTitle(params.rawScript) : params.rawScript)
   let scenes: ParsedScene[] = parseScript(scriptWithoutTitle)
   // If any scene is missing required metadata (shotDescription, shotType, dialogue, sound),
   // attempt to enrich it using the LLM so cards always have those fields.
@@ -84,7 +127,7 @@ export async function createStoryboard(params: {
       }
     }
   }
-  const storyboardId = `sb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const storyboardId = crypto.randomUUID()
   // Debug: log parsed scenes to help diagnose scene numbering issues
   try {
     console.log('[createStoryboard] parsed scenes:', scenes.map((s, idx) => ({ idx, order: s.order, firstLine: (s.raw || '').split('\n')[0].slice(0, 140) })))
@@ -94,24 +137,35 @@ export async function createStoryboard(params: {
   } catch (e) {
     console.error('[createStoryboard] failed to log scenes', e)
   }
-  const frames: FrameRecord[] = scenes.map((s, i) => {
+  // 1) 임시 프레임 생성 (sceneNumber가 없거나 중복/불연속인 경우를 안전하게 처리)
+  const provisionalFrames: FrameRecord[] = scenes.map((s, i) => {
     const parsed = s as ParsedScene
-    const sceneOrder = parsed.sceneNumber !== undefined ? parsed.sceneNumber - 1 : i
+    // sceneNumber가 유효한 양수라면 그대로 사용(0-based로 변환), 아니면 i 사용
+    const initialSceneOrder = (typeof parsed.sceneNumber === 'number' && parsed.sceneNumber > 0)
+      ? parsed.sceneNumber - 1
+      : i
     return {
-      id: `f_${storyboardId}_${i}`,
+      id: crypto.randomUUID(),
       storyboardId,
-      sceneOrder,
+      sceneOrder: initialSceneOrder,
       order: i,
       baseDescription: s.shotDescription,
-      title: deriveTitle(s),
       shotType: s.shotType,
       dialogue: s.dialogue,
       sound: s.sound,
       status: 'pending'
     }
   })
-  // Ensure frames are ordered by their scene number so generation and UI present Scene 1..N
-  frames.sort((a, b) => (a.sceneOrder ?? 0) - (b.sceneOrder ?? 0))
+
+  // 2) sceneOrder 기준 정렬 후, 0..N-1로 재번호를 강제하여 Scene 1..N이 연속되도록 보정
+  provisionalFrames.sort((a, b) => (a.sceneOrder ?? 0) - (b.sceneOrder ?? 0))
+  for (let i = 0; i < provisionalFrames.length; i++) {
+    provisionalFrames[i].sceneOrder = i
+  }
+
+  const frames: FrameRecord[] = provisionalFrames
+
+  // Create storyboard record
   const record: StoryboardRecord = {
     id: storyboardId,
     projectId: params.projectId,
@@ -120,21 +174,48 @@ export async function createStoryboard(params: {
     style: params.style,
     createdAt: Date.now(),
     status: 'pending',
-  frames,
-  title: topTitle || frames[0]?.title || 'Storyboard'
+    frames,
+    title: detectedTop || 'Storyboard',
+    // AI Model settings
+    aiModel: params.aiModel,
+    aiQuality: 'balanced' // Default to balanced for image generation
+  }
+
+  // Generate image prompts for each frame
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i]
+    try {
+      // Build basic image prompt
+      const basicPrompt = buildImagePrompt(frame, record)
+      
+      // Enhance with LLM if available
+      if (process.env.OPENROUTER_API_KEY) {
+        const enhancedPrompt = await enhanceWithLLM(basicPrompt, params.style)
+        frame.imagePrompt = enhancedPrompt
+        frame.enhancedDescription = enhancedPrompt
+      } else {
+        // Fallback to basic prompt
+        frame.imagePrompt = basicPrompt
+        frame.enhancedDescription = basicPrompt
+      }
+    } catch (error) {
+      console.error(`Failed to generate image prompt for frame ${i}:`, error)
+      // Fallback to basic prompt on error
+      const basicPrompt = buildImagePrompt(frame, record)
+      frame.imagePrompt = basicPrompt
+      frame.enhancedDescription = basicPrompt
+    }
   }
   storyboards.set(storyboardId, record)
   // Prepare emitter so SSE clients can attach immediately
-  ensureEmitter(storyboardId)
-  const mode = params.processMode || 'async'
-  if (mode === 'sync') {
-    await enhanceStoryboardAsync(record)
-  } else {
-    enhanceStoryboardAsync(record).catch((err) => {
-      console.error('enhance storyboard failed', err)
-      record.status = 'partial'
-    })
+  const emitter = ensureEmitter(storyboardId)
+  
+  // Start image generation process if in async mode
+  if (params.processMode === 'async') {
+    // Start image generation in background
+    processFramesAsync(storyboardId, record, emitter)
   }
+  
   return record
 }
 
@@ -171,75 +252,38 @@ async function extractMetadataWithLLM(block: string, style: string, aspect: stri
   }
 }
 
-async function enhanceStoryboardAsync(sb: StoryboardRecord) {
-  sb.status = 'processing'
-  for (const frame of sb.frames) {
-    await regenerateFrameInternal(sb, frame.id)
-  }
-  const anyError = sb.frames.some(f => f.status === 'error')
-  sb.status = anyError ? 'partial' : 'ready'
-  // final broadcast
-  const emitter = ensureEmitter(sb.id)
-  emitter.emit('complete', { storyboardId: sb.id, status: sb.status, frames: sb.frames.map(trimFrame) })
-}
 
-export async function regenerateFrame(storyboardId: string, frameId: string) {
-  const sb = storyboards.get(storyboardId)
-  if (!sb) throw new Error('Storyboard not found')
-  await regenerateFrameInternal(sb, frameId, true)
-  return sb.frames.find(f=>f.id===frameId)
-}
 
-async function regenerateFrameInternal(sb: StoryboardRecord, frameId: string, bumpStatus = false) {
-  const frame = sb.frames.find(f=>f.id===frameId)
-  if (!frame) throw new Error('Frame not found')
-  const emitter = ensureEmitter(sb.id)
-  const broadcast = () => emitter.emit('update', { storyboardId: sb.id, status: sb.status, frame: trimFrame(frame) })
-  try {
-    frame.status = 'enhancing'
-    frame.error = undefined
-    frame.enhancedDescription = await enhanceWithLLM(frame.baseDescription, sb.style)
-    broadcast()
-    frame.status = 'prompted'
-    frame.imagePrompt = buildImagePrompt(frame, sb)
-    broadcast()
-    frame.status = 'generating'
-    broadcast()
-  // Real image generation via FAL (flux/schnell). Fallback to placeholder if no key.
-    try {
-      frame.imageUrl = await generateImage(frame.imagePrompt || frame.enhancedDescription || frame.baseDescription || '')
-      frame.status = 'ready'
-    } catch (imgErr: any) {
-      console.error('image generation failed', imgErr)
-      frame.error = imgErr?.message || 'Image generation failed'
-      // Provide graceful fallback placeholder so UI still shows something
-      frame.imageUrl = frame.imageUrl || `https://placehold.co/1024x576?text=${encodeURIComponent('image error')}`
-      frame.status = 'error'
-    }
-    broadcast()
-    if (bumpStatus) {
-      const ready = sb.frames.every(f=>['ready','error'].includes(f.status))
-      if (ready) sb.status = sb.frames.some(f=>f.status==='error') ? 'partial' : 'ready'
-    }
-  } catch (e: unknown) {
-    frame.status = 'error'
-    frame.error = e instanceof Error ? e.message : 'Failed'
-    broadcast()
-  }
-}
+
+
 
 async function enhanceWithLLM(base: string, style: string): Promise<string> {
   if (!process.env.OPENROUTER_API_KEY) {
     return enhanceText(base, style) // fallback
   }
-  const prompt = `Enhance this storyboard frame description into a vivid, concise cinematic description (max 60 words) retaining core meaning. Style hint: ${style}. Input: "${base}"`.
+  const prompt = `Enhance this storyboard frame description into a vivid, concise cinematic description (max 100 words) retaining core meaning. Style hint: ${style}. Input: "${base}"`.
     replace(/\s+/g,' ').trim()
   try {
     const completion = await retry(async ()=> {
       const res = await openrouter.chat.completions.create({
         model: 'google/gemini-2.0-flash-001',
         messages: [
-          { role: 'system', content: 'You refine storyboard frame descriptions.' },
+          { role: 'system', content: `You are an expert prompt engineer creating high-impact, visually striking prompts for image generation. Transform user concepts into structured prompts that maximize visual quality, dynamism, and narrative depth.
+
+**Structure:** [Technical framework]: [Main subject & action], [environmental storytelling], [special elements]. Technical specifications.
+
+Technical framework indicates either a specific camera + lens (e.g., Sony A1, Canon R5, iPhone 14 pro) OR an art/style reference (e.g., Studio Ghibli, Film noir aesthetic).
+
+Component Guidelines:
+- Square brackets should be used for dynamic focal points only.
+  - [Main subject & action]: Primary subject with active, vivid verbs.
+  - [Environmental storytelling]: Critical atmosphere, weather, lighting interactions.
+  - [Special elements]: Unique compositional highlights or dramatic effects.
+- Technical Specifications: Include 2-3 quality enhancers (perspective + lighting + resolution/style terms).
+
+Quality Keywords (use where appropriate): ultra-detail, HDR, volumetric lighting, cinematic composition, shallow depth of field, 8K resolution
+
+Output: Deliver the complete structured prompt only, following the exact format above.` },
           { role: 'user', content: prompt }
         ],
         max_tokens: 200,
@@ -268,63 +312,7 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
   return parts.join(', ')
 }
 
-async function generateImage(prompt: string): Promise<string> {
-  if (!process.env.FAL_KEY) {
-    return `https://placehold.co/1280x720?text=${encodeURIComponent('no+fal+key')}`
-  }
-  fal.config({ credentials: process.env.FAL_KEY })
-  const safePrompt = (prompt || '').trim() || 'cinematic frame'
-  const url = await retry(async () => {
-    const t0 = Date.now()
-    const submission: any = await fal.subscribe('fal-ai/flux/schnell', {
-      input: { prompt: safePrompt },
-      onQueueUpdate(update) {
-        if (update?.status === 'IN_QUEUE' || update?.status === 'IN_PROGRESS') {
-          console.log('[FAL][queue]', update.status, (update as any).position ?? '-')
-        }
-      }
-    })
-    const elapsed = Date.now() - t0
-    let found: string | undefined = submission?.images?.[0]?.url
-      || submission?.output?.[0]?.url
-      || submission?.image?.url
-      || submission?.data?.[0]?.url
-      || submission?.result?.[0]?.url
-      || submission?.artifacts?.[0]?.url
-    // Deep scan for any nested url
-    if (!found && submission && typeof submission === 'object') {
-      try {
-        const stack: any[] = [submission]
-        const seen = new Set<any>()
-        while (stack.length) {
-          const cur = stack.pop()
-          if (!cur || typeof cur !== 'object' || seen.has(cur)) continue
-          seen.add(cur)
-          if (Array.isArray(cur)) { for (const it of cur) stack.push(it); continue }
-          if (!found && typeof cur.url === 'string' && /^https?:\/\//.test(cur.url)) { found = cur.url; break }
-          for (const k of Object.keys(cur)) stack.push(cur[k])
-        }
-      } catch (scanErr) {
-        console.warn('[FAL][scan-error]', scanErr)
-      }
-    }
-    // Base64 variants
-    if (!found) {
-      const b64 = submission?.output?.[0]?.b64 || submission?.output?.[0]?.base64 || submission?.image?.b64
-        || submission?.images?.[0]?.b64 || submission?.images?.[0]?.base64
-      if (typeof b64 === 'string' && b64.length > 50) {
-        found = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`
-      }
-    }
-    if (!found) {
-      console.error('[FAL][empty-image]', { keys: Object.keys(submission || {}), elapsedMs: elapsed, sample: JSON.stringify(submission || {}).slice(0, 900) })
-      throw new Error('Empty image response')
-    }
-    console.log('[FAL][image-ready]', { elapsedMs: elapsed, url: found })
-    return found
-  }, { retries: 0, baseDelay: 500 })
-  return url
-}
+
 
 export function trimFrame(f: FrameRecord) {
   return {
@@ -332,7 +320,6 @@ export function trimFrame(f: FrameRecord) {
     imageUrl: f.imageUrl,
     scene: (f.sceneOrder ?? 0) + 1,
     shotDescription: f.baseDescription || '',
-    title: f.title || '',
     shot: f.shotType || '',
     dialogue: f.dialogue || '',
     sound: f.sound || '',
@@ -341,21 +328,13 @@ export function trimFrame(f: FrameRecord) {
   }
 }
 
-function deriveTitle(scene: ParsedScene): string {
-  const raw = (scene.shotDescription || scene.raw || '').trim()
-  if (!raw) return 'Untitled'
-  const first = raw.split(/\n/)[0].trim()
-  const slice = first.length > 80 ? first.slice(0, 77) + '…' : first
-  return slice || 'Untitled'
-}
+// deriveTitle removed: per-frame titles no longer used; global storyboard title only.
 
 export function trimFrames(frames: FrameRecord[]) {
   return frames.map(trimFrame)
 }
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
-}
+
 
 function retry<T>(fn: ()=>Promise<T>, opts: { retries: number; baseDelay: number }): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -369,4 +348,171 @@ function retry<T>(fn: ()=>Promise<T>, opts: { retries: number; baseDelay: number
     }
     run()
   })
+}
+
+async function processFramesAsync(storyboardId: string, record: StoryboardRecord, emitter: EventEmitter) {
+  console.log(`[Engine] Starting async image generation for storyboard: ${storyboardId}`)
+  
+  const sb = storyboards.get(storyboardId)
+  if (!sb) {
+    console.error(`[Engine] Storyboard not found: ${storyboardId}`)
+    return
+  }
+  
+  // Update status to processing
+  sb.status = 'processing'
+  emitter.emit('update', { storyboardId, status: 'processing' })
+  
+  try {
+    // Process frames sequentially
+    for (let i = 0; i < sb.frames.length; i++) {
+      const frame = sb.frames[i]
+      
+      // Update frame status to generating
+      frame.status = 'generating'
+      emitter.emit('update', { 
+        storyboardId, 
+        frame: trimFrame(frame),
+        status: 'generating'
+      })
+      
+      try {
+        // Generate image using the frame's imagePrompt
+        if (frame.imagePrompt) {
+          const result = await generateImageWithModel(
+            frame.imagePrompt, 
+            record.aiModel || DEFAULT_MODEL,
+            {
+              aspectRatio: record.aspectRatio,
+              style: record.style
+            }
+          )
+          
+          // Update frame with generated image
+          if (result.success && result.imageUrl) {
+            // 1) R2 업로드
+            let publicUrl: string | null = null
+            let key: string | null = null
+            let size: number | null = null
+            try {
+              const uploaded = await uploadImageToR2(storyboardId, frame.id, result.imageUrl)
+              publicUrl = uploaded.publicUrl || uploaded.signedUrl || null
+              key = uploaded.key
+              size = uploaded.size || null
+            } catch (uploadErr) {
+              console.error(`[Engine] R2 upload failed for frame ${i}:`, uploadErr)
+            }
+
+            // 2) 메모리 프레임 업데이트 (publicUrl 우선)
+            frame.imageUrl = publicUrl || result.imageUrl
+
+            // 3) DB 업데이트
+            try {
+              const { error: updateError } = await supabase
+                .from('cards')
+                .update({ 
+                  image_url: frame.imageUrl,
+                  image_urls: [frame.imageUrl],
+                  selected_image_url: 0,
+                  image_key: key || undefined,
+                  image_size: size || undefined,
+                  image_type: 'generated',
+                  storyboard_status: 'ready'
+                })
+                .eq('storyboard_id', storyboardId)
+                .eq('order_index', i)
+              
+              if (updateError) {
+                console.error(`[Engine] Failed to update card in database for frame ${i}:`, updateError)
+              } else {
+                console.log(`[Engine] Updated card in database for frame ${i}: ${storyboardId}`)
+              }
+            } catch (dbError) {
+              console.error(`[Engine] Database update error for frame ${i}:`, dbError)
+            }
+          } else {
+            throw new Error(result.error || 'Image generation failed')
+          }
+          frame.status = 'ready'
+          
+          // Emit frame update
+          emitter.emit('update', { 
+            storyboardId, 
+            frame: trimFrame(frame),
+            status: 'ready'
+          })
+          
+          console.log(`[Engine] Generated image for frame ${i + 1}/${sb.frames.length}: ${storyboardId}`)
+        } else {
+          frame.status = 'error'
+          frame.error = 'No image prompt available'
+          emitter.emit('update', { 
+            storyboardId, 
+            frame: trimFrame(frame),
+            status: 'error'
+          })
+        }
+      } catch (error) {
+        console.error(`[Engine] Failed to generate image for frame ${i}:`, error)
+        frame.status = 'error'
+        frame.error = error instanceof Error ? error.message : 'Image generation failed'
+        
+        // DB에 에러 상태 업데이트
+        try {
+          const { error: updateError } = await supabase
+            .from('cards')
+            .update({ 
+              storyboard_status: 'error'
+            })
+            .eq('storyboard_id', storyboardId)
+            .eq('order_index', i)
+          
+          if (updateError) {
+            console.error(`[Engine] Failed to update error status in database for frame ${i}:`, updateError)
+          }
+        } catch (dbError) {
+          console.error(`[Engine] Database error status update error for frame ${i}:`, dbError)
+        }
+        
+        emitter.emit('update', { 
+          storyboardId, 
+          frame: trimFrame(frame),
+          status: 'error'
+        })
+      }
+      
+      // Small delay between frames to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    
+    // Update final status
+    const readyFrames = sb.frames.filter(f => f.status === 'ready').length
+    const errorFrames = sb.frames.filter(f => f.status === 'error').length
+    
+    if (readyFrames === sb.frames.length) {
+      sb.status = 'ready'
+    } else if (errorFrames > 0) {
+      sb.status = 'partial'
+    } else {
+      sb.status = 'ready'
+    }
+    
+    // Emit completion
+    emitter.emit('complete', { 
+      storyboardId, 
+      status: sb.status,
+      frames: sb.frames.map(trimFrame)
+    })
+    
+    console.log(`[Engine] Completed image generation for storyboard: ${storyboardId}, status: ${sb.status}`)
+    
+  } catch (error) {
+    console.error(`[Engine] Failed to process frames for storyboard: ${storyboardId}`, error)
+    sb.status = 'error'
+    emitter.emit('complete', { 
+      storyboardId, 
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Processing failed'
+    })
+  }
 }

@@ -21,21 +21,24 @@ export async function middleware(req: NextRequest) {
         get(name: string) {
           return req.cookies.get(name)?.value
         },
-        set(name: string, value: string, options: any) {
+        getAll() {
+          return req.cookies.getAll()
+        },
+        set(name: string, value: string, options: Record<string, unknown>) {
           res.cookies.set({
             name,
             value,
             ...options,
           })
         },
-        remove(name: string, options: any) {
+        remove(name: string, options: Record<string, unknown>) {
           res.cookies.set({
             name,
             value: '',
             ...options,
           })
         },
-      },
+      } as Parameters<typeof createServerClient>[2]['cookies'],
     }
   )
 

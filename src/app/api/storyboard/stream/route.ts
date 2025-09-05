@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getStoryboardRecord, getStoryboardEmitter } from '@/lib/storyboardEngine'
+import { supabase } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 
@@ -8,28 +9,126 @@ export async function GET(req: NextRequest) {
   if (!id) {
     return new Response('Missing id', { status: 400 })
   }
+  
+  console.log(`[SSE] Starting stream for storyboard: ${id}`)
+  
   const sb = getStoryboardRecord(id)
   if (!sb) {
-    // Allow client to retry; 404 indicates storyboard not yet in this instance
-    return new Response('Not found', { status: 404 })
+    // Fallback: serve a one-shot snapshot from DB so clients don't see 404
+    console.log(`[SSE] Storyboard not found in memory: ${id}. Attempting DB snapshot fallback.`)
+    try {
+      const { data: row, error } = await supabase
+        .from('storyboards')
+        .select('title, description')
+        .eq('id', id)
+        .single()
+      if (error || !row) {
+        console.log(`[SSE] DB snapshot not available for: ${id}`)
+        return new Response('Not found', { status: 404 })
+      }
+
+      let title = row.title || ''
+      let frames: Array<{
+        id: string;
+        scene?: number;
+        shotDescription?: string;
+        shot?: string;
+        dialogue?: string;
+        sound?: string;
+        imagePrompt?: string;
+        status?: string;
+        error?: string;
+        imageUrl?: string;
+      }> = []
+      try {
+        const desc = JSON.parse(row.description || '{}')
+        frames = Array.isArray(desc.frames) ? desc.frames : []
+        title = title || desc.title || ''
+      } catch {}
+
+      const toClientFrame = (f: {
+        id: string;
+        scene?: number;
+        shotDescription?: string;
+        shot?: string;
+        dialogue?: string;
+        sound?: string;
+        imagePrompt?: string;
+        status?: string;
+        error?: string;
+        imageUrl?: string;
+      }) => ({
+        id: f.id,
+        imageUrl: f.imageUrl,
+        scene: f.scene,
+        shotDescription: f.shotDescription || '',
+        shot: f.shot || '',
+        dialogue: f.dialogue || '',
+        sound: f.sound || '',
+        imagePrompt: f.imagePrompt || '',
+        status: f.status || 'ready'
+      })
+
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        start(controller) {
+          const send = (event: string, payload: unknown) => {
+            controller.enqueue(encoder.encode(`event: ${event}\n`))
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+          }
+          const clientFrames = frames.map(toClientFrame)
+          // Send immediate final snapshot and close
+          send('init', { storyboardId: id, status: 'ready', title, frames: clientFrames })
+          send('complete', { storyboardId: id, status: 'ready', title, frames: clientFrames })
+          send('end', { storyboardId: id })
+          controller.close()
+        }
+      })
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no'
+        }
+      })
+    } catch (e) {
+      console.log(`[SSE] Fallback snapshot failed for: ${id}`, e)
+      return new Response('Not found', { status: 404 })
+    }
   }
+  
   const encoder = new TextEncoder()
+  let streamClosed = false
+  
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event: string, payload: any) => {
-        controller.enqueue(encoder.encode(`event: ${event}\n`))
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+      console.log(`[SSE] Stream started for: ${id}`)
+      
+      const send = (event: string, payload: unknown) => {
+        if (streamClosed) {
+          console.log(`[SSE] Attempted to send to closed stream: ${id}`)
+          return
+        }
+        
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+        } catch (error) {
+          console.error(`[SSE] Send failed for ${id}:`, error)
+          streamClosed = true
+        }
       }
+      
       // Initial snapshot
       send('init', {
         storyboardId: sb.id,
         status: sb.status,
-  title: sb.title || '',
+        title: sb.title || '',
         frames: sb.frames.map(f => ({
           id: f.id,
           imageUrl: f.imageUrl,
           scene: (f.sceneOrder ?? 0) + 1,
-          title: f.title || '',
           shotDescription: f.baseDescription || '',
           shot: f.shotType || '',
           dialogue: f.dialogue || '',
@@ -38,28 +137,85 @@ export async function GET(req: NextRequest) {
           status: f.status
         }))
       })
+      
       const emitter = getStoryboardEmitter(id)
-      const onUpdate = (p: any) => send('frame', p)
-  const onComplete = (p: any) => send('complete', { ...p, title: sb.title || '' })
+      const onUpdate = (p: { storyboardId: string; status: string; frame: unknown }) => send('frame', p)
+      const onComplete = (p: { storyboardId: string; status: string; frames: unknown[]; title?: string }) => send('complete', { ...p, title: sb.title || '' })
+      
       emitter.on('update', onUpdate)
       emitter.on('complete', onComplete)
-      const heartbeat = setInterval(() => controller.enqueue(encoder.encode(':heartbeat\n')), 15000)
+      
+      let heartbeatInterval: NodeJS.Timeout | null = null
+      
+      // 안전한 heartbeat 시작 (30초마다)
+      heartbeatInterval = setInterval(() => {
+        if (streamClosed) return
+        
+        try {
+          controller.enqueue(encoder.encode('data: {}\n\n'))
+        } catch (error) {
+          console.error(`[SSE] Heartbeat failed for ${id}:`, error)
+          streamClosed = true
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval)
+            heartbeatInterval = null
+          }
+        }
+      }, 30000)
+      
       const cleanup = () => {
-        emitter.off('update', onUpdate)
-        emitter.off('complete', onComplete)
-        clearInterval(heartbeat)
+        console.log(`[SSE] Cleaning up stream: ${id}`)
+        streamClosed = true
+        
+        try {
+          emitter.off('update', onUpdate)
+          emitter.off('complete', onComplete)
+        } catch (error) {
+          console.error(`[SSE] Error removing listeners for ${id}:`, error)
+        }
+        
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval)
+          heartbeatInterval = null
+        }
       }
+      
       // Auto cleanup after completion event
       emitter.once('complete', () => {
+        console.log(`[SSE] Storyboard completed: ${id}`)
         send('end', { storyboardId: id })
         cleanup()
-        controller.close()
+        try {
+          if (!streamClosed) {
+            controller.close()
+          }
+        } catch (error) {
+          console.error(`[SSE] Failed to close controller for ${id}:`, error)
+        }
       })
+      
+      // 클라이언트 연결 해제 시 정리
+      const abortHandler = () => {
+        console.log(`[SSE] Client aborted connection: ${id}`)
+        cleanup()
+        try {
+          if (!streamClosed) {
+            controller.close()
+          }
+        } catch (error) {
+          console.error(`[SSE] Failed to close controller on abort for ${id}:`, error)
+        }
+      }
+      
+      req.signal.addEventListener('abort', abortHandler)
     },
     cancel() {
       // reader closed by client
+      console.log(`[SSE] Stream cancelled by client: ${id}`)
+      streamClosed = true
     }
   })
+  
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',

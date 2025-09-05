@@ -39,9 +39,9 @@ export default function ProjectHeader() {
 
   return (
     <>
-      <h1 className="text-sm font-medium text-gray-500">Project</h1>
-      <div className="w-px h-4 bg-gray-200" />
-      <span className="text-sm font-semibold text-gray-800 truncate">{title}</span>
+      <h1 className="text-sm font-medium text-gray-300">Project</h1>
+      <div className="w-px h-4 bg-gray-600" />
+      <span className="text-sm font-semibold text-white truncate">{title}</span>
     </>
   )
 }

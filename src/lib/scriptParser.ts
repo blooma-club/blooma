@@ -16,7 +16,12 @@ function extract(label: string, block: string): string | undefined {
 }
 
 export function parseScript(raw: string): ParsedScene[] {
-  const normalized = raw.replace(/\r/g, '')
+  // Pre-normalize the raw script to remove common markdown decorations that break parsing
+  let normalized = raw.replace(/\r/g, '')
+  // Convert bold-wrapped bracketed title like **[Title: Something]** into a plain 'Title: Something' line
+  normalized = normalized.replace(/^\s*\*\*\[Title:\s*([^\]]+)\]\*\*\s*$/im, (m, p1) => `Title: ${p1.trim()}`)
+  // Remove remaining bold markers (**)
+  normalized = normalized.replace(/\*\*/g, '')
   // Support variants: Scene 1, Scene #1, Scene1, SCENE 1, 씬 1, 씬#1
   // More permissive: optional punctuation after Scene, optional numeric id
   const headerRegex = /(^|\n)\s*(?:Scene|SCENE|씬)\s*[:#-]?\s*(\d+)?\b([^\n]*)/g
@@ -24,7 +29,8 @@ export function parseScript(raw: string): ParsedScene[] {
   const indices: Idx[] = []
   let m: RegExpExecArray | null
   while ((m = headerRegex.exec(normalized))) {
-    const fullLabel = `${m[2]} ${m[3]}${m[4] || ''}`.trim()
+    // Build a safe label from captured groups; regex only defines up to m[3]
+    const fullLabel = `${m[2] || ''} ${m[3] || ''}`.trim()
     indices.push({ idx: m.index + (m[1] ? m[1].length : 0), label: fullLabel, full: m[0] })
   }
   // Fallback to legacy pattern
@@ -79,11 +85,13 @@ export function parseScript(raw: string): ParsedScene[] {
     const start = indices[i].idx
     const end = i + 1 < indices.length ? indices[i + 1].idx : normalized.length
     const block = normalized.slice(start, end).trim()
-    const header = indices[i].label || ''
-    const numMatch = header.match(/(?:Scene|SCENE|씬)\s*#?\s*(\d+)/)
+  const headerRaw = indices[i].full || indices[i].label || ''
+  const numMatch = headerRaw.match(/(?:Scene|SCENE|씬)\s*#?\s*(\d+)/)
     const sceneNumber = numMatch ? Number(numMatch[1]) : undefined
     const shotDescriptionRaw = extract('Shot Description', block) || extract('Description', block) || ''
     const shotDescription = shotDescriptionRaw.trim()
+    // Try to extract an explicit title for the scene. First, look for a 'Title:' field inside the block.
+    // If not present, try to use header text after the scene number (e.g. "Scene 1: Opening - Exterior").
     scenes.push({
       order: i,
       raw: block,
@@ -100,14 +108,19 @@ export function parseScript(raw: string): ParsedScene[] {
 
 export function extractTitle(raw: string): string | undefined {
   if (!raw) return undefined
+  // Normalize common bold markdown wrappers first (e.g. **[Title: Something]** or **Title: Something**)
+  let normalized = raw.replace(/\r/g, '')
+  normalized = normalized.replace(/(^|\n)\s*\*\*\[Title:\s*([^\]]+)]\*\*\s*(?=\n|$)/i, (m, p1, p2) => `${p1}Title: ${p2.trim()}`)
+  normalized = normalized.replace(/(^|\n)\s*\*\*Title:\s*(.+?)\*\*\s*(?=\n|$)/i, (m, p1, p2) => `${p1}Title: ${p2.trim()}`)
   // Match lines like: Title: My Story or [Title]: My Story (case-insensitive)
   const re = /^\s*(?:\[Title\]|Title)\s*:\s*(.+)$/im
-  const m = raw.match(re)
+  const m = normalized.match(re)
   return m ? m[1].trim() : undefined
 }
 
 export function stripTitle(raw: string): string {
   if (!raw) return raw
-  const re = /^\s*(?:\[Title\]|Title)\s*:\s*.*(?:\n|$)/im
-  return raw.replace(re, '').replace(/^\n+/, '')
+  // Remove bold-wrapped or plain title line variants
+  const re = /(^|\n)\s*(?:\*\*)?(?:\[Title\]|Title)\s*:\s*.*?(?:\*\*)?\s*(?=\n|$)/im
+  return raw.replace(re, (m, p1) => p1 || '').replace(/^\n+/, '')
 }

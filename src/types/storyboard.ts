@@ -3,7 +3,6 @@ export interface StoryboardFrame {
   id: string
   imageUrl?: string
   scene: number
-  title?: string
   shotDescription: string
   shot: string
   dialogue: string
@@ -19,6 +18,8 @@ export interface BuildStoryboardOptions {
   visualStyle: string
   ratio: string
   mode?: 'sync' | 'async'
+  // AI Model settings
+  aiModel?: string
 }
 
 export interface StoryboardBuildResponse {

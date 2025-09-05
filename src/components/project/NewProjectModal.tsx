@@ -71,7 +71,7 @@ export function NewProjectModal() {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="reverse" onClick={closeNewProjectModal}>
+          <Button variant="outline" onClick={closeNewProjectModal}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading || !name.trim()}>

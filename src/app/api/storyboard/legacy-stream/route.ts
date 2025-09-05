@@ -13,11 +13,16 @@ export async function GET(req: NextRequest) {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     start(controller) {
-      const send = (data: any) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+      const send = (data: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       const done = () => { controller.enqueue(encoder.encode('data: [DONE]\n\n')); controller.close() }
       ;(async () => {
         try {
-          const sb = await createStoryboard({ rawScript: script, aspectRatio: ratio, style, processMode: 'async' })
+          const topTitle = (() => {
+            const m = script.match(/^\s*(?:\[Title\]|Title)\s*:\s*(.+)$/im)
+            return m ? m[1].trim() : undefined
+          })()
+          const scriptWithoutTitle = topTitle ? script.replace(/^\s*(?:\[Title\]|Title)\s*:\s*.*(?:\n|$)/im, '').replace(/^\n+/, '') : script
+          const sb = await createStoryboard({ rawScript: scriptWithoutTitle, aspectRatio: ratio, style, processMode: 'async', topTitle })
           // Immediately send skeleton frames (pending)
           send({ storyboardId: sb.id, init: true, frames: sb.frames.map(trimFrame) })
           // Poll in-memory record until complete; since internal engine already sequentially regenerates frames,

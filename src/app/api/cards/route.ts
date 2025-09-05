@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { CardInput } from '@/types'
+import { deleteImageFromR2 } from '@/lib/r2'
+
+// 허용 컬럼 화이트리스트 (DB 컬럼과 1:1 매핑)
+const ALLOWED_KEYS = new Set([
+  'id',
+  'storyboard_id',
+  'user_id',
+  'type',
+  'title',
+  'content',
+  'user_input',
+  'image_url', // 단일 이미지 URL
+  'image_urls', // 기존 배열 방식 (하위 호환성)
+  'selected_image_url', // 기존 인덱스 방식 (하위 호환성)
+  'image_key', // R2 키 (삭제용)
+  'image_size', // 파일 크기
+  'image_type', // uploaded/generated
+  'order_index',
+  'next_card_id',
+  'prev_card_id',
+  // 메타데이터 필드
+  'scene_number',
+  'shot_type',
+  'dialogue',
+  'sound',
+  'image_prompt',
+  'storyboard_status',
+  'shot_description',
+])
 
 // Extended type for database insertion
 type CardInsert = CardInput & {
@@ -11,6 +40,7 @@ type CardInsert = CardInput & {
 export async function POST(request: NextRequest) {
   try {
     const body: CardInsert | CardInsert[] = await request.json()
+    const allowedKeys = ALLOWED_KEYS
     
     if (Array.isArray(body)) {
       // Handle multiple cards
@@ -24,15 +54,16 @@ export async function POST(request: NextRequest) {
       // Check if the database has timestamp columns by trying to insert without them first
       const cardsToInsert = body.map(card => {
         // Remove timestamp fields if they exist
-        const { created_at, updated_at, ...cardWithoutTimestamps } = card as any
-        // Round position and dimension values to integers for database compatibility
-        return {
-          ...cardWithoutTimestamps,
-          position_x: Math.round(cardWithoutTimestamps.position_x || 0),
-          position_y: Math.round(cardWithoutTimestamps.position_y || 0),
-          width: Math.round(cardWithoutTimestamps.width || 400),
-          height: Math.round(cardWithoutTimestamps.height || 220),
+        const { created_at, updated_at, ...raw } = card as any
+        // Pick only allowed keys
+        const filtered = Object.fromEntries(
+          Object.entries(raw).filter(([k]) => allowedKeys.has(k))
+        ) as any
+        // Normalize numeric fields
+        if (typeof filtered.selected_image_url === 'number') {
+          filtered.selected_image_url = Math.round(filtered.selected_image_url)
         }
+        return filtered
       })
 
       const { data, error } = await supabase
@@ -59,15 +90,17 @@ export async function POST(request: NextRequest) {
       }
 
       // Remove timestamp fields for single card insert
-      const { created_at, updated_at, ...cardWithoutTimestamps } = body as any
-      
+      const { created_at, updated_at, ...raw } = body as any
+      // Pick only allowed keys
+      const filtered = Object.fromEntries(
+        Object.entries(raw).filter(([k]) => allowedKeys.has(k))
+      ) as any
       // Round position and dimension values to integers for database compatibility
       const cardToInsert = {
-        ...cardWithoutTimestamps,
-        position_x: Math.round(cardWithoutTimestamps.position_x || 0),
-        position_y: Math.round(cardWithoutTimestamps.position_y || 0),
-        width: Math.round(cardWithoutTimestamps.width || 400),
-        height: Math.round(cardWithoutTimestamps.height || 220),
+        ...filtered,
+      }
+      if (typeof cardToInsert.selected_image_url === 'number') {
+        cardToInsert.selected_image_url = Math.round(cardToInsert.selected_image_url)
       }
 
       const { data, error } = await supabase
@@ -118,13 +151,23 @@ export async function PUT(request: NextRequest) {
           content: cardWithoutTimestamps.content,
           user_input: cardWithoutTimestamps.user_input,
           type: cardWithoutTimestamps.type,
+          image_url: cardWithoutTimestamps.image_url,
           image_urls: cardWithoutTimestamps.image_urls,
           selected_image_url: cardWithoutTimestamps.selected_image_url,
-          position_x: Math.round(cardWithoutTimestamps.position_x),
-          position_y: Math.round(cardWithoutTimestamps.position_y),
-          width: Math.round(cardWithoutTimestamps.width),
-          height: Math.round(cardWithoutTimestamps.height),
+          image_key: cardWithoutTimestamps.image_key,
+          image_size: cardWithoutTimestamps.image_size,
+          image_type: cardWithoutTimestamps.image_type,
           order_index: cardWithoutTimestamps.order_index,
+          // metadata + linking fields (persist storyboard edits)
+          scene_number: cardWithoutTimestamps.scene_number,
+          shot_type: cardWithoutTimestamps.shot_type,
+          dialogue: cardWithoutTimestamps.dialogue,
+          sound: cardWithoutTimestamps.sound,
+          image_prompt: cardWithoutTimestamps.image_prompt,
+          storyboard_status: cardWithoutTimestamps.storyboard_status,
+          shot_description: cardWithoutTimestamps.shot_description,
+          next_card_id: cardWithoutTimestamps.next_card_id,
+          prev_card_id: cardWithoutTimestamps.prev_card_id,
           updated_at: new Date().toISOString(),
         })
         .eq('id', card.id)
@@ -161,7 +204,20 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Delete cards by IDs
+    // 먼저 삭제할 카드들의 이미지 키를 가져옴
+    const { data: cardsToDelete } = await supabase
+      .from('cards')
+      .select('image_key')
+      .in('id', body.cardIds)
+
+    // R2에서 이미지 삭제
+    const imageKeys = cardsToDelete?.map(card => card.image_key).filter(Boolean) || []
+    if (imageKeys.length > 0) {
+      const deletePromises = imageKeys.map(key => deleteImageFromR2(key))
+      await Promise.allSettled(deletePromises)
+    }
+
+    // 카드 삭제
     const { error } = await supabase
       .from('cards')
       .delete()
@@ -175,7 +231,11 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true, deletedCount: body.cardIds.length })
+    return NextResponse.json({ 
+      success: true, 
+      deletedCount: body.cardIds.length,
+      deletedImages: imageKeys.length
+    })
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

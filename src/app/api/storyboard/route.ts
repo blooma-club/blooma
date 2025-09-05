@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     if (!sb) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     // Return only requested metadata fields for each frame to avoid leaking internal fields
   return NextResponse.json({ id: sb.id, projectId: sb.projectId, status: sb.status, title: sb.title || '', frames: trimFrames(sb.frames) })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('get storyboard error', err)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })
   }

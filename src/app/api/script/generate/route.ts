@@ -13,8 +13,6 @@ for (const { key, optional } of REQUIRED_ENV) {
   }
 }
 
-type TransientStatus = 429 | 500 | 502 | 503 | 504
-
 const TRANSIENT_STATUSES: number[] = [429, 500, 502, 503, 504]
 
 function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
@@ -22,11 +20,11 @@ function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
 async function withRetry<T>(fn: () => Promise<T>, opts: { retries?: number; baseDelay?: number } = {}) : Promise<T> {
   const { retries = 2, baseDelay = 600 } = opts
   let attempt = 0
-  let lastErr: any
+  let lastErr: Error | unknown
   while (true) {
-    try { return await fn() } catch (err: any) {
+    try { return await fn() } catch (err: unknown) {
       lastErr = err
-      const status: number | undefined = err?.status || err?.code
+      const status: number | undefined = (err as { status?: number; code?: number })?.status || (err as { status?: number; code?: number })?.code
       if (attempt < retries && status && TRANSIENT_STATUSES.includes(status)) {
         const delay = baseDelay * Math.pow(2, attempt) + Math.round(Math.random()*100)
         await sleep(delay)
@@ -44,14 +42,17 @@ Your entire response must consist ONLY of the final script. Do not write any gre
 
 **Instructions:**
 1.  Detect the language of the user's input and write the entire output in that language.
-2.  Create a clear and engaging **[Title]** for the video and place it at the very top of your response. If the input is clear, omit the title.
-3.  Generate a storyboard script that is a maximum of **6 scenes**.
-4.  The script must have a clear narrative arc: a strong **Hook** in Scene 1 and a clear **Call to Action (CTA)** in the final scene.
-5.  Optimize the tone and pacing for platforms like TikTok and Reels.
-6.  Use the following format for each scene:
+2.  Create a clear and engaging **[Title]** for the video.
+3.  Generate a storyboard script (max 6 scenes) with a clear **Hook → CTA** narrative arc.
+4.  Optimize for TikTok/Reels pacing.
+5.  **Adhere to the following Quality Standard for [Shot Description]:**
+    * **Goal:** The description must be a cinematic snapshot. It should paint a complete picture with words, allowing a director to perfectly visualize the scene.
+    * **AVOID (Bad Example):** "A person drinks coffee."
+    * **DO THIS (Good Example):** "Sunlight streams through a window, illuminating steam rising from a ceramic mug as a person gently blows on the hot coffee, their face reflecting a quiet morning peace."
+6.  Use the following format:
 
 **Scene #:**
-**Shot Description:** (Dynamic, vivid and visual)
+**Shot Description:** (A cinematic snapshot adhering to the quality standard)
 **Shot:** (e.g., Close-up, Medium Shot)
 **Angle:** (e.g., Eye level, Low angle)
 **Dialogue/VO:** (Spoken words, narration, or "No dialogue")
@@ -83,8 +84,9 @@ export async function POST(req: Request) {
     const userPrompt = userPromptLines.join('\n')
 
     // 3. Model selection & fallback
-    const primaryModel = process.env.OPENROUTER_SCRIPT_MODEL || 'google/gemini-2.0-flash'
-    const fallbackModel = process.env.OPENROUTER_SCRIPT_FALLBACK || 'google/gemini-2.0-flash'
+  // Use specific known-good model ids by default. Allow override via env.
+  const primaryModel = process.env.OPENROUTER_SCRIPT_MODEL || 'google/gemini-2.0-flash-001'
+  const fallbackModel = process.env.OPENROUTER_SCRIPT_FALLBACK || 'google/gemini-2.0-flash-001'
     const temperature = 0.3
     const maxTokens = 1400
 
@@ -100,22 +102,28 @@ export async function POST(req: Request) {
       max_tokens: maxTokens,
     }), { retries: 2 })
 
-    let completion: any
+    let completion: {
+      choices: Array<{ message?: { content?: string | null } }>;
+      model?: string;
+    }
     try {
       completion = await attemptModel(primaryModel)
-    } catch (primaryErr: any) {
-      const status = primaryErr?.status || primaryErr?.code
+    } catch (primaryErr: unknown) {
+      const status = (primaryErr as { status?: number; code?: number })?.status || (primaryErr as { status?: number; code?: number })?.code
       const transient = status && TRANSIENT_STATUSES.includes(status)
       if (transient) {
         try {
           completion = await attemptModel(fallbackModel)
-        } catch (fallbackErr: any) {
+        } catch (fallbackErr: unknown) {
           console.error('[script/generate] fallback failed', fallbackErr)
           return NextResponse.json({ error: 'Generation temporarily unavailable' }, { status: status === 429 ? 429 : 503 })
         }
       } else {
         console.error('[script/generate] primary non-transient error', primaryErr)
-        return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+        // If the provider returned a 400 (bad request / invalid model id), pass a helpful message to the client.
+        const status = (primaryErr as { status?: number; code?: number })?.status || (primaryErr as { status?: number; code?: number })?.code || 500
+        const message = (primaryErr as { message?: string })?.message || 'Generation failed'
+        return NextResponse.json({ error: `Generation failed: ${message}` }, { status: status })
       }
     }
 
@@ -134,9 +142,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ script, meta: { model: completion.model, latencyMs: Date.now() - started } })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Script generation error', err)
-    const status = err?.status || err?.code
+    const status = (err as { status?: number; code?: number })?.status || (err as { status?: number; code?: number })?.code
     if (status && TRANSIENT_STATUSES.includes(status)) {
       return NextResponse.json({ error: 'Temporary service issue' }, { status: 503 })
     }
