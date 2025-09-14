@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Trash2 } from 'lucide-react'
+import Image from 'next/image'
 
 type CardStatus = 'ready' | 'processing' | 'enhancing' | 'error' | string
 
@@ -81,9 +82,9 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       </div>
 
       {/* Image area */}
-  <div className="relative w-full h-80 bg-neutral-900">
+  <div className="relative w-full h-96 bg-neutral-900">
   {imageUrl ? (
-          <img src={imageUrl} alt={title || 'card image'} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+          <Image src={imageUrl} alt={title || 'card image'} fill className="object-cover" draggable={false} />
         ) : status !== 'ready' && status !== 'error' ? (
           <div className="absolute inset-0 flex items-center justify-center select-none">
             <div className="w-full h-full bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />

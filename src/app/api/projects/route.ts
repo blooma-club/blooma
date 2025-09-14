@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
         title: body.title,
         description: body.description,
         user_id: body.user_id,
-        is_public: body.is_public ?? false,
+        is_public: false, // 모든 프로젝트는 Private로 고정
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -51,10 +51,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('GET /api/projects - Starting request')
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('user_id')
     
+    console.log('GET /api/projects - userId:', userId)
+    
     if (!userId) {
+      console.log('GET /api/projects - Missing user_id parameter')
       return NextResponse.json(
         { error: 'user_id parameter is required' },
         { status: 400 }
@@ -62,6 +66,7 @@ export async function GET(request: NextRequest) {
     }
     
     // First get all projects
+    console.log('GET /api/projects - Fetching projects for user:', userId)
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
       .select('*')
@@ -69,7 +74,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (projectsError) {
-      console.error('Supabase error details:', {
+      console.error('GET /api/projects - Supabase error details:', {
         message: projectsError.message,
         code: projectsError.code,
         details: projectsError.details,
@@ -81,46 +86,76 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For each project, check if it has storyboards with cards
-    const projectsWithCardInfo = await Promise.all(
+    console.log('GET /api/projects - Found projects:', projects?.length || 0)
+
+    // For each project, get the first scene's image for preview
+    const projectsWithPreview = await Promise.all(
       projects.map(async (project) => {
         // Check if project has storyboards
+        console.log('GET /api/projects - Checking storyboards for project:', project.id)
         const { data: storyboards, error: storyboardsError } = await supabase
           .from('storyboards')
           .select('id')
           .eq('project_id', project.id)
           .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
 
         if (storyboardsError) {
-          console.error('Error fetching storyboards for project:', project.id, storyboardsError)
-          return { ...project, has_cards: false }
+          console.error('GET /api/projects - Error fetching storyboards for project:', project.id, storyboardsError)
+          return { ...project, has_cards: false, preview_image: null }
         }
 
         if (!storyboards || storyboards.length === 0) {
-          return { ...project, has_cards: false }
+          return { ...project, has_cards: false, preview_image: null }
         }
 
-        // Check if any storyboard has cards
-        const storyboardIds = storyboards.map(s => s.id)
-        const { data: cards, error: cardsError } = await supabase
+        // Get the first card with an image from the first storyboard
+        const { data: firstCard, error: cardError } = await supabase
           .from('cards')
-          .select('id')
-          .in('storyboard_id', storyboardIds)
+          .select('image_url, image_urls, selected_image_url')
+          .eq('storyboard_id', storyboards[0].id)
           .eq('user_id', userId)
+          .order('order_index', { ascending: true })
           .limit(1)
+          .single()
 
-        if (cardsError) {
-          console.error('Error fetching cards for project:', project.id, cardsError)
-          return { ...project, has_cards: false }
+        if (cardError || !firstCard) {
+          // Check if there are any cards at all
+          const { data: anyCards, error: anyCardsError } = await supabase
+            .from('cards')
+            .select('id')
+            .eq('storyboard_id', storyboards[0].id)
+            .eq('user_id', userId)
+            .limit(1)
+
+          const hasCards = !anyCardsError && anyCards && anyCards.length > 0
+          return { ...project, has_cards: hasCards, preview_image: null }
         }
 
-        return { ...project, has_cards: cards && cards.length > 0 }
+        // Determine the preview image
+        let previewImage = null
+        if (firstCard.image_url) {
+          previewImage = firstCard.image_url
+        } else if (firstCard.image_urls && firstCard.image_urls.length > 0) {
+          const selectedIndex = firstCard.selected_image_url || 0
+          previewImage = firstCard.image_urls[selectedIndex] || firstCard.image_urls[0]
+        }
+
+        console.log('GET /api/projects - Project', project.id, 'has_cards: true, preview_image:', previewImage)
+
+        return { 
+          ...project, 
+          has_cards: true, 
+          preview_image: previewImage 
+        }
       })
     )
 
-    return NextResponse.json({ data: projectsWithCardInfo, success: true })
+    console.log('GET /api/projects - Returning', projectsWithPreview.length, 'projects')
+    return NextResponse.json({ data: projectsWithPreview, success: true })
   } catch (error) {
-    console.error('API error:', error)
+    console.error('GET /api/projects - API error:', error)
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

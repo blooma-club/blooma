@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { AuthForm } from '@/components/auth/AuthForm'
+import Image from 'next/image'
 
 export default function Home() {
   const router = useRouter()
@@ -16,12 +16,14 @@ export default function Home() {
         <div className="flex items-center justify-between w-full max-w-5xl mx-auto gap-x-24 px-4">
           {/* 좌측: 로고 */}
           <div className="flex items-center">
-            <img
+            <Image
               src="/blooma.svg"
               alt="Blooma Logo"
-              aria-label="Blooma Logo"
+              width={56}
+              height={56}
               className="w-14 h-14 object-contain"
               draggable={false}
+              priority
             />
             <span className="text-2xl font-bold text-white select-none ml-3">Blooma</span>
           </div>
@@ -77,11 +79,13 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative isolate flex-1 overflow-hidden">
         {/* 배경 이미지 (목업) */}
-        <img
+        <Image
           src="/styles/cinematic.jpg"
           alt="hero background"
-          className="absolute inset-0 h-full w-full object-cover opacity-70"
+          fill
+          className="object-cover opacity-70"
           draggable={false}
+          priority
         />
         {/* 오버레이 */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.06),transparent_40%)]" />

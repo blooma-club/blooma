@@ -3,13 +3,17 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
 import type { Card } from '@/types'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { useStoryboardStore } from '@/store/storyboard'
+import { useUIStore, useHydratedUIStore } from '@/store/ui'
 import { Plus } from 'lucide-react'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
 import FrameEditModal from '@/components/storyboard/FrameEditModal'
+import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
+import FrameList from '@/components/storyboard/viewer/FrameList'
+import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
 import { createAndLinkCard } from '@/lib/cards'
 import SingleEditorLayout from '@/components/storyboard/editor/SingleEditorLayout'
 import SequencePanel from '@/components/storyboard/editor/SequencePanel'
@@ -24,17 +28,33 @@ const EMPTY_CARDS: Card[] = []
 
 export default function StoryboardPage() {
   const params = useParams() as any
+  const router = useRouter()
   const projectId = params.id
   const sbId = params.sbId
   const { user } = useSupabase()
+  
+  // URL에서 frame 파라미터 확인 (Editor 모드 진입 여부)
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  const frameParam = searchParams.get('frame')
+  const initialFrameMode = !!frameParam
+  const initialIndex = frameParam ? Math.max(0, parseInt(frameParam) - 1) : 0
 
   const [frames, setFrames] = useState<StoryboardFrame[]>([])
-  const [index, setIndex] = useState(0) // current frame in single view mode
+  const [index, setIndex] = useState(initialIndex) // current frame in single view mode
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<any>(null)
   const [sbTitle, setSbTitle] = useState<string>('Storyboard')
-
+  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
+  const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
+  // aspect ratio is selected at build time; not yet sent back in API payload. Placeholder for future.
+  const [ratio] = useState<'16:9' | '1:1' | '9:16' | '4:3' | '3:4'>('3:4')
+  
+  // Frame editor 모드 상태
+  const [isFrameMode, setIsFrameMode] = useState(initialFrameMode)
+  // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
+  const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
+  
   // Zustand store 연결
   const storyboard = useStoryboardStore(s => s.storyboard)
   const setStoryboard = useStoryboardStore(s => s.setStoryboard)
@@ -43,14 +63,6 @@ export default function StoryboardPage() {
   const deleteCard = useStoryboardStore(s => s.deleteCard)
   const selectCard = useStoryboardStore(s => s.selectCard)
   const sseRef = React.useRef<EventSource | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'frame'>('grid')
-  const isGrid = viewMode === 'grid'
-  const isFrame = viewMode === 'frame'
-  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
-  const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
-  // aspect ratio is selected at build time; not yet sent back in API payload. Placeholder for future.
-  const [ratio] = useState<'16:9' | '1:1' | '9:16' | '4:3' | '3:4'>('3:4')
-  // Drag & drop 제거됨 – 단순 카드 리스트
 
   // 안정적인 이미지 업데이트 콜백
   const handleImageUpdated = useCallback(async (frameId: string, newUrl: string, metadata?: { key?: string, size?: number, type?: string }) => {
@@ -101,7 +113,6 @@ export default function StoryboardPage() {
   }, [cards]);
 
   // 현재 프레임 안정적 참조
-  const currentFrame = useMemo(() => frames[index] || null, [frames, index]);
 
   // 근본적 해결: 실제 데이터 변경 시그니처 기반 동기화
   const lastSyncSignatureRef = useRef<string>('')
@@ -319,18 +330,52 @@ export default function StoryboardPage() {
   }
   React.useEffect(() => () => { if (sseRef.current) sseRef.current.close() }, [])
 
+  // 네비게이션 핸들러
+  const handleNavigateToStoryboard = useCallback(() => {
+    setIsFrameMode(false)
+    // URL에서 frame 파라미터 제거
+    const newUrl = `/project/${projectId}/storyboard/${sbId}`
+    router.replace(newUrl, { scroll: false })
+  }, [projectId, sbId, router])
+
+  const handleNavigateToEditor = useCallback(() => {
+    setIsFrameMode(true)
+    // URL에 frame 파라미터 추가
+    const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${index + 1}`
+    router.replace(newUrl, { scroll: false })
+  }, [projectId, sbId, index, router])
+
+  // 키보드 네비게이션 (Frame 모드에서만)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (viewMode === 'frame') {
-        if (e.key === 'ArrowRight') setIndex(i => Math.min(frames.length - 1, i + 1))
-        if (e.key === 'ArrowLeft') setIndex(i => Math.max(0, i - 1))
+      if (isFrameMode) {
+        if (e.key === 'ArrowRight' && index < frames.length - 1) {
+          const newIndex = index + 1
+          setIndex(newIndex)
+          // URL 업데이트
+          const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${newIndex + 1}`
+          router.replace(newUrl, { scroll: false })
+        }
+        if (e.key === 'ArrowLeft' && index > 0) {
+          const newIndex = index - 1
+          setIndex(newIndex)
+          // URL 업데이트
+          const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${newIndex + 1}`
+          router.replace(newUrl, { scroll: false })
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [frames.length, viewMode])
+  }, [frames.length, index, isFrameMode, projectId, sbId, router])
 
-  const frame = frames[index]
+  const handleOpenFrame = useCallback((frameIndex: number) => {
+    setIndex(frameIndex)
+    setIsFrameMode(true)
+    // URL에 frame 파라미터 추가
+    const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${frameIndex + 1}`
+    router.replace(newUrl, { scroll: false })
+  }, [projectId, sbId, router])
 
   // Add / Delete frame handlers
   const handleAddFrame = async () => {
@@ -419,34 +464,53 @@ export default function StoryboardPage() {
   // 단순 카드 (드래그 제거)
   // FrameCard 컴포넌트 제거: StoryboardCard로 직접 렌더링
 
-  // Helper for image aspect ratio
-  const imageStyleForRatio = (r: string) => {
-    const parts = r.split(':').map(n=>Number(n)||1)
-    return { aspectRatio: `${parts[0]}/${parts[1]}` }
-  }
+  // 현재 프레임 안정적 참조
+  const currentFrame = useMemo(() => frames[index] || null, [frames, index])
 
   return (
     <div>
       <div className="w-full px-4">
-        {/* floating header rendered for both modes */}
-        <FloatingHeader title={sbTitle || 'Storyboard'} index={index} total={frames.length} viewMode={viewMode} onSetGrid={()=>setViewMode('grid')} onSetFrame={()=>setViewMode('frame')} />
-        {viewMode === 'grid' && (
+        {/* Header 라인: FloatingHeader + ViewModeToggle */}
+        <div className="relative w-full mb-6">
+          {/* FloatingHeader */}
+          <FloatingHeader 
+            title={sbTitle || 'Storyboard'} 
+            index={index} 
+            total={frames.length} 
+            currentView={isFrameMode ? 'editor' : 'storyboard'}
+            onNavigateToStoryboard={handleNavigateToStoryboard}
+            onNavigateToEditor={handleNavigateToEditor}
+          />
+          
+          {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
+          {!isFrameMode && (
+            <div className="absolute top-0 right-4 pointer-events-auto">
+              <div className="bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-3 py-3">
+                <ViewModeToggle
+                  viewMode={isClient ? storyboardViewMode : 'grid'}
+                  onSetGrid={() => setStoryboardViewMode('grid')}
+                  onSetList={() => setStoryboardViewMode('list')}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* 스토리보드 뷰 */}
+        {!isFrameMode && (
           <>
-          {/* Error message */}
-          {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
+            {/* Error message */}
+            {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
 
-          {/* Storyboard Content */}
+            {/* 콘텐츠 렌더링 */}
             {loading && (
               <div className="flex justify-center">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 w-full max-w-[2000px]">
+                <div className="grid grid-cols-4 gap-6 w-full max-w-[2000px]">
                   {Array.from({ length: Math.max(cards.length, 8) }).map((_, idx) => (
-                    <div key={idx} className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden h-80">
-                      {/* Scene number skeleton */}
+                    <div key={idx} className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden h-96">
                       <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-neutral-800 w-16 h-4 animate-pulse" />
-                      {/* Status dot skeleton */}
                       <div className="absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full bg-neutral-700 ring-2 ring-neutral-700 animate-pulse" />
-                      {/* Image area skeleton */}
-                      <div className="relative w-full h-80 bg-neutral-900">
+                      <div className="relative w-full h-96 bg-neutral-900">
                         <div className="absolute inset-0 bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
                         <style jsx>{`@keyframes shimmer {0%{background-position:0% 0}100%{background-position:-200% 0}}`}</style>
                       </div>
@@ -455,36 +519,70 @@ export default function StoryboardPage() {
                 </div>
               </div>
             )}
-              {!loading && viewMode === 'grid' && (
-                <div className="flex justify-center">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 w-full max-w-[2000px]">
-                    {frames.map((f,i) => (
-                      <StoryboardCard
-                        key={f.id}
-                        sceneNumber={i+1}
-                        imageUrl={f.imageUrl}
-                        status={f.status as any}
-                        imageFit="cover"
-                        deleting={deletingFrameId === f.id}
-                        onOpen={() => { setIndex(i); setViewMode('frame') }}
-                        onEdit={() => setEditingFrame({ ...f })}
-                        onDelete={() => handleDeleteFrame(f.id)}
-                      />
-                    ))}
-                    <button type="button" onClick={handleAddFrame} className="w-full h-80 border-2 border-dashed border-neutral-600 rounded-lg flex flex-col items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50" aria-label="Add new frame">
-                      <Plus className="w-7 h-7 mb-1" />
-                      <span className="text-sm font-medium">Add new scene</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+            
+            {!loading && (!isClient || storyboardViewMode === 'grid') && (
+              <FrameGrid
+                frames={frames}
+                onFrameOpen={handleOpenFrame}
+                onFrameEdit={(frameId) => {
+                  const frameData = frames.find(f => f.id === frameId)
+                  if (frameData) setEditingFrame(frameData)
+                }}
+                onFrameDelete={handleDeleteFrame}
+                onAddFrame={handleAddFrame}
+                deletingFrameId={deletingFrameId}
+                loading={loading}
+                cardsLength={cards.length}
+              />
+            )}
+            
+            {!loading && isClient && storyboardViewMode === 'list' && (
+              <FrameList
+                frames={frames}
+                onFrameEdit={handleOpenFrame}
+                onFrameEditMetadata={(frameId) => {
+                  const frameData = frames.find(f => f.id === frameId)
+                  if (frameData) setEditingFrame(frameData)
+                }}
+                onFrameDelete={handleDeleteFrame}
+                onAddFrame={handleAddFrame}
+                deletingFrameId={deletingFrameId}
+              />
+            )}
           </>
         )}
-        {viewMode === 'frame' && frames.length > 0 && currentFrame && (
+        
+        {/* 에디터 뷰 (Frame 모드) */}
+        {isFrameMode && frames.length > 0 && currentFrame && (
           <SingleEditorLayout
             header={null}
-            left={<SequencePanel frames={frames} currentIndex={index} onSelect={setIndex} onAddFrame={handleAddFrame} />}
-            center={<ImageStage frame={currentFrame} hasPrev={index>0} hasNext={index<frames.length-1} onPrev={()=>setIndex(i=>Math.max(0,i-1))} onNext={()=>setIndex(i=>Math.min(frames.length-1,i+1))} />}
+            left={<SequencePanel 
+              frames={frames} 
+              currentIndex={index} 
+              onSelect={(newIndex) => {
+                setIndex(newIndex)
+                const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${newIndex + 1}`
+                router.replace(newUrl, { scroll: false })
+              }} 
+              onAddFrame={handleAddFrame} 
+            />}
+            center={<ImageStage 
+              frame={currentFrame} 
+              hasPrev={index>0} 
+              hasNext={index<frames.length-1} 
+              onPrev={() => {
+                const newIndex = Math.max(0, index - 1)
+                setIndex(newIndex)
+                const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${newIndex + 1}`
+                router.replace(newUrl, { scroll: false })
+              }} 
+              onNext={() => {
+                const newIndex = Math.min(frames.length - 1, index + 1)
+                setIndex(newIndex)
+                const newUrl = `/project/${projectId}/storyboard/${sbId}?frame=${newIndex + 1}`
+                router.replace(newUrl, { scroll: false })
+              }} 
+            />}
             right={
               <ImageEditPanel 
                 storyboardId={sbId as string}
@@ -496,6 +594,8 @@ export default function StoryboardPage() {
             footer={null}
           />
         )}
+        
+        {/* 프레임 편집 모달 */}
         {editingFrame && (
           <FrameEditModal
             frame={editingFrame}

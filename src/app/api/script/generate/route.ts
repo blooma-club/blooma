@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { openrouter } from '@/lib/openrouter'
+import { checkCreditsAvailable, consumeCredits } from '@/lib/credits'
+import { createClient } from '@supabase/supabase-js'
 
 // ---- Runtime Guards & Helpers -------------------------------------------------
 const REQUIRED_ENV: Array<{ key: string; optional?: boolean }> = [
@@ -62,6 +64,34 @@ Your entire response must consist ONLY of the final script. Do not write any gre
 export async function POST(req: Request) {
   const started = Date.now()
   try {
+    // 0. 사용자 인증 및 크레딧 체크
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    // Authorization 헤더에서 사용자 토큰 추출
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
+    
+    // 크레딧 사용 가능 여부 확인
+    const creditCheck = await checkCreditsAvailable(user.id, 'script_generation')
+    if (!creditCheck.available) {
+      return NextResponse.json({ 
+        error: `Insufficient credits. Required: ${creditCheck.required}, Available: ${creditCheck.current}`,
+        required_credits: creditCheck.required,
+        current_credits: creditCheck.current
+      }, { status: 402 }) // Payment Required
+    }
     // 1. Parse & validate body
     const body = await req.json().catch(() => ({}))
     const briefRaw = (body.brief ?? '').toString()
@@ -141,9 +171,67 @@ export async function POST(req: Request) {
       console.warn('[script/generate] script missing Scene 1 marker')
     }
 
-    return NextResponse.json({ script, meta: { model: completion.model, latencyMs: Date.now() - started } })
+    // 7. 크레딧 차감 및 사용량 기록
+    const creditResult = await consumeCredits(
+      user.id,
+      'script_generation',
+      'openrouter',
+      {
+        modelName: completion.model || primaryModel,
+        success: true,
+        metadata: {
+          brief: brief.slice(0, 100), // 첫 100자만 저장
+          tone,
+          desiredLength,
+          latencyMs: Date.now() - started
+        }
+      }
+    )
+    
+    if (!creditResult.success) {
+      console.warn('[script/generate] Failed to record credit usage')
+    }
+
+    return NextResponse.json({ 
+      script, 
+      meta: { 
+        model: completion.model, 
+        latencyMs: Date.now() - started,
+        credits_used: creditCheck.required,
+        credits_remaining: creditResult.newBalance || creditCheck.current
+      } 
+    })
   } catch (err: unknown) {
     console.error('Script generation error', err)
+    
+    // 실패 시에도 사용량 기록 (성공=false)
+    try {
+      const authHeader = req.headers.get('authorization')
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '')
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+        const { data: { user } } = await supabase.auth.getUser(token)
+        
+        if (user) {
+          await consumeCredits(
+            user.id,
+            'script_generation',
+            'openrouter',
+            {
+              success: false,
+              errorMessage: (err as Error)?.message || 'Unknown error',
+              metadata: { latencyMs: Date.now() - started }
+            }
+          )
+        }
+      }
+    } catch (recordError) {
+      console.warn('Failed to record failed usage:', recordError)
+    }
+    
     const status = (err as { status?: number; code?: number })?.status || (err as { status?: number; code?: number })?.code
     if (status && TRANSIENT_STATUSES.includes(status)) {
       return NextResponse.json({ error: 'Temporary service issue' }, { status: 503 })

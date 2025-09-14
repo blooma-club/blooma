@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { ProjectInput, Project } from '@/types'
-import { X, Lock, Globe } from 'lucide-react'
+import { X } from 'lucide-react'
 
 interface ProjectModalProps {
   isOpen: boolean
@@ -15,9 +15,7 @@ interface ProjectModalProps {
 
 export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: ProjectModalProps) => {
   const [formData, setFormData] = useState<ProjectInput>({
-    title: '',
-    description: '',
-    is_public: false
+    title: ''
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -26,15 +24,11 @@ export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: Proje
   useEffect(() => {
     if (project && mode === 'edit') {
       setFormData({
-        title: project.title,
-        description: project.description || '',
-        is_public: project.is_public
+        title: project.title
       })
     } else if (mode === 'create') {
       setFormData({
-        title: '',
-        description: '',
-        is_public: false
+        title: ''
       })
     }
   }, [project, mode])
@@ -51,9 +45,7 @@ export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: Proje
       newErrors.title = 'Project title must be less than 100 characters.'
     }
 
-    if (formData.description && formData.description.length > 500) {
-      newErrors.description = 'Project description must be less than 500 characters.'
-    }
+
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -71,9 +63,7 @@ export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: Proje
       // 성공 시 폼 초기화 (create 모드에서만)
       if (mode === 'create') {
         setFormData({
-          title: '',
-          description: '',
-          is_public: false
+          title: ''
         })
       }
       setErrors({})
@@ -91,15 +81,11 @@ export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: Proje
     // Reset form to original project data (edit mode) or empty (create mode)
     if (project && mode === 'edit') {
       setFormData({
-        title: project.title,
-        description: project.description || '',
-        is_public: project.is_public
+        title: project.title
       })
     } else if (mode === 'create') {
       setFormData({
-        title: '',
-        description: '',
-        is_public: false
+        title: ''
       })
     }
     setErrors({})
@@ -168,73 +154,9 @@ export const ProjectModal = ({ isOpen, onClose, onSubmit, project, mode }: Proje
             )}
           </div>
 
-          {/* Project Description */}
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-neutral-300 mb-2">
-              Project Description (Optional)
-            </label>
-            <textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className={`w-full px-3 py-2 border border-neutral-700 bg-neutral-900 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white resize-none ${
-                errors.description ? 'border-red-500' : ''
-              }`}
-              placeholder="Enter a brief description for your project"
-              rows={3}
-              maxLength={500}
-              disabled={loading}
-            />
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-400">{errors.description}</p>
-            )}
-            <p className="mt-1 text-sm text-neutral-400">
-              {formData.description?.length || 0}/500
-            </p>
-          </div>
 
-          {/* Visibility Settings */}
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-3">
-              Visibility
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="is_public"
-                  checked={!formData.is_public}
-                  onChange={() => setFormData(prev => ({ ...prev, is_public: false }))}
-                  className="text-blue-400 focus:ring-blue-400"
-                  disabled={loading}
-                />
-                <div className="ml-3 flex items-center">
-                  <Lock className="h-4 w-4 text-neutral-300 mr-2" />
-                  <div>
-                    <p className="text-sm font-medium text-white">Private</p>
-                    <p className="text-sm text-neutral-300">Only you can see this project.</p>
-                  </div>
-                </div>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="is_public"
-                  checked={formData.is_public}
-                  onChange={() => setFormData(prev => ({ ...prev, is_public: true }))}
-                  className="text-blue-400 focus:ring-blue-400"
-                  disabled={loading}
-                />
-                <div className="ml-3 flex items-center">
-                  <Globe className="h-4 w-4 text-neutral-300 mr-2" />
-                  <div>
-                    <p className="text-sm font-medium text-white">Public</p>
-                    <p className="text-sm text-neutral-300">Anyone with the link can see this project.</p>
-                  </div>
-                </div>
-              </label>
-            </div>
-          </div>
+
+
 
           {/* Action Buttons */}
           <div className="flex gap-2 mt-8">

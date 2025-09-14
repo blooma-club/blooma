@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo, useRef, useState } from "react";
 import { Upload, ImagePlus, Plus, X } from "lucide-react";
+import Image from 'next/image';
 
 type Props = {
   storyboardId: string;
@@ -189,14 +190,16 @@ const ImageEditPanel: React.FC<Props> = ({ storyboardId, frameId, currentImageUr
                   </button>
                 </div>
               ) : (
-                <img 
-                  src={currentImageUrl} 
-                  alt="current" 
-                  className="w-full object-contain rounded border border-neutral-700"
-                  style={{ maxHeight: '300px' }}
-                  onLoad={handleImageLoad}
-                  onError={handleImageError}
-                />
+                <div className="relative w-full" style={{ maxHeight: '300px', height: '300px' }}>
+                  <Image
+                    src={currentImageUrl} 
+                    alt="current" 
+                    fill
+                    className="object-contain rounded border border-neutral-700"
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
+                  />
+                </div>
               )}
               {!imageLoadError && (
                 <div className="absolute bottom-2 right-2 flex gap-1">
@@ -244,7 +247,7 @@ const ImageEditPanel: React.FC<Props> = ({ storyboardId, frameId, currentImageUr
               <div className="aspect-square rounded border border-neutral-700 bg-neutral-900 flex items-center justify-center overflow-hidden">
                 {url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={url} alt={`ref-${idx}`} className="w-full h-full object-cover" />
+                  <Image src={url} alt={`ref-${idx}`} fill className="object-cover" />
                 ) : (
                   <div className="text-center">
                     <Upload className="w-6 h-6 mx-auto mb-1 text-neutral-500" />

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Book, Film, ArrowRight, Plus } from 'lucide-react'
+import { Film, Plus, Sparkles, FileText } from 'lucide-react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 
@@ -98,10 +98,10 @@ export default function StoryboardPage() {
     // 스토리보드 확인 중
   if (checkingStoryboard) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div className="w-full h-full min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="mb-4">
-            <svg className="mx-auto h-8 w-8 animate-spin text-neutral-400" fill="none" viewBox="0 0 24 24">
+            <svg className="mx-auto h-12 w-12 animate-spin text-neutral-400" fill="none" viewBox="0 0 24 24">
               <circle
                 className="opacity-25"
                 cx="12"
@@ -117,7 +117,8 @@ export default function StoryboardPage() {
               ></path>
             </svg>
           </div>
-          <div className="text-neutral-300 text-sm">Loading storyboard...</div>
+          <div className="text-neutral-300 text-lg font-medium">Loading storyboard...</div>
+          <div className="text-neutral-500 text-sm mt-2">Please wait while we check your project</div>
         </div>
       </div>
     )
@@ -125,42 +126,92 @@ export default function StoryboardPage() {
 
   // 스토리보드가 없으면 생성 옵션 표시
   return (
-    <div className="max-w-2xl mx-auto text-center py-20">
-      <div className="mb-8">
-        <Film className="w-20 h-20 text-gray-300 mx-auto mb-6" />
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Create Your Storyboard</h1>
-        <p className="text-lg text-gray-600 mb-8">
-          Start by writing a script or create an empty storyboard to begin
-        </p>
-      </div>
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="max-w-4xl mx-auto text-center">
+        {/* 메인 아이콘 */}
+        <div className="mb-12">
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-neutral-900 rounded-2xl mb-6">
+            <Film className="w-12 h-12 text-neutral-400" />
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-4">Create Your First Storyboard</h1>
+          <p className="text-xl text-neutral-300 max-w-2xl mx-auto leading-relaxed">
+            Choose how you'd like to start creating your storyboard. You can generate content with AI or start with a blank canvas.
+          </p>
+        </div>
 
-      <div className="flex items-center justify-center gap-4">
-        <button
-          onClick={handleWriteScript}
-          className="inline-flex items-center gap-3 px-8 py-4 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-lg font-medium"
-        >
-          <Book className="w-5 h-5" />
-          Write Script
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        {/* 옵션 카드들 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-12">
+          {/* AI 생성 옵션 */}
+          <div className="group relative">
+            <button
+              onClick={handleWriteScript}
+              className="w-full p-8 bg-neutral-900 border-2 border-neutral-800 hover:border-blue-500 rounded-2xl transition-all duration-300 hover:bg-neutral-800 hover:scale-105 text-left"
+            >
+              <div className="flex items-center justify-center w-16 h-16 bg-blue-500/10 rounded-xl mb-6 group-hover:bg-blue-500/20 transition-colors">
+                <Sparkles className="w-8 h-8 text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3">Start with AI</h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Generate a complete storyboard using AI with templates like PAS, AIDA, or custom prompts. Perfect for quick content creation.
+              </p>
+              <div className="mt-6 inline-flex items-center text-blue-400 font-medium">
+                <span>Get Started</span>
+                <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
 
-        <button
-          onClick={handleStartWithoutScript}
-          disabled={creating}
-          className={`inline-flex items-center gap-3 px-6 py-4 rounded-lg transition-colors text-lg font-medium border-2 ${
-            creating
-              ? 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed'
-              : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-          }`}
-          aria-label="Start without Script"
-        >
-          <Plus className="w-5 h-5" />
-          {creating ? 'Creating...' : 'Start Empty'}
-        </button>
-      </div>
+          {/* 빈 스토리보드 옵션 */}
+          <div className="group relative">
+            <button
+              onClick={handleStartWithoutScript}
+              disabled={creating}
+              className={`w-full p-8 border-2 rounded-2xl transition-all duration-300 text-left ${
+                creating
+                  ? 'bg-neutral-900 border-neutral-800 cursor-not-allowed opacity-50'
+                  : 'bg-neutral-900 border-neutral-800 hover:border-neutral-600 hover:bg-neutral-800 hover:scale-105'
+              }`}
+            >
+              <div className={`flex items-center justify-center w-16 h-16 rounded-xl mb-6 transition-colors ${
+                creating
+                  ? 'bg-neutral-800'
+                  : 'bg-neutral-800 group-hover:bg-neutral-700'
+              }`}>
+                {creating ? (
+                  <svg className="w-6 h-6 animate-spin text-neutral-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <FileText className="w-8 h-8 text-neutral-400" />
+                )}
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3">
+                {creating ? 'Creating...' : 'Blank Storyboard'}
+              </h3>
+              <p className="text-neutral-400 leading-relaxed">
+                {creating
+                  ? 'Setting up your storyboard workspace...'
+                  : 'Start with an empty storyboard and create your content manually. Full creative control over your project.'}
+              </p>
+              {!creating && (
+                <div className="mt-6 inline-flex items-center text-neutral-300 font-medium">
+                  <span>Start Empty</span>
+                  <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
 
-      <div className="mt-8 text-sm text-gray-500">
-        Your storyboard will be created and you'll be taken to the editor
+        {/* 하단 도움말 */}
+        <div className="text-neutral-500 text-sm">
+          <p>Your storyboard will be created and you'll be taken to the editor automatically</p>
+        </div>
       </div>
     </div>
   )

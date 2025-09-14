@@ -29,6 +29,47 @@ if (r2Base) {
   })
 }
 
+// Add Google OAuth avatar images and AI service domains
+remotePatterns.push(
+  {
+    protocol: 'https',
+    hostname: 'lh3.googleusercontent.com',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
+    hostname: 'lh4.googleusercontent.com',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
+    hostname: 'lh5.googleusercontent.com',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
+    hostname: 'lh6.googleusercontent.com',
+    pathname: '/**'
+  },
+  // FAL AI 이미지 도메인
+  {
+    protocol: 'https',
+    hostname: 'v3.fal.media',
+    pathname: '/**'
+  },
+  // 기타 AI 서비스 도메인들
+  {
+    protocol: 'https',
+    hostname: 'replicate.delivery',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
+    hostname: 'pbxt.replicate.delivery',
+    pathname: '/**'
+  }
+)
+
 const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,

@@ -4,12 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
-import { ProjectModal } from '@/components/dashboard/ProjectModal'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { supabase } from '@/lib/supabase'
+import Image from 'next/image'
+import AccountDropdown from '@/components/ui/AccountDropdown'
+import CreditStatus from '@/components/ui/CreditStatus'
+// import CreditDisplay from '@/components/ui/CreditDisplay'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -17,7 +20,6 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set())
@@ -76,7 +78,7 @@ export default function DashboardPage() {
     }
   }, [loading, user?.id, session])
 
-  const handleCreateProject = async (projectData: ProjectInput) => {
+  const handleCreateProject = async () => {
     if (!user?.id) {
       alert('Please sign in to create a project')
       return
@@ -87,10 +89,9 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from('projects')
         .insert({
-          title: projectData.title,
-          description: projectData.description,
+          title: 'New Project',
           user_id: user.id,
-          is_public: projectData.is_public || false,
+          is_public: false, // 모든 프로젝트는 Private로 고정
         })
         .select()
         .single()
@@ -102,10 +103,9 @@ export default function DashboardPage() {
       }
 
       setProjects(prev => [data, ...prev])
-      setIsCreateModalOpen(false)
 
-      // 프로젝트 생성 후 셋업 페이지로 자동 이동
-      router.push(`/project/${data.id}/setup`)
+      // 프로젝트 생성 후 바로 스토리보드 페이지로 이동
+      router.push(`/project/${data.id}/storyboard`)
     } catch (error) {
       console.error('Error creating project:', error)
       alert('Failed to create project')
@@ -124,8 +124,6 @@ export default function DashboardPage() {
         body: JSON.stringify({
           id: projectId,
           title: projectData.title,
-          description: projectData.description,
-          is_public: projectData.is_public,
         }),
       })
 
@@ -182,17 +180,27 @@ export default function DashboardPage() {
 
   return (
     <div className="w-full min-h-screen bg-black flex flex-col">
-      {/* 헤더: Projects 타이틀 + Create 버튼만 */}
-      <header className="w-full bg-black border-b-2 border-neutral-800 px-6 py-4 flex items-center">
+      {/* 헤더: Projects 타이틀 + Account Settings */}
+      <header className="w-full bg-black border-b-2 border-neutral-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <img
+          <Image
             src="/blooma.svg"
             alt="Blooma Logo"
-            aria-label="Blooma Logo"
+            width={40}
+            height={40}
             className="w-10 h-10 object-contain select-none"
             draggable={false}
           />
           <span className="text-2xl font-bold text-white select-none ml-1">Blooma</span>
+        </div>
+        
+        {/* 오른쪽: 크레딧 상태 및 계정 설정 */}
+        <div className="flex items-center gap-4">
+          {/* 크레딧 상태 */}
+          <CreditStatus />
+          
+          {/* 계정 설정 드롭다운 */}
+          <AccountDropdown />
         </div>
       </header>
       {/* Main Content */}
@@ -203,7 +211,7 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-bold text-white">Projects</h1>
                          <Button
                variant="default"
-               onClick={() => setIsCreateModalOpen(true)}
+               onClick={handleCreateProject}
                disabled={creatingProject || !user?.id}
                className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
                aria-label="New project"
@@ -391,11 +399,12 @@ export default function DashboardPage() {
               {!searchTerm && (
                                  <Button
                    variant="default"
-                   onClick={() => setIsCreateModalOpen(true)}
+                   onClick={handleCreateProject}
+                   disabled={creatingProject}
                    className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
                  >
                    <Plus className="h-4 w-4 mr-2" />
-                   Create Your First Project
+                   {creatingProject ? 'Creating...' : 'Create Your First Project'}
                  </Button>
               )}
             </div>
@@ -420,12 +429,6 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
-      <ProjectModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateProject}
-        mode="create"
-      />
     </div>
   )
 }

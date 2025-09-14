@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import type { StoryboardFrame } from '@/types/storyboard';
+import Image from 'next/image';
 
 interface ImageStageProps {
   frame?: StoryboardFrame;
@@ -29,7 +30,7 @@ export const ImageStage: React.FC<ImageStageProps> = ({ frame, onPrev, onNext, h
       </div>
       <div className="relative bg-neutral-800 border border-neutral-600 rounded flex items-center justify-center overflow-hidden min-h-[480px]">
         {frame.imageUrl ? (
-          <img src={frame.imageUrl} alt="frame" className="object-contain w-full h-full" />
+          <Image src={frame.imageUrl} alt="frame" fill className="object-contain" />
         ) : (
           <div className="text-neutral-300 text-sm">{frame.status !== 'ready' ? 'Processing…' : 'No image'}</div>
         )}

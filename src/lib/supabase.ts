@@ -45,7 +45,7 @@ export type Database = {
           user_id: string
           title: string
           description?: string
-          is_public: boolean
+          is_public: boolean // DB 스키마에는 유지하나 전체 Private로 고정
           created_at?: string
           updated_at?: string
         }

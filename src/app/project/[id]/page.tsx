@@ -11,7 +11,7 @@ export default function ProjectIndexRedirect() {
 
   const useIso = typeof window !== 'undefined' ? useLayoutEffect : useEffect
   useIso(() => {
-    if (id) router.replace(`/project/${id}/setup`)
+    if (id) router.replace(`/project/${id}/storyboard`)
   }, [id, router])
 
   return (
@@ -34,7 +34,7 @@ export default function ProjectIndexRedirect() {
             ></path>
           </svg>
         </div>
-        <div className="text-neutral-300 text-sm">Redirecting to project setup...</div>
+        <div className="text-neutral-300 text-sm">Redirecting to storyboard...</div>
       </div>
     </div>
   )

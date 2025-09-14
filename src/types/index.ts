@@ -6,6 +6,10 @@ export interface User {
   email: string
   name: string
   avatar_url?: string
+  credits: number // 사용 가능한 크레딧
+  credits_used: number // 이번 달 사용한 크레딧
+  credits_reset_date: string // 크레딧 리셋 날짜 (매월)
+  subscription_tier: 'basic' | 'pro' | 'enterprise' // 구독 플랜
   created_at: string
   updated_at: string
 }
@@ -16,10 +20,10 @@ export interface Project {
   user_id: string
   title: string
   description?: string
-  is_public: boolean
   created_at?: string
   updated_at?: string
   has_cards?: boolean
+  preview_image?: string | null // 첫 번째 씬의 미리보기 이미지
 }
 
 // 스토리보드 타입
@@ -29,7 +33,6 @@ export interface Storyboard {
   project_id?: string
   title: string
   description?: string
-  is_public: boolean
   created_at?: string
   updated_at?: string
 }
@@ -126,14 +129,12 @@ export interface StoryboardInput {
   title: string
   description?: string
   project_id?: string
-  is_public?: boolean
 }
 
 // 프로젝트 생성/수정을 위한 입력 타입
 export interface ProjectInput {
   title: string
   description?: string
-  is_public?: boolean
   user_id?: string // 프로젝트 생성 시 사용자 ID
 }
 
@@ -180,4 +181,46 @@ export interface DatabaseError {
 export interface InitialCardData {
   title: string
   content: string
+}
+
+// AI 사용량 추적 타입
+export interface AiUsage {
+  id: string
+  user_id: string
+  operation_type: 'text_generation' | 'image_generation' | 'script_generation' | 'image_edit'
+  provider: 'openrouter' | 'fal-ai' | 'openai' | 'replicate'
+  model_name?: string
+  credits_consumed: number
+  input_tokens?: number
+  output_tokens?: number
+  image_count?: number
+  success: boolean
+  error_message?: string
+  metadata?: Record<string, unknown>
+  created_at: string
+}
+
+// 크레딧 거래 내역 타입
+export interface CreditTransaction {
+  id: string
+  user_id: string
+  type: 'purchase' | 'usage' | 'refund' | 'bonus' | 'reset'
+  amount: number // 양수: 충전, 음수: 사용
+  description: string
+  ai_usage_id?: string // AI 사용과 연결된 경우
+  created_at: string
+}
+
+// 구독 플랜 설정 타입
+export interface SubscriptionPlan {
+  tier: 'basic' | 'pro' | 'enterprise'
+  monthly_credits: number
+  price_per_month: number
+  features: string[]
+  credit_prices: {
+    text_generation: number // 텍스트 생성 1회당 크레딧
+    image_generation: number // 이미지 생성 1회당 크레딧
+    script_generation: number // 스크립트 생성 1회당 크레딧
+    image_edit: number // 이미지 편집 1회당 크레딧
+  }
 }

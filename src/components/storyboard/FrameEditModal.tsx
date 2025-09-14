@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import type { StoryboardFrame } from '@/types/storyboard';
 import { useStoryboardStore } from '@/store/storyboard';
+import Image from 'next/image';
 
 export interface FrameEditModalProps {
   frame: StoryboardFrame;
@@ -75,7 +76,9 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, storyboardId, on
         <div className="flex flex-col md:flex-row h-full max-h-[85vh]">
           <div className="md:w-1/2 w-full bg-gray-900 relative flex items-center justify-center">
             {draft.imageUrl ? (
-              <img src={draft.imageUrl} alt="frame" className="w-full h-full object-contain max-h-[85vh]" />
+              <div className="relative w-full h-full">
+                <Image src={draft.imageUrl} alt="frame" fill className="object-contain" />
+              </div>
             ) : (
               <div className="text-gray-400 text-xs">No image</div>
             )}

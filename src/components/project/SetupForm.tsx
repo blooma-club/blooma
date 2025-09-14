@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu'
 import { getImageGenerationModels, getModelInfo, type FalAIModel } from '@/lib/fal-ai'
 import { saveDraftToLocal, loadDraftFromLocal, clearDraftFromLocal } from '@/lib/localStorage'
+import Image from 'next/image'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 // Debounce utility function
 function debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
@@ -26,6 +28,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   const params = useParams() as { id: string }
   const projectId = params.id
   const router = useRouter()
+  const { session } = useSupabase()
 
   const [isInitialized, setIsInitialized] = useState(false)
   const [mode, setMode] = useState<'paste' | 'upload'>('paste')
@@ -244,22 +247,62 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   const handleGenerateScript = async () => {
     // Use existing Script (textValue) as the brief for AI generation.
     setFileError(null)
-  if (mode !== 'paste') { setFileError('Please switch to Write mode to use AI generation.'); return }
-  if (!textValue.trim()) { setFileError('Please enter a script.'); return }
+    if (mode !== 'paste') { setFileError('Please switch to Write mode to use AI generation.'); return }
+    if (!textValue.trim()) { setFileError('Please enter a script.'); return }
+    // if (!session?.access_token) { setFileError('Please log in to generate scripts.'); return }
+    
     setGenerating(true)
     try {
+      // 먼저 크레딧 체크 (임시 비활성화)
+      /*
+      const creditResponse = await fetch('/api/credits?action=balance', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (creditResponse.ok) {
+        const creditData = await creditResponse.json()
+        const requiredCredits = creditData.data?.tier === 'pro' ? 4 : 
+                               creditData.data?.tier === 'enterprise' ? 3 : 5
+        
+        if (creditData.data?.credits < requiredCredits) {
+          setFileError(`Insufficient credits. Required: ${requiredCredits}, Available: ${creditData.data?.credits || 0}`)
+          return
+        }
+      }
+      */
+      
       const res = await fetch('/api/script/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+          // 'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ brief: textValue })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
+      
+      if (!res.ok) {
+        if (res.status === 402) {
+          setFileError(`Insufficient credits: ${data.error}`)
+        } else {
+          throw new Error(data.error || 'Failed')
+        }
+        return
+      }
+      
       if (typeof data.script === 'string') {
         // show preview modal so user can accept/append
         setGenResult(data.script)
         setShowGenModal(true)
         setMode('paste')
+        
+        // 성공 메시지 표시
+        if (data.meta?.credits_used) {
+          console.log(`Script generated successfully. Credits used: ${data.meta.credits_used}, Remaining: ${data.meta.credits_remaining}`)
+        }
       } else {
         setFileError('The generated script is empty.')
       }
@@ -461,7 +504,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
               <div className="font-medium mb-2 flex items-center justify-between"><span className="text-neutral-300">Visual Style</span></div>
               <button type="button" onClick={() => setShowGalleryModal(true)} className="group relative flex flex-col rounded-lg overflow-hidden border border-neutral-700 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition w-full" aria-label={`Current visual style ${stylePresets.find(s=>s.id===visualStyle)?.label} (selected)`}>
                 <div className="aspect-[4/3] w-full bg-neutral-700 flex items-center justify-center text-[10px] text-neutral-300">
-                  <img src={stylePresets.find(s=>s.id===visualStyle)?.img} alt={stylePresets.find(s=>s.id===visualStyle)?.label} className="absolute inset-0 w-full h-full object-cover" />
+                  <Image src={stylePresets.find(s=>s.id===visualStyle)?.img || '/styles/photo.jpg'} alt={stylePresets.find(s=>s.id===visualStyle)?.label || 'Selected style'} fill className="object-cover" />
                   <span className="relative z-10 bg-black/60 text-white px-1 rounded-sm">Selected</span>
                 </div>
                 <div className="px-2 py-1.5 text-xs font-medium flex items-center gap-1 bg-black text-white relative">{stylePresets.find(s=>s.id===visualStyle)?.label}</div>
@@ -523,7 +566,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
                 const active = visualStyle === s.id
                 return (
                   <button key={s.id} onClick={() => { setVisualStyle(s.id); setShowGalleryModal(false) }} className={`relative rounded-md overflow-hidden border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? 'border-ring ring-2 ring-ring' : 'border-neutral-700 hover:border-neutral-600'}`}>
-                    <img src={s.img} alt={s.label} className="w-full h-24 object-cover" loading="lazy" />
+                    <Image src={s.img} alt={s.label} width={200} height={96} className="w-full h-24 object-cover" loading="lazy" />
                     <div className={`px-2 py-1 font-medium ${active ? 'bg-black text-white' : 'bg-neutral-800 text-white'}`}>{s.label}</div>
                   </button>
                 )

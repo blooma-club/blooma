@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Project } from '@/types'
-import { Calendar, MoreVertical, Edit3, Trash2, Globe, Lock } from 'lucide-react'
+import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProjectModal } from './ProjectModal'
+import Image from 'next/image'
 
 interface ProjectCardProps {
   project: Project
@@ -29,13 +30,8 @@ export const ProjectCard = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const handleGoToProjectSetup = () => {
-    if (project.has_cards) {
-      // 카드가 있으면 스토리보드 페이지로 이동
-      router.push(`/project/${project.id}/storyboard`)
-    } else {
-      // 카드가 없으면 설정 페이지로 이동
-      router.push(`/project/${project.id}/setup`)
-    }
+    // 카드가 있든 없든 모두 스토리보드 페이지로 이동
+    router.push(`/project/${project.id}/storyboard`)
   }
 
   const formatDate = (dateString?: string) => {
@@ -108,38 +104,40 @@ export const ProjectCard = ({
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
       )}
-  <div className="absolute inset-0 pointer-events-none z-0 rounded-lg border border-transparent" />
-      <div className={cn(getCardClass('pt-3 pb-6 px-6'))}>
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-white truncate mb-2">{project.title}</h3>
-            <p className="text-sm text-neutral-300 mt-0.5 line-clamp-2">
-              {project.description || 'No description provided.'}
-            </p>
-          </div>
-          <div className="relative ml-4">
-            {renderMenuButton()}
-            {renderMenu()}
-          </div>
+      <div className="absolute inset-0 pointer-events-none z-0 rounded-lg border border-transparent" />
+      <div className={cn(getCardClass('p-0 overflow-hidden'))}>
+        {/* 미리보기 이미지 영역 */}
+        <div className="relative h-48 bg-neutral-800">
+          {project.preview_image ? (
+            <Image
+              src={project.preview_image}
+              alt={`${project.title} preview`}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ImageIcon className="h-12 w-12 text-neutral-600" />
+            </div>
+          )}
         </div>
-        {/* 날짜/공개여부 상하 분리 */}
-        <div className="flex flex-col space-y-2 mt-2">
+        
+        {/* 콘텐츠 영역 */}
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-white truncate mb-2">{project.title}</h3>
+            </div>
+            <div className="relative ml-4">
+              {renderMenuButton()}
+              {renderMenu()}
+            </div>
+          </div>
+          {/* 날짜 */}
           <div className="flex items-center gap-1">
             <Calendar className="h-4 w-4 text-neutral-300" />
             <span className="text-xs font-normal text-neutral-300">{formatDate(project.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {project.is_public ? (
-              <>
-                <Globe className="h-4 w-4 text-neutral-300" />
-                <span className="text-xs font-normal text-neutral-300">Public</span>
-              </>
-            ) : (
-              <>
-                <Lock className="h-4 w-4 text-neutral-300" />
-                <span className="text-xs font-normal text-neutral-300">Private</span>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -154,42 +152,43 @@ export const ProjectCard = ({
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
       )}
-  <div className="absolute inset-0 pointer-events-none z-0 rounded-lg border border-transparent" />
-      <div className={cn(getCardClass('pt-2 pb-4 px-4'))}>
+      <div className="absolute inset-0 pointer-events-none z-0 rounded-lg border border-transparent" />
+      <div className={cn(getCardClass('p-4'))}>
         <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white truncate mb-2">
-                  {project.title}
-                </h3>
-                <p className="text-sm text-neutral-300 mt-0.5 truncate">
-                  {project.description || 'No description provided.'}
-                </p>
-              </div>
-              {/* 날짜/공개여부 상하 분리 */}
-              <div className="flex flex-col space-y-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4 text-neutral-300" />
-                  <span className="text-xs font-normal text-neutral-300">{formatDate(project.created_at)}</span>
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            {/* 미리보기 이미지 */}
+            <div className="relative w-16 h-16 bg-neutral-800 rounded-lg flex-shrink-0 overflow-hidden">
+              {project.preview_image ? (
+                <Image
+                  src={project.preview_image}
+                  alt={`${project.title} preview`}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <ImageIcon className="h-6 w-6 text-neutral-600" />
                 </div>
-                <div className="flex items-center gap-1">
-                  {project.is_public ? (
-                    <>
-                      <Globe className="h-4 w-4 text-neutral-300" />
-                      <span className="text-xs font-normal text-neutral-300">Public</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-4 w-4 text-neutral-300" />
-                      <span className="text-xs font-normal text-neutral-300">Private</span>
-                    </>
-                  )}
-                </div>
-              </div>
+              )}
+            </div>
+            
+            {/* 콘텐츠 영역 */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-white truncate mb-1">
+                {project.title}
+              </h3>
+            </div>
+            
+            {/* 날짜 */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Calendar className="h-4 w-4 text-neutral-300" />
+              <span className="text-xs font-normal text-neutral-300">{formatDate(project.created_at)}</span>
             </div>
           </div>
-          <div className="relative">
+          
+          {/* 메뉴 버튼 */}
+          <div className="relative ml-4">
             {renderMenuButton()}
             {renderMenu()}
           </div>
