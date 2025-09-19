@@ -52,9 +52,5 @@ export default function ProjectSetupPage({ params }: { params: Promise<{ id: str
     )
   }
 
-  return (
-    <div>
-      <SetupForm id={id} />
-    </div>
-  )
+  return <SetupForm id={id} />
 }

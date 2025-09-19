@@ -2,6 +2,17 @@
  * LocalStorage utilities for auto-saving storyboard data
  */
 
+export interface OptionalSettingsDraft {
+  intent?: string
+  genre?: string
+  tone?: string
+  audience?: string
+  objective?: string
+  keyMessage?: string
+  language?: string
+  constraints?: string
+}
+
 export interface StoryboardDraft {
   projectId: string
   script: string
@@ -9,6 +20,8 @@ export interface StoryboardDraft {
   ratio: string
   selectedModel: string
   lastSaved: number
+  settings?: OptionalSettingsDraft
+  characters?: Array<{ id: string; imageUrl?: string }>
 }
 
 

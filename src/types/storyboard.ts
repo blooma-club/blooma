@@ -5,6 +5,9 @@ export interface StoryboardFrame {
   scene: number
   shotDescription: string
   shot: string
+  angle?: string
+  background?: string
+  moodLighting?: string
   dialogue: string
   sound: string
   imagePrompt?: string
@@ -14,7 +17,8 @@ export interface StoryboardFrame {
 
 export interface BuildStoryboardOptions {
   projectId?: string | string[]
-  script: string
+  script?: string // 기존 방식
+  modelId?: string // 새로운 방식: 모델 ID 사용
   visualStyle: string
   ratio: string
   mode?: 'sync' | 'async'

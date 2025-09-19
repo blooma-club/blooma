@@ -115,6 +115,9 @@ export type Database = {
           // Storyboard 전용 필드 (통합 설계)
           scene_number?: number
           shot_type?: string
+          angle?: string
+          background?: string
+          mood_lighting?: string
           dialogue?: string
           sound?: string
           image_prompt?: string
@@ -140,6 +143,9 @@ export type Database = {
           // Storyboard 전용 필드
           scene_number?: number
           shot_type?: string
+          angle?: string
+          background?: string
+          mood_lighting?: string
           dialogue?: string
           sound?: string
           image_prompt?: string
@@ -168,6 +174,9 @@ export type Database = {
           // Storyboard 전용 필드
           scene_number?: number
           shot_type?: string
+          angle?: string
+          background?: string
+          mood_lighting?: string
           dialogue?: string
           sound?: string
           image_prompt?: string

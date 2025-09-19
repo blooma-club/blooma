@@ -13,25 +13,8 @@ export interface FalAIModel {
   inputSchema: Record<string, any>
 }
 
-// 지원하는 Fal AI 모델들
+// 지원하는 Fal AI 모델들 
 export const FAL_AI_MODELS: FalAIModel[] = [
-  {
-    id: 'fal-ai/imagen4/preview/fast',
-    name: 'Imagen 4 Fast',
-    description: 'Google Imagen 4 optimized for speed, balanced quality and performance',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'detailed', 'artistic', 'cinematic'],
-    quality: 'fast',
-    cost: 2,
-    inputSchema: {
-      prompt: 'string',
-      negative_prompt: 'string?',
-      width: 'number?',
-      height: 'number?',
-      num_inference_steps: 'number?'
-    }
-  },
   {
     id: 'fal-ai/imagen4',
     name: 'Imagen 4',
@@ -67,14 +50,31 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/flux-pro/kontext/max/text-to-image',
-    name: 'Flux.1 Kontext [Max]',
-    description: 'High quality image generation, optimized for production services',
+    id: 'fal-ai/flux-pro/kontext/text-to-image',
+    name: 'Flux.1 Kontext [pro]',
+    description: 'Kontext [pro] text-to-image with strong prompt adherence and photorealism',
     category: 'image-generation',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'cinematic', 'artistic', 'commercial'],
     quality: 'high',
     cost: 3,
+    inputSchema: {
+      prompt: 'string',
+      aspect_ratio: 'string?',
+      guidance_scale: 'number?',
+      num_images: 'number?',
+      output_format: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/flux-pro/v1.1-ultra',
+    name: 'Flux 1.1 Pro',
+    description: 'Flux 1.1 Pro high quality text-to-image generation',
+    category: 'image-generation',
+    maxResolution: '1024x1024',
+    stylePresets: ['photorealistic', 'ultra-detailed', 'artistic', 'cinematic'],
+    quality: 'high',
+    cost: 4,
     inputSchema: {
       prompt: 'string',
       aspect_ratio: 'string?',
@@ -101,26 +101,9 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/seadream-v3',
-    name: 'SeaDream V3',
-    description: 'SeaDream V3 high quality image generation model',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'high',
-    cost: 3,
-    inputSchema: {
-      prompt: 'string',
-      negative_prompt: 'string?',
-      width: 'number?',
-      height: 'number?',
-      num_inference_steps: 'number?'
-    }
-  },
-  {
     id: 'fal-ai/gemini-25-flash-image/edit',
     name: 'Gemini 2.5 Flash Image Edit',
-    description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
+    description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation (Image to Image)',
     category: 'inpainting',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
@@ -149,26 +132,28 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/flux-1/schnell',
-    name: 'Flux 1 Schnell',
-    description: 'Flux 1 optimized for speed, fast image generation',
+    id: 'fal-ai/bytedance/seedream/v4/text-to-image',
+    name: 'Seedream 4.0 Text to Image',
+    description: 'ByteDance Seedream 4.0 - unified architecture for image generation and editing',
     category: 'image-generation',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'fast',
-    cost: 2,
+    maxResolution: '4096x4096',
+    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed', 'commercial'],
+    quality: 'high',
+    cost: 3,
     inputSchema: {
       prompt: 'string',
-      aspect_ratio: 'string?',
-      guidance_scale: 'number?',
+      image_size: 'string | object?',
       num_images: 'number?',
-      output_format: 'string?'
+      max_images: 'number?',
+      seed: 'number?',
+      sync_mode: 'boolean?',
+      enable_safety_checker: 'boolean?'
     }
   }
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/imagen4/preview/fast'
+export const DEFAULT_MODEL = 'fal-ai/flux-pro/kontext/text-to-image'
 
 // Fal AI 클라이언트 초기화
 export function initializeFalAI(): void {
@@ -204,23 +189,20 @@ export function generateModelSpecificPrompt(
 
   // 모델별 프롬프트 최적화
   switch (modelId) {
-     case 'fal-ai/imagen4/preview/fast':
-       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, optimized for speed`
-       break
     case 'fal-ai/imagen4':
       enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting`
       break
     case 'fal-ai/imagen4-ultra':
       enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting, maximum quality`
       break
-    case 'fal-ai/flux-pro/kontext/max/text-to-image':
-      enhancedPrompt = `${basePrompt}, maximum quality, frontier image generation, highly detailed, professional photography`
+    case 'fal-ai/flux-pro/kontext/text-to-image':
+      enhancedPrompt = `${basePrompt}, maximum quality, frontier image generation, highly detailed, professional photography, flawless typography`
+      break
+    case 'fal-ai/flux-pro/v1.1-ultra':
+      enhancedPrompt = `${basePrompt}, ultra detailed, photorealistic rendering, strong prompt adherence`
       break
     case 'fal-ai/flux-pro-ultra':
       enhancedPrompt = `${basePrompt}, ultra maximum quality, frontier image generation, highly detailed, professional photography, ultra resolution`
-      break
-    case 'fal-ai/seadream-v3':
-      enhancedPrompt = `${basePrompt}, high quality, detailed, artistic composition, professional photography`
       break
     case 'fal-ai/gemini-25-flash-image/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
@@ -228,8 +210,8 @@ export function generateModelSpecificPrompt(
          case 'fal-ai/gemini-25-flash-image/text-to-image':
        enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
        break
-     case 'fal-ai/flux-1/schnell':
-       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, optimized for speed`
+     case 'fal-ai/bytedance/seedream/v4/text-to-image':
+       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Seedream 4.0 optimized, unified generation and editing`
        break
   }
 
@@ -304,23 +286,20 @@ async function generateImageByModel(
   const startTime = Date.now()
 
   switch (modelId) {
-    case 'fal-ai/imagen4/preview/fast':
-      return await generateWithImagen4Fast(prompt, options)
-    
     case 'fal-ai/imagen4':
       return await generateWithImagen4(prompt, options)
     
     case 'fal-ai/imagen4-ultra':
       return await generateWithImagen4Ultra(prompt, options)
     
-    case 'fal-ai/flux-pro/kontext/max/text-to-image':
-      return await generateWithFluxProKontextMax(prompt, options)
+    case 'fal-ai/flux-pro/kontext/text-to-image':
+      return await generateWithFluxProKontextPro(prompt, options)
     
+    case 'fal-ai/flux-pro/v1.1-ultra':
+      return await generateWithFluxProV11Ultra(prompt, options)
+
     case 'fal-ai/flux-pro-ultra':
       return await generateWithFluxProUltra(prompt, options)
-    
-    case 'fal-ai/seadream-v3':
-      return await generateWithSeaDreamV3(prompt, options)
     
     case 'fal-ai/gemini-25-flash-image/edit':
       return await generateWithGemini25FlashImageEdit(prompt, options)
@@ -328,27 +307,13 @@ async function generateImageByModel(
          case 'fal-ai/gemini-25-flash-image/text-to-image':
        return await generateWithGemini25FlashImageTextToImage(prompt, options)
      
-     case 'fal-ai/flux-1/schnell':
-       return await generateWithFlux1Schnell(prompt, options)
+    
+    case 'fal-ai/bytedance/seedream/v4/text-to-image':
+      return await generateWithSeedreamV4(prompt, options)
     
     default:
       throw new Error(`Unsupported model: ${modelId}`)
   }
-}
-
-// Imagen 4 Fast 모델
-async function generateWithImagen4Fast(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/imagen4-fast', {
-    input: {
-      prompt,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-      width: options.width || 1024,
-      height: options.height || 1024,
-      num_inference_steps: options.quality === 'high' ? 30 : 20
-    }
-  })
-
-  return extractImageUrl(submission, 'imagen4-fast')
 }
 
 // Imagen 4 모델
@@ -403,24 +368,9 @@ async function generateWithFluxProUltra(prompt: string, options: any): Promise<s
   return extractImageUrl(submission, 'flux-pro-ultra')
 }
 
-// SeaDream V3 모델
-async function generateWithSeaDreamV3(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/seadream-v3', {
-    input: {
-      prompt,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-      width: options.width || 1024,
-      height: options.height || 1024,
-      num_inference_steps: options.quality === 'high' ? 50 : 30
-    }
-  })
-
-  return extractImageUrl(submission, 'seadream-v3')
-}
-
-// Flux Pro Kontext Max 모델 (고품질 이미지 생성)
-async function generateWithFluxProKontextMax(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext/max/text-to-image', {
+// Flux 1.1 Pro 모델
+async function generateWithFluxProV11Ultra(prompt: string, options: any): Promise<string> {
+  const submission: any = await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
     input: {
       prompt,
       aspect_ratio: options.aspectRatio || '1:1',
@@ -432,12 +382,34 @@ async function generateWithFluxProKontextMax(prompt: string, options: any): Prom
     logs: true,
     onQueueUpdate(update: any) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-pro-kontext-max]', update.status)
+        console.log('[FAL][flux-pro-v1.1-ultra]', update.status)
       }
     }
   })
 
-  return extractImageUrl(submission, 'flux-pro-kontext-max')
+  return extractImageUrl(submission, 'flux-pro-v1.1-ultra')
+}
+
+// Flux.1 Kontext [pro] 모델 (텍스트-투-이미지)
+async function generateWithFluxProKontextPro(prompt: string, options: any): Promise<string> {
+  const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext/text-to-image', {
+    input: {
+      prompt,
+      aspect_ratio: options.aspectRatio || '1:1',
+      guidance_scale: options.guidanceScale || 3.5,
+      num_images: options.numImages || 1,
+      output_format: options.outputFormat || 'jpeg',
+      safety_tolerance: options.safetyTolerance || '2'
+    } as any,
+    logs: true,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][flux-pro-kontext-pro]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'flux-pro-kontext-pro')
 }
 
 // Gemini 2.5 Flash Image Edit 모델 (멀티 이미지 편집)
@@ -477,26 +449,58 @@ async function generateWithGemini25FlashImageTextToImage(prompt: string, options
   return extractImageUrl(submission, 'gemini-25-flash-image-text-to-image')
 }
 
-// Flux 1 Schnell 모델
-async function generateWithFlux1Schnell(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/flux-1/schnell', {
+
+// Seedream 4.0 Text to Image 모델
+async function generateWithSeedreamV4(prompt: string, options: any): Promise<string> {
+  // 비율을 Seedream 4.0 형식으로 변환
+  let imageSize: string | { width: number; height: number } = 'square_hd'
+  
+  if (options.aspectRatio) {
+    switch (options.aspectRatio) {
+      case '1:1':
+        imageSize = 'square_hd'
+        break
+      case '16:9':
+        imageSize = 'landscape_16_9'
+        break
+      case '9:16':
+        imageSize = 'portrait_16_9'
+        break
+      case '4:3':
+        imageSize = 'landscape_4_3'
+        break
+      case '3:4':
+        imageSize = 'portrait_4_3'
+        break
+      default:
+        imageSize = 'square_hd'
+    }
+  } else if (options.width && options.height) {
+    imageSize = {
+      width: Math.min(Math.max(options.width, 1024), 4096),
+      height: Math.min(Math.max(options.height, 1024), 4096)
+    }
+  }
+
+  const submission: any = await fal.subscribe('fal-ai/bytedance/seedream/v4/text-to-image', {
     input: {
       prompt,
-      aspect_ratio: options.aspectRatio || '1:1',
-      guidance_scale: options.guidanceScale || 3.5,
+      image_size: imageSize,
       num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg',
-      safety_tolerance: options.safetyTolerance || '2'
-    } as any,
+      max_images: options.maxImages || 1,
+      seed: options.seed,
+      sync_mode: options.syncMode || false,
+      enable_safety_checker: options.enableSafetyChecker !== false
+    },
     logs: true,
     onQueueUpdate(update: any) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-1-schnell]', update.status)
+        console.log('[FAL][seedream-v4]', update.status)
       }
     }
   })
 
-  return extractImageUrl(submission, 'flux-1-schnell')
+  return extractImageUrl(submission, 'seedream-v4')
 }
 
 // 이미지 URL 추출 (모든 모델 공통)

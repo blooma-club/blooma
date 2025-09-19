@@ -83,22 +83,31 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, storyboardId, on
               <div className="text-gray-400 text-xs">No image</div>
             )}
             <button type="button" onClick={onClose} className="absolute top-2 right-2 bg-black/80 text-white rounded-md px-2 py-1 text-[11px] hover:bg-black">Close</button>
-            <div className="absolute bottom-2 left-2 bg-gray-800/80 backdrop-blur px-2 py-0.5 rounded text-[11px] font-light text-white">Scene {draft.scene}</div>
+      <div className="absolute bottom-2 left-2 bg-gray-800/80 backdrop-blur px-2 py-0.5 rounded text-[11px] font-light text-white">Shot {draft.scene}</div>
           </div>
           <div className="md:w-1/2 w-full flex flex-col p-6 overflow-y-auto text-sm">
             <h3 className="text-sm font-semibold mb-4 text-white">Frame editing</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Field label="Scene">
+              <Field label="Shot #">
                 <input type="number" min={1} value={draft.scene || 1} onChange={e=>setDraft(d=>({...d,scene:Number(e.target.value)}))} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
               </Field>
               <Field label="Shot Description">
                 <textarea value={draft.shotDescription || ''} onChange={e=>setDraft(d=>({...d,shotDescription:e.target.value}))} rows={4} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs resize-y w-full focus:border-gray-500 focus:outline-none" />
               </Field>
+              <Field label="Camera Shot">
+                <input type="text" value={draft.shot || ''} onChange={e=>setDraft(d=>({...d,shot:e.target.value}))} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
+              </Field>
+              <Field label="Angle">
+                <input type="text" value={draft.angle || ''} onChange={e=>setDraft(d=>({...d,angle:e.target.value}))} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
+              </Field>
+              <Field label="Background">
+                <input type="text" value={draft.background || ''} onChange={e=>setDraft(d=>({...d,background:e.target.value}))} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
+              </Field>
+              <Field label="Mood/Lighting">
+                <input type="text" value={draft.moodLighting || ''} onChange={e=>setDraft(d=>({...d,moodLighting:e.target.value}))} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
+              </Field>
               <Field label="Image Prompt" help="Prompt for generating images separate from Shot Description.">
                 <textarea value={draft.imagePrompt || ''} onChange={e=>setDraft(d=>({...d,imagePrompt:e.target.value}))} rows={4} className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs resize-y font-mono w-full focus:border-gray-500 focus:outline-none" />
-              </Field>
-              <Field label="Shot">
-                <input type="text" value={draft.shot} onChange={e=>setDraft(d=>({...d,shot:e.target.value}))} required className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />
               </Field>
               <Field label="Dialogue / VO">
                 <input type="text" value={draft.dialogue} onChange={e=>setDraft(d=>({...d,dialogue:e.target.value}))} required className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs w-full focus:border-gray-500 focus:outline-none" />

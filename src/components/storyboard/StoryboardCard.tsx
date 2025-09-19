@@ -43,7 +43,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   <div className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg hover:shadow-xl transition-shadow overflow-hidden h-full">
       {typeof sceneNumber === 'number' && (
         <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-white/20 text-white text-[10px] font-medium tracking-wide select-none">
-          Scene {sceneNumber}
+          Shot {sceneNumber}
         </div>
       )}
       <div className={`absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full ${statusDotClass} ring-2 ring-neutral-700`} aria-hidden="true" />

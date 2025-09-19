@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [creatingProject, setCreatingProject] = useState(false)
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set())
   const [projectsError, setProjectsError] = useState<string | null>(null)
+  const lastFetchedUserIdRef = useRef<string | null>(null)
 
   const fetchProjects = async () => {
     if (!user?.id) {
@@ -34,15 +35,7 @@ export default function DashboardPage() {
     setProjectsError(null)
 
     try {
-      const {
-        data: { session: testSession },
-        error: sessionError,
-      } = await supabase.auth.getSession()
-      if (sessionError) {
-        throw new Error(`Session error: ${sessionError.message}`)
-      }
-
-      if (!testSession) {
+      if (!session) {
         throw new Error('No active session found')
       }
 
@@ -68,15 +61,21 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!loading) {
-      if (user?.id) {
-        fetchProjects()
-      } else {
-        setProjects([])
-        setProjectsError(null)
-      }
+    if (loading) return
+
+    const userId = user?.id ?? null
+    if (!userId) {
+      setProjects([])
+      setProjectsError(null)
+      lastFetchedUserIdRef.current = null
+      return
     }
-  }, [loading, user?.id, session])
+
+    // 동일 사용자에 대해 최초 1회만 자동 로드 (개발 모드 StrictMode 이중 실행 방지)
+    if (lastFetchedUserIdRef.current === userId) return
+    lastFetchedUserIdRef.current = userId
+    fetchProjects()
+  }, [loading, user?.id])
 
   const handleCreateProject = async () => {
     if (!user?.id) {

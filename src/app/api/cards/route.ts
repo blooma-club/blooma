@@ -24,6 +24,9 @@ const ALLOWED_KEYS = new Set([
   // 메타데이터 필드
   'scene_number',
   'shot_type',
+  'angle',
+  'background',
+  'mood_lighting',
   'dialogue',
   'sound',
   'image_prompt',
@@ -161,6 +164,9 @@ export async function PUT(request: NextRequest) {
           // metadata + linking fields (persist storyboard edits)
           scene_number: cardWithoutTimestamps.scene_number,
           shot_type: cardWithoutTimestamps.shot_type,
+          angle: cardWithoutTimestamps.angle,
+          background: cardWithoutTimestamps.background,
+          mood_lighting: cardWithoutTimestamps.mood_lighting,
           dialogue: cardWithoutTimestamps.dialogue,
           sound: cardWithoutTimestamps.sound,
           image_prompt: cardWithoutTimestamps.image_prompt,

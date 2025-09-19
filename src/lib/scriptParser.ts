@@ -5,6 +5,8 @@ export interface ParsedScene {
   sceneNumber?: number
   shotType?: string
   angle?: string
+  background?: string
+  moodLighting?: string
   dialogue?: string
   sound?: string
 }
@@ -22,9 +24,9 @@ export function parseScript(raw: string): ParsedScene[] {
   normalized = normalized.replace(/^\s*\*\*\[Title:\s*([^\]]+)\]\*\*\s*$/im, (m, p1) => `Title: ${p1.trim()}`)
   // Remove remaining bold markers (**)
   normalized = normalized.replace(/\*\*/g, '')
-  // Support variants: Scene 1, Scene #1, Scene1, SCENE 1, 씬 1, 씬#1
-  // More permissive: optional punctuation after Scene, optional numeric id
-  const headerRegex = /(^|\n)\s*(?:Scene|SCENE|씬)\s*[:#-]?\s*(\d+)?\b([^\n]*)/g
+  // Support variants: Shot 1, Shot #1 (preferred), and legacy Scene 1, Scene #1, 씬 1
+  // More permissive: optional punctuation after label, optional numeric id
+  const headerRegex = /(^|\n)\s*(?:Shot|SHOT|Scene|SCENE|씬)\s*[:#-]?\s*(\d+)?\b([^\n]*)/g
   type Idx = { idx: number; label: string; full?: string }
   const indices: Idx[] = []
   let m: RegExpExecArray | null
@@ -86,7 +88,7 @@ export function parseScript(raw: string): ParsedScene[] {
     const end = i + 1 < indices.length ? indices[i + 1].idx : normalized.length
     const block = normalized.slice(start, end).trim()
   const headerRaw = indices[i].full || indices[i].label || ''
-  const numMatch = headerRaw.match(/(?:Scene|SCENE|씬)\s*#?\s*(\d+)/)
+  const numMatch = headerRaw.match(/(?:Shot|SHOT|Scene|SCENE|씬)\s*#?\s*(\d+)/)
     const sceneNumber = numMatch ? Number(numMatch[1]) : undefined
     const shotDescriptionRaw = extract('Shot Description', block) || extract('Description', block) || ''
     const shotDescription = shotDescriptionRaw.trim()
@@ -97,8 +99,10 @@ export function parseScript(raw: string): ParsedScene[] {
       raw: block,
       sceneNumber,
       shotDescription,
-      shotType: extract('Shot', block),
+      shotType: extract('Camera Shot', block) || extract('Shot', block),
       angle: extract('Angle', block),
+      background: extract('Background', block) || extract('Location/Setting', block) || extract('Location', block) || extract('Setting', block),
+      moodLighting: extract('Mood/Lighting', block) || extract('Mood', block) || extract('Lighting', block),
       dialogue: extract('Dialogue/VO', block) || extract('Dialogue', block) || extract('VO', block),
       sound: extract('Sound', block)
     })

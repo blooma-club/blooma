@@ -1,12 +1,13 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useUserStore } from '@/store/user'
-import { Edit3, Check, X } from 'lucide-react'
+import { Edit3, Check, X, ArrowLeft } from 'lucide-react'
 
 export default function ProjectHeader() {
   const params = useParams()
+  const router = useRouter()
   const id = (params as any)?.id
   const { userId, isLoaded } = useUserStore()
   const [title, setTitle] = useState<string>('New Project')
@@ -102,6 +103,15 @@ export default function ProjectHeader() {
 
   return (
     <>
+      <button
+        onClick={() => router.push('/dashboard')}
+        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
+        title="돌아가기"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Dashboard
+      </button>
+      <div className="w-px h-4 bg-gray-600" />
       <h1 className="text-sm font-medium text-gray-300">Project</h1>
       <div className="w-px h-4 bg-gray-600" />
       {isEditing ? (

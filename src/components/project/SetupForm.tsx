@@ -8,7 +8,12 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLab
 import { getImageGenerationModels, getModelInfo, type FalAIModel } from '@/lib/fal-ai'
 import { saveDraftToLocal, loadDraftFromLocal, clearDraftFromLocal } from '@/lib/localStorage'
 import Image from 'next/image'
+import ScriptEditor from '@/components/project/setup/ScriptEditor'
+import WizardProgress from '@/components/project/setup/WizardProgress'
+import CharacterWizard from '@/components/project/setup/CharacterWizard'
+import PreviewPanel from './setup/PreviewPanel'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
+import OptionalSettingsPanel, { type OptionalSettings } from '@/components/project/setup/OptionalSettingsPanel'
 
 // Debounce utility function
 function debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
@@ -24,15 +29,14 @@ type SetupFormProps = {
   onSubmit?: (payload: { mode: 'write' | 'upload'; text?: string; file?: File | null }) => void
 }
 
-export default function SetupForm({ onSubmit }: SetupFormProps) {
+export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   const params = useParams() as { id: string }
-  const projectId = params.id
+  const projectId = id || params.id
   const router = useRouter()
   const { session } = useSupabase()
 
   const [isInitialized, setIsInitialized] = useState(false)
   const [mode, setMode] = useState<'paste' | 'upload'>('paste')
-  const [textValue, setTextValue] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -42,42 +46,56 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   // Storyboard UI migrated to storyboard/[sbId] page; keep only script-related state here.
   const [genResult, setGenResult] = useState<string | null>(null)
   const [showGenModal, setShowGenModal] = useState(false)
+  // Wizard state
+  const [step, setStep] = useState<1 | 2 | 3>(1)
 
-  // Visual / layout settings (right panel)
-  const [ratio, setRatio] = useState<'16:9' | '1:1' | '9:16'>('16:9')
-  const [visualStyle, setVisualStyle] = useState<string>('photo')
-  // AI Model selection - default to Flux 1 Schnell
-  const [selectedModel, setSelectedModel] = useState<string>('fal-ai/flux-1/schnell')
+  // Optional Settings (left brief panel)
+  const DEFAULT_SETTINGS: OptionalSettings = {
+    intent: '', genre: '', tone: '', audience: '',
+    objective: '', keyMessage: '',
+    language: 'English', constraints: ''
+  }
 
-  // Auto-save status (최소 표시만 유지)
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
+  // 간단한 상태 관리 - 모든 드래프트 데이터를 하나의 객체로 관리
+  const [draftData, setDraftData] = useState({
+    script: '',
+    visualStyle: 'photo',
+    ratio: '16:9' as '16:9' | '1:1' | '9:16',
+    selectedModel: 'fal-ai/flux-pro/kontext/text-to-image',
+    settings: DEFAULT_SETTINGS,
+    characters: [] as any[]
+  })
 
-  // Auto-save function with debouncing (과도 저장 방지: 2.5s, 의미 있는 변경시에만)
-  const lastDraftSignature = useRef<string>('')
-  const autoSave = useCallback(
-    debounce(() => {
-      if (!projectId) return
-      if (generating || storyboardLoading) return
-      const signature = `${textValue.trim()}|${visualStyle}|${ratio}|${selectedModel}`
-      if (lastDraftSignature.current === signature) return
-      lastDraftSignature.current = signature
-      setAutoSaveStatus('saving')
+  // 개별 상태는 draftData에서 파생
+  const textValue = draftData.script
+  const visualStyle = draftData.visualStyle
+  const ratio = draftData.ratio
+  const selectedModel = draftData.selectedModel
+  const settings = draftData.settings
+  const characters = draftData.characters
+
+  // 상태 업데이트 함수들
+  const setTextValue = useCallback((value: string) => setDraftData(prev => ({ ...prev, script: value })), [])
+  const setVisualStyle = useCallback((value: string) => setDraftData(prev => ({ ...prev, visualStyle: value })), [])
+  const setRatio = useCallback((value: '16:9' | '1:1' | '9:16') => setDraftData(prev => ({ ...prev, ratio: value })), [])
+  const setSelectedModel = useCallback((value: string) => setDraftData(prev => ({ ...prev, selectedModel: value })), [])
+  const setSettings = useCallback((value: OptionalSettings) => setDraftData(prev => ({ ...prev, settings: value })), [])
+  const setCharacters = useCallback((value: any[]) => setDraftData(prev => ({ ...prev, characters: value })), [])
+
+  // 간단한 자동 저장 (debounce, UI 표시 없음)
+  useEffect(() => {
+    if (!projectId || generating || storyboardLoading) return
+    
+    const timer = setTimeout(() => {
       try {
-        saveDraftToLocal(projectId, {
-          script: textValue,
-          visualStyle,
-          ratio,
-          selectedModel
-        })
-        setAutoSaveStatus('saved')
-        setTimeout(() => setAutoSaveStatus(null), 1500)
+        saveDraftToLocal(projectId, draftData)
       } catch (error) {
-        setAutoSaveStatus('error')
-        setTimeout(() => setAutoSaveStatus(null), 2500)
+        console.error('Auto-save failed:', error)
       }
-    }, 2500),
-    [projectId, textValue, visualStyle, ratio, selectedModel, generating, storyboardLoading]
-  )
+    }, 2000)
+    
+    return () => clearTimeout(timer)
+  }, [projectId, draftData, generating, storyboardLoading])
 
   // Load saved draft on component mount
   useEffect(() => {
@@ -85,14 +103,15 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     
     const savedDraft = loadDraftFromLocal(projectId)
     if (savedDraft) {
-      setTextValue(savedDraft.script || '')
-      setVisualStyle(savedDraft.visualStyle || 'photo')
-      setRatio(savedDraft.ratio as '16:9' | '1:1' | '9:16' || '16:9')
-      setSelectedModel(savedDraft.selectedModel || 'fal-ai/flux-1/schnell')
+      setDraftData({
+        script: savedDraft.script || '',
+        visualStyle: savedDraft.visualStyle || 'photo',
+        ratio: (savedDraft.ratio as '16:9' | '1:1' | '9:16') || '16:9',
+        selectedModel: savedDraft.selectedModel || 'fal-ai/flux-pro/kontext/text-to-image',
+        settings: (savedDraft as any).settings || DEFAULT_SETTINGS,
+        characters: (savedDraft as any).characters || []
+      })
       console.log('Draft restored from localStorage:', savedDraft)
-      // 현재 로드된 드래프트를 기준선으로 설정하여 불필요한 재저장 방지
-      const sig = `${(savedDraft.script || '').trim()}|${savedDraft.visualStyle || 'photo'}|${savedDraft.ratio || '16:9'}|${savedDraft.selectedModel || 'fal-ai/flux-1/schnell'}`
-      lastDraftSignature.current = sig
     }
     
     // 초기화 완료 표시
@@ -101,31 +120,34 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     }, 300)
   }, [projectId])
 
-  // Auto-save when form data changes (텍스트가 실제로 바뀐 경우에만)
+  // 페이지 이탈 경고: 드래프트가 변경된 경우에만 표시
   useEffect(() => {
-    if (!textValue.trim() && visualStyle === 'photo' && ratio === '16:9' && selectedModel === 'fal-ai/flux-1/schnell') return
-    autoSave()
-  }, [textValue, visualStyle, ratio, selectedModel, autoSave])
-
-  // 페이지 이탈 경고: 드래프트가 저장되지 않은 경우에만 표시
-  useEffect(() => {
-    const signature = `${textValue.trim()}|${visualStyle}|${ratio}|${selectedModel}`
-    const baseline = `|photo|16:9|fal-ai/flux-1/schnell`
-    const dirty = signature !== lastDraftSignature.current && signature !== baseline
+    const isDirty = !(
+      draftData.script.trim() === '' &&
+      draftData.visualStyle === 'photo' &&
+      draftData.ratio === '16:9' &&
+      draftData.selectedModel === 'fal-ai/flux-pro/kontext/text-to-image' &&
+      JSON.stringify(draftData.settings) === JSON.stringify(DEFAULT_SETTINGS) &&
+      draftData.characters.length === 0
+    )
+    
     const handler = (e: BeforeUnloadEvent) => {
-      if (!dirty) return
+      if (!isDirty) return
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [textValue, visualStyle, ratio, selectedModel])
+  }, [draftData])
+
+  const handleSettingsChange = (next: Partial<OptionalSettings>) => {
+    setSettings({ ...settings, ...next })
+  }
 
   // Clear saved draft when storyboard generation is successful
   const clearSavedDraft = useCallback(() => {
     if (projectId) {
       clearDraftFromLocal(projectId)
-      setAutoSaveStatus(null)
     }
   }, [projectId])
 
@@ -245,11 +267,10 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   }
 
   const handleGenerateScript = async () => {
-    // Use existing Script (textValue) as the brief for AI generation.
     setFileError(null)
     if (mode !== 'paste') { setFileError('Please switch to Write mode to use AI generation.'); return }
-    if (!textValue.trim()) { setFileError('Please enter a script.'); return }
-    // if (!session?.access_token) { setFileError('Please log in to generate scripts.'); return }
+    const hasAnySetting = Object.values(settings).some(v => (typeof v === 'string' ? v.trim().length > 0 : !!v))
+    if (!textValue.trim() && !hasAnySetting) { setFileError('Please add script or fill optional settings.'); return }
     
     setGenerating(true)
     try {
@@ -274,17 +295,35 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
       }
       */
       
+      console.log('🚀 Starting script generation...', { projectId, userScript: textValue?.slice(0, 100), settings })
+      
       const res = await fetch('/api/script/generate', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
           // 'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ brief: textValue })
+        body: JSON.stringify({ 
+          projectId,
+          userScript: textValue,
+          settings
+        })
       })
+      
+      console.log('📡 API Response status:', res.status, res.ok)
+      
       const data = await res.json()
+      console.log('📦 API Response data:', { 
+        hasScript: !!data.script, 
+        scriptType: typeof data.script, 
+        scriptLength: data.script?.length || 0,
+        scriptPreview: data.script?.slice(0, 200),
+        error: data.error,
+        meta: data.meta
+      })
       
       if (!res.ok) {
+        console.error('❌ API Error:', res.status, data)
         if (res.status === 402) {
           setFileError(`Insufficient credits: ${data.error}`)
         } else {
@@ -293,7 +332,8 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
         return
       }
       
-      if (typeof data.script === 'string') {
+      if (typeof data.script === 'string' && data.script.trim()) {
+        console.log('✅ Script received, showing modal...')
         // show preview modal so user can accept/append
         setGenResult(data.script)
         setShowGenModal(true)
@@ -304,6 +344,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           console.log(`Script generated successfully. Credits used: ${data.meta.credits_used}, Remaining: ${data.meta.credits_remaining}`)
         }
       } else {
+        console.error('❌ Empty or invalid script:', { script: data.script, type: typeof data.script })
         setFileError('The generated script is empty.')
       }
     } catch (e: any) {
@@ -360,160 +401,53 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   // Pre-built views for clarity
   const scriptView = (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      {/* Left: Script form */}
-  <form onSubmit={handleSubmit} className="space-y-6 bg-neutral-900 p-10 rounded-xl border border-neutral-800 flex flex-col lg:col-span-2 shadow-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Storyboard Script</h2>
-          <div role="tablist" aria-label="Mode" className="inline-flex items-center rounded-md bg-neutral-800 p-1 gap-1">
-            <button type="button" role="tab" aria-selected={mode==='paste'} onClick={() => setMode('paste')} className={`px-4 py-2 text-sm focus:outline-none rounded-md ${mode==='paste' ? 'bg-white text-black shadow-sm' : 'text-neutral-300 hover:bg-neutral-700'}`}>Write</button>
-            <button type="button" role="tab" aria-selected={mode==='upload'} onClick={() => setMode('upload')} className={`px-4 py-2 text-sm focus:outline-none rounded-md ${mode==='upload' ? 'bg-white text-black shadow-sm' : 'text-neutral-300 hover:bg-neutral-700'}`}>Upload</button>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <div className="border-t pt-4 space-y-3">
-            {mode==='paste' && (
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Script</label>
-                <textarea value={textValue} onChange={e=>setTextValue(e.target.value)} placeholder="Write your storyboard script here..." className="w-full p-4 border border-neutral-700 rounded-md min-h-[320px] text-sm focus:outline-none focus:ring-1 focus:ring-neutral-700 bg-neutral-900 text-white placeholder-neutral-400" />
-                <div className="mt-1 text-[11px] text-neutral-400 flex justify-between">
-                  <span>{textValue.length} chars</span>
-                  {autoSaveStatus && (
-                    <span className={`flex items-center gap-1 ${
-                      autoSaveStatus === 'saved' ? 'text-green-400' : 
-                      autoSaveStatus === 'saving' ? 'text-blue-400' : 
-                      'text-red-400'
-                    }`}>
-                      {autoSaveStatus === 'saved' && '✓ Saved'}
-                      {autoSaveStatus === 'saving' && '💾 Saving...'}
-                      {autoSaveStatus === 'error' && '⚠ Save failed'}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-            {mode==='upload' && (
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Attach TXT, MD, PDF, or DOCX</label>
-                <div onDrop={handleDrop} onDragOver={e=>e.preventDefault()} onClick={() => fileRef.current?.click()} className="border border-dashed border-neutral-700 rounded-md p-6 text-center cursor-pointer hover:bg-neutral-700 transition w-full min-h-[320px] flex flex-col justify-center bg-neutral-900">
-                  <input ref={fileRef} type="file" accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
-                  {!file && <div className="text-sm text-neutral-300">Drag & drop or <span className="underline">browse</span></div>}
-                  {file && <div className="text-sm text-neutral-200">{file.name} • {(file.size/1024).toFixed(1)} KB</div>}
-                  <p className="mt-2 text-[11px] text-neutral-400">TXT/MD preview • PDF/DOCX upload only</p>
-                </div>
-                                  {file && (file.type==='text/plain' || file.type==='text/markdown' || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) && (
-                    <div className="mt-3">
-                      <div className="text-xs font-medium text-neutral-300 mb-1">Preview</div>
-                      <div className="p-3 border border-neutral-700 rounded-md bg-neutral-900 text-xs max-h-56 overflow-auto whitespace-pre-wrap text-white">{textValue.slice(0,800) || 'Empty file'}</div>
-                      {textValue.length>800 && <div className="text-[10px] text-neutral-400 mt-1">(Truncated)</div>}
-                    </div>
-                  )}
-                  {file && (file.type==='application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && <div className="mt-3 text-xs text-neutral-400">PDF uploaded. Preview not available.</div>}
-                  {file && (file.type==='application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) && <div className="mt-3 text-xs text-neutral-400">DOCX uploaded. Preview not available.</div>}
-                  {fileError && <div className="mt-2 text-sm text-red-400">{fileError}</div>}
-              </div>
-            )}
-          </div>
-          <div className="flex justify-between gap-3 pt-4 border-t flex-wrap">
-            <Button type="button" onClick={handleGenerateScript} disabled={generating} className="min-w-[160px] h-12 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white">{generating ? 'Generating...' : 'AI Assist (Script)'}</Button>
-            <Button type="button" onClick={handleGenerateStoryboard} disabled={storyboardLoading || !textValue.trim()} className="min-w-[180px] h-12 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white">{storyboardLoading ? 'Generating Storyboard…' : 'Generate Storyboard'}</Button>
-          </div>
-        </div>
-      </form>
-      {/* Right: Visual settings */}
-      <div className="lg:col-span-1 flex flex-col gap-4">
-  <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6 md:p-7 flex flex-col overflow-hidden">
-          <h3 className="text-sm font-semibold text-white mb-4">Visual Settings</h3>
-          <div className="flex-1 pr-1 space-y-6 text-[13px]">
-            <section>
-              <div className="font-medium mb-3 flex items-center justify-between">
-                <span className="text-neutral-300">AI Model</span>
-                <span className="text-xs text-neutral-400 font-normal">
-                  {getModelInfo(selectedModel)?.cost || 0} credits
-                </span>
-              </div>
-              <div className="space-y-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button type="button" className="w-full px-4 py-3 rounded-lg border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-200 inline-flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="font-medium text-sm">{getModelInfo(selectedModel)?.name || 'Select Model'}</span>
-                      </div>
-                      <svg className="w-4 h-4 text-neutral-400 group-hover:text-neutral-300 transition-colors" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent sideOffset={4} className="w-64 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg">
-                    <DropdownMenuLabel className="text-xs font-semibold text-neutral-300 px-4 py-3 border-b border-neutral-700 bg-neutral-800 rounded-t-lg">
-                      Select AI Model
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup value={selectedModel} onValueChange={setSelectedModel}>
-                      {getImageGenerationModels().map((model) => (
-                        <DropdownMenuRadioItem key={model.id} value={model.id} className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                              <span className="font-medium text-sm">{model.name}</span>
-                            </div>
-                            <span className="text-xs text-neutral-400">{model.cost} credits</span>
-                          </div>
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </section>
-            <section>
-              <div className="font-medium mb-3 flex items-center justify-between">
-                <span className="text-neutral-300">Aspect Ratio</span>
-              </div>
-              <div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button type="button" className="w-full px-4 py-3 rounded-lg border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-200 inline-flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span className="font-medium text-sm">{ratio}</span>
-                      </div>
-                      <svg className="w-4 h-4 text-neutral-400 group-hover:text-neutral-300 transition-colors" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent sideOffset={4} className="w-48 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg">
-                    <DropdownMenuLabel className="text-xs font-semibold text-neutral-300 px-4 py-3 border-b border-neutral-700 bg-neutral-800 rounded-t-lg">
-                      Select Aspect Ratio
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup value={ratio} onValueChange={(v) => setRatio(v as any)}>
-                      {(['16:9','1:1','9:16'] as const).map(r => (
-                        <DropdownMenuRadioItem key={r} value={r} className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            <span className="font-medium text-sm">{r}</span>
-                          </div>
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </section>
-            <section>
-              <div className="font-medium mb-2 flex items-center justify-between"><span className="text-neutral-300">Visual Style</span></div>
-              <button type="button" onClick={() => setShowGalleryModal(true)} className="group relative flex flex-col rounded-lg overflow-hidden border border-neutral-700 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition w-full" aria-label={`Current visual style ${stylePresets.find(s=>s.id===visualStyle)?.label} (selected)`}>
-                <div className="aspect-[4/3] w-full bg-neutral-700 flex items-center justify-center text-[10px] text-neutral-300">
-                  <Image src={stylePresets.find(s=>s.id===visualStyle)?.img || '/styles/photo.jpg'} alt={stylePresets.find(s=>s.id===visualStyle)?.label || 'Selected style'} fill className="object-cover" />
-                  <span className="relative z-10 bg-black/60 text-white px-1 rounded-sm">Selected</span>
-                </div>
-                <div className="px-2 py-1.5 text-xs font-medium flex items-center gap-1 bg-black text-white relative">{stylePresets.find(s=>s.id===visualStyle)?.label}</div>
-              </button>
-            </section>
-          </div>
-        </div>
+      <OptionalSettingsPanel
+        settings={settings}
+        onChange={handleSettingsChange}
+      />
+      <ScriptEditor
+        mode={mode}
+        setMode={setMode}
+        textValue={textValue}
+        setTextValue={setTextValue}
+        file={file}
+        fileError={fileError}
+        onFileChange={handleFileChange}
+        onDrop={handleDrop}
+        fileRef={fileRef}
+        onSubmit={handleSubmit}
+        generating={generating}
+        onGenerateScript={handleGenerateScript}
+      />
+    </div>
+  )
+
+  const charactersView = (
+    <div className="space-y-6">
+      <CharacterWizard onChange={setCharacters} initial={characters} />
+      <div className="flex justify-between">
+        <Button type="button" onClick={() => setStep(1)} className="h-12 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white min-w-[140px]">Back</Button>
+        <Button type="button" onClick={() => setStep(3)} disabled={!textValue.trim() || characters.length === 0} className="h-12 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white min-w-[160px]">Next: Preview</Button>
       </div>
     </div>
+  )
+
+  const previewView = (
+    <PreviewPanel
+      script={textValue}
+      characters={characters}
+      generating={storyboardLoading}
+      onBack={() => setStep(2)}
+      onEditScript={() => setStep(1)}
+      onEditCharacters={() => setStep(2)}
+      onGenerateStoryboard={handleGenerateStoryboard}
+      selectedModel={selectedModel}
+      setSelectedModel={setSelectedModel}
+      ratio={ratio}
+      setRatio={setRatio}
+      visualStyle={visualStyle}
+      onOpenStyleGallery={() => setShowGalleryModal(true)}
+    />
   )
 
   if (!isInitialized) {
@@ -547,9 +481,10 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
 
   return (
     <div className="mx-auto p-6 max-w-7xl">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex items-center justify-center">
+        <WizardProgress currentStep={step} onStepClick={(s)=>setStep(s)} />
       </header>
-      {scriptView}
+      {step === 1 ? scriptView : step === 2 ? charactersView : previewView}
       {showGalleryModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowGalleryModal(false)} />
@@ -585,7 +520,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
             </div>
             <div className="max-h-[60vh] overflow-auto p-3 border border-neutral-700 rounded-md bg-neutral-900 text-sm whitespace-pre-wrap text-white">{genResult}</div>
             <div className="flex justify-end gap-2 mt-3">
-              <button className="px-3 py-2 text-sm rounded-md border border-neutral-700 bg-neutral-800 text-white hover:bg-neutral-700" onClick={() => { setTextValue(prev => (prev ? prev + '\n\n' + genResult : genResult)); setShowGenModal(false); setGenResult(null); }}>Append</button>
+              <button className="px-3 py-2 text-sm rounded-md border border-neutral-700 bg-neutral-800 text-white hover:bg-neutral-700" onClick={() => { setTextValue(textValue ? textValue + '\n\n' + genResult : genResult || ''); setShowGenModal(false); setGenResult(null); }}>Append</button>
               <button className="px-4 py-2 text-sm rounded-md bg-neutral-800 text-white hover:bg-neutral-700 border border-neutral-700" onClick={() => { setTextValue(genResult || ''); setShowGenModal(false); setGenResult(null); }}>Replace</button>
             </div>
           </div>

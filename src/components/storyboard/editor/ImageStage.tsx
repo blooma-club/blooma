@@ -22,7 +22,7 @@ export const ImageStage: React.FC<ImageStageProps> = ({ frame, onPrev, onNext, h
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between text-xs text-neutral-300">
-        <div>Scene {frame.scene} • <span className="text-neutral-500">{frame.status}</span></div>
+        <div>Shot {frame.scene} • <span className="text-neutral-500">{frame.status}</span></div>
         <div className="flex gap-2">
           <button disabled={!hasPrev} onClick={onPrev} className="px-2 py-1 rounded border border-neutral-600 text-[11px] disabled:opacity-30 text-white hover:bg-neutral-700">Prev</button>
           <button disabled={!hasNext} onClick={onNext} className="px-2 py-1 rounded border border-neutral-600 text-[11px] disabled:opacity-30 text-white hover:bg-neutral-700">Next</button>

@@ -152,7 +152,7 @@ export default function StoryboardPage() {
               </div>
               <h3 className="text-2xl font-bold text-white mb-3">Start with AI</h3>
               <p className="text-neutral-400 leading-relaxed">
-                Generate a complete storyboard using AI with templates like PAS, AIDA, or custom prompts. Perfect for quick content creation.
+                Let AI help you create a professional storyboard with smart suggestions and automated content generation.
               </p>
               <div className="mt-6 inline-flex items-center text-blue-400 font-medium">
                 <span>Get Started</span>

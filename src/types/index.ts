@@ -224,3 +224,96 @@ export interface SubscriptionPlan {
     image_edit: number // 이미지 편집 1회당 크레딧
   }
 }
+
+// ========== 스토리보드 플로우 분할 관련 타입 ==========
+
+// 스크립트 데이터 타입
+export interface ScriptData {
+  content: string
+  title?: string
+  estimatedFrames?: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+// 생성된 모델 프레임 타입
+export interface GeneratedModelFrame {
+  id: string
+  sequence: number
+  description: string
+  dialogue?: string
+  cameraAngle?: string
+  mood?: string
+  estimatedDuration?: number
+}
+
+// 생성된 모델 타입
+export interface GeneratedModel {
+  id: string
+  scriptId: string
+  frames: GeneratedModelFrame[]
+  metadata: {
+    totalFrames: number
+    estimatedDuration: number
+    visualStyle: string
+    tone: string
+  }
+  status: 'draft' | 'ready' | 'error'
+  createdAt: Date
+}
+
+// 미리보기 상태 타입
+export interface PreviewState {
+  script: ScriptData
+  model: GeneratedModel
+  isEditable: boolean
+  hasChanges: boolean
+  validationErrors: string[]
+}
+
+// 플로우 단계 타입
+export type FlowStep = 'script' | 'model' | 'preview' | 'generation'
+
+// 스크립트 모델 데이터베이스 타입
+export interface ScriptModel {
+  id: string
+  project_id: string
+  script_content: string
+  script_title?: string
+  model_data: GeneratedModel
+  metadata: Record<string, unknown>
+  status: 'draft' | 'ready' | 'error'
+  created_at: string
+  updated_at: string
+}
+
+// 스크립트 분석 API 요청 타입
+export interface AnalyzeScriptRequest {
+  script: string
+  projectId: string
+  settings?: {
+    visualStyle?: string
+    targetAudience?: string
+    tone?: string
+  }
+}
+
+// 스크립트 분석 API 응답 타입
+export interface AnalyzeScriptResponse {
+  model: GeneratedModel
+  suggestions?: string[]
+  warnings?: string[]
+}
+
+// 모델 저장 API 요청 타입
+export interface SaveModelRequest {
+  projectId: string
+  scriptData: ScriptData
+  generatedModel: GeneratedModel
+}
+
+// 모델 저장 API 응답 타입
+export interface SaveModelResponse {
+  modelId: string
+  status: 'saved' | 'error'
+}

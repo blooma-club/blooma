@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         description: body.description,
         project_id: body.project_id,
         user_id: body.user_id,
-        is_public: body.is_public ?? false,
+        // is_public: body.is_public ?? false,
         // Simple table structure doesn't include timestamp columns
         // created_at: new Date().toISOString(),
         // updated_at: new Date().toISOString(),

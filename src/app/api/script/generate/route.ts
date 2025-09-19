@@ -1,241 +1,219 @@
 import { NextResponse } from 'next/server'
-import { openrouter } from '@/lib/openrouter'
-import { checkCreditsAvailable, consumeCredits } from '@/lib/credits'
-import { createClient } from '@supabase/supabase-js'
 
-// ---- Runtime Guards & Helpers -------------------------------------------------
-const REQUIRED_ENV: Array<{ key: string; optional?: boolean }> = [
-  { key: 'OPENROUTER_API_KEY' }
-]
+// Ensure Node runtime and extend max duration so long LLM calls don't 502
+export const runtime = 'nodejs'
+export const maxDuration = 60
+import { openrouter, DEFAULT_LLM_MODEL } from '@/lib/openrouter'
 
-for (const { key, optional } of REQUIRED_ENV) {
-  if (!optional && !process.env[key]) {
-    // Throwing during module load will surface a clear error early.
-    throw new Error(`[script/generate] Missing required env var ${key}`)
-  }
+type OptionalSettings = {
+  intent?: string
+  genre?: string
+  tone?: string
+  audience?: string
+  objective?: string
+  keyMessage?: string
+  language?: string
+  constraints?: string
 }
-
-const TRANSIENT_STATUSES: number[] = [429, 500, 502, 503, 504]
-
-function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
-
-async function withRetry<T>(fn: () => Promise<T>, opts: { retries?: number; baseDelay?: number } = {}) : Promise<T> {
-  const { retries = 2, baseDelay = 600 } = opts
-  let attempt = 0
-  let lastErr: Error | unknown
-  while (true) {
-    try { return await fn() } catch (err: unknown) {
-      lastErr = err
-      const status: number | undefined = (err as { status?: number; code?: number })?.status || (err as { status?: number; code?: number })?.code
-      if (attempt < retries && status && TRANSIENT_STATUSES.includes(status)) {
-        const delay = baseDelay * Math.pow(2, attempt) + Math.round(Math.random()*100)
-        await sleep(delay)
-        attempt++
-        continue
-      }
-      throw lastErr
-    }
-  }
-}
-
-// Basic system instruction for initial script generation
-const SYSTEM_PROMPT = `You are a silent, efficient short-form video script engine.
-Your entire response must consist ONLY of the final script. Do not write any greetings, explanations, or text outside of the specified output structure.
-
-**Instructions:**
-1.  Detect the language of the user's input and write the entire output in that language.
-2.  Create a clear and engaging **[Title]** for the video.
-3.  Generate a storyboard script (max 6 scenes) with a clear **Hook → CTA** narrative arc.
-4.  Optimize for TikTok/Reels pacing.
-5.  **Adhere to the following Quality Standard for [Shot Description]:**
-    * **Goal:** The description must be a cinematic snapshot. It should paint a complete picture with words, allowing a director to perfectly visualize the scene.
-    * **AVOID (Bad Example):** "A person drinks coffee."
-    * **DO THIS (Good Example):** "Sunlight streams through a window, illuminating steam rising from a ceramic mug as a person gently blows on the hot coffee, their face reflecting a quiet morning peace."
-6.  Use the following format:
-
-**Scene #:**
-**Shot Description:** (A cinematic snapshot adhering to the quality standard)
-**Shot:** (e.g., Close-up, Medium Shot)
-**Angle:** (e.g., Eye level, Low angle)
-**Dialogue/VO:** (Spoken words, narration, or "No dialogue")
-**Sound:** (Specific SFX or BGM style)
-`;
 
 export async function POST(req: Request) {
-  const started = Date.now()
   try {
-    // 0. 사용자 인증 및 크레딧 체크
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    console.log('🎬 Script generation API called')
     
-    // Authorization 헤더에서 사용자 토큰 추출
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
-    }
+    const body = await req.json()
+    const userScript: string = body.userScript || ''
+    const settings: OptionalSettings = body.settings || {}
+
+    console.log('📝 Input data:', { userScriptLength: userScript.length, settings })
+
+    const lang = settings.language || 'English'
+
+    const briefLines: string[] = []
+    if (settings.intent) briefLines.push(`What: ${settings.intent}`)
+    if (settings.genre) briefLines.push(`Genre: ${settings.genre}`)
+    if (settings.tone) briefLines.push(`Tone/Mood: ${settings.tone}`)
+    if (settings.audience) briefLines.push(`Target: ${settings.audience}`)
+    if (settings.objective) briefLines.push(`Objective: ${settings.objective}`)
+    if (settings.keyMessage) briefLines.push(`Key Message: ${settings.keyMessage}`)
+    if (settings.constraints) briefLines.push(`Constraints: ${settings.constraints}`)
+
+    const briefBlock = briefLines.length ? `# Brief\n${briefLines.join('\n')}\n` : ''
+    const scriptBlock = userScript?.trim() ? `\n# User Script\n${userScript}` : ''
+
+    // Build content for the model: Brief + User Script only (visual/ratio removed by request)
+    const content = `${briefBlock}${scriptBlock}`
     
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    console.log('📋 Content for LLM:', content.slice(0, 500) + '...')
+
+    const systemPrompt = `You are an award‑winning creative director and senior storyboard writer.
+
+Your task: Generate or improve a production‑ready storyboard script by combining the Brief (optional settings) and the User Script (if provided). Always output in ${lang}.
+
+Input signals you must use:
+- Brief: Creative intent, genre, tone/mood, target audience, objective, key message, constraints. Treat constraints as hard requirements.
+- User Script: If provided, preserve core structure, intention, brand voice, and factual content. You may tighten, reorder for pacing, and elevate clarity without losing meaning.
+
+Hard rules:
+1) Respect constraints strictly. If constraints conflict with user script, prefer constraints but minimally adjust the script to reconcile.
+2) If both Brief and User Script are empty, infer minimally and produce a compact, high‑quality default storyboard.
+3) Keep the script lean, immediately actionable for visual production (no meta commentary). Aim for 6–12 shots unless the content clearly needs fewer/more.
+4) Avoid clichés; write with clarity appropriate for the specified audience and tone. Keep terminology production‑friendly.
+5) Names/brands/locations: If not specified, keep them generic.
+6) Do not output JSON. Output must be Markdown with the exact labels below.
+
+Output format (Markdown). For each shot, repeat the following block:
+
+## Shot
+Shot #: <number>
+Shot Description: <concise action/visual summary>
+Camera Shot: <size/type>
+Angle: <camera angle or movement>
+Background: <location or set/background cues>
+Mood/Lighting: <tone, lighting, color cues>
+Dialogue / VO: <dialogue or narration; omit if none>
+Sound: <SFX/music; omit if none>
+
+Begin the document with:
+
+# Storyboard
+
+## Summary
+- 1–2 sentences capturing the story premise and goal (include target audience & tone).
+`
+
+    console.log('🤖 Calling OpenRouter with model:', DEFAULT_LLM_MODEL)
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }
-    
-    // 크레딧 사용 가능 여부 확인
-    const creditCheck = await checkCreditsAvailable(user.id, 'script_generation')
-    if (!creditCheck.available) {
-      return NextResponse.json({ 
-        error: `Insufficient credits. Required: ${creditCheck.required}, Available: ${creditCheck.current}`,
-        required_credits: creditCheck.required,
-        current_credits: creditCheck.current
-      }, { status: 402 }) // Payment Required
-    }
-    // 1. Parse & validate body
-    const body = await req.json().catch(() => ({}))
-    const briefRaw = (body.brief ?? '').toString()
-    const toneRaw = body.tone ? body.tone.toString() : ''
-    const lengthRaw = body.length ? body.length.toString() : ''
-
-    const trimSafe = (v: string) => v.replace(/\s+/g, ' ').trim()
-    const brief = trimSafe(briefRaw)
-    if (!brief) return NextResponse.json({ error: 'Missing brief' }, { status: 400 })
-    if (brief.length > 800) return NextResponse.json({ error: 'Brief too long (max 800 chars)' }, { status: 413 })
-
-    const tone = toneRaw ? trimSafe(toneRaw).slice(0, 60) : undefined
-    const desiredLength = lengthRaw ? trimSafe(lengthRaw).slice(0, 40) : undefined
-
-    // 2. Construct user prompt
-    const userPromptLines: string[] = [ `Brief: ${brief}` ]
-    if (tone) userPromptLines.push(`Tone: ${tone}`)
-    if (desiredLength) userPromptLines.push(`Desired length: ${desiredLength}`)
-    userPromptLines.push('Generate a storyboard script now.')
-    const userPrompt = userPromptLines.join('\n')
-
-    // 3. Model selection & fallback
-  // Use specific known-good model ids by default. Allow override via env.
-  const primaryModel = process.env.OPENROUTER_SCRIPT_MODEL || 'google/gemini-2.0-flash-001'
-  const fallbackModel = process.env.OPENROUTER_SCRIPT_FALLBACK || 'google/gemini-2.0-flash-001'
-    const temperature = 0.3
-    const maxTokens = 1400
-
-    // 4. Core call with retry and fallback
-    const attemptModel = async (model: string) => withRetry(() => openrouter.chat.completions.create({
-      model,
+    const completion = await openrouter.chat.completions.create({
+      model: DEFAULT_LLM_MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content }
       ],
-      temperature,
-      top_p: 0.95,
-      max_tokens: maxTokens,
-    }), { retries: 2 })
-
-    let completion: {
-      choices: Array<{ message?: { content?: string | null } }>;
-      model?: string;
-    }
-    try {
-      completion = await attemptModel(primaryModel)
-    } catch (primaryErr: unknown) {
-      const status = (primaryErr as { status?: number; code?: number })?.status || (primaryErr as { status?: number; code?: number })?.code
-      const transient = status && TRANSIENT_STATUSES.includes(status)
-      if (transient) {
-        try {
-          completion = await attemptModel(fallbackModel)
-        } catch (fallbackErr: unknown) {
-          console.error('[script/generate] fallback failed', fallbackErr)
-          return NextResponse.json({ error: 'Generation temporarily unavailable' }, { status: status === 429 ? 429 : 503 })
-        }
-      } else {
-        console.error('[script/generate] primary non-transient error', primaryErr)
-        // If the provider returned a 400 (bad request / invalid model id), pass a helpful message to the client.
-        const status = (primaryErr as { status?: number; code?: number })?.status || (primaryErr as { status?: number; code?: number })?.code || 500
-        const message = (primaryErr as { message?: string })?.message || 'Generation failed'
-        return NextResponse.json({ error: `Generation failed: ${message}` }, { status: status })
-      }
-    }
-
-    // 5. Validate response structure
-    if (!completion || !Array.isArray(completion.choices) || completion.choices.length === 0) {
-      return NextResponse.json({ error: 'Empty model response' }, { status: 502 })
-    }
-    const scriptRaw = completion.choices[0]?.message?.content
-    const script = typeof scriptRaw === 'string' ? scriptRaw.trim() : ''
-    if (!script) return NextResponse.json({ error: 'No content returned from model' }, { status: 502 })
-
-    // 6. Basic post-validation: ensure at least one Scene label present
-    if (!/Scene\s*1/i.test(script)) {
-      // Not failing hard; just flagging vulnerability of generation
-      console.warn('[script/generate] script missing Scene 1 marker')
-    }
-
-    // 7. 크레딧 차감 및 사용량 기록
-    const creditResult = await consumeCredits(
-      user.id,
-      'script_generation',
-      'openrouter',
-      {
-        modelName: completion.model || primaryModel,
-        success: true,
-        metadata: {
-          brief: brief.slice(0, 100), // 첫 100자만 저장
-          tone,
-          desiredLength,
-          latencyMs: Date.now() - started
-        }
-      }
-    )
-    
-    if (!creditResult.success) {
-      console.warn('[script/generate] Failed to record credit usage')
-    }
-
-    return NextResponse.json({ 
-      script, 
-      meta: { 
-        model: completion.model, 
-        latencyMs: Date.now() - started,
-        credits_used: creditCheck.required,
-        credits_remaining: creditResult.newBalance || creditCheck.current
-      } 
+      // OpenRouter SDK (OpenAI compat) may not accept provider-specific fields; keep to standard fields
+      temperature: 0.7,
+      max_tokens: 1200
+    }, {
+      timeout: 60000 // 60초 타임아웃
     })
-  } catch (err: unknown) {
-    console.error('Script generation error', err)
-    
-    // 실패 시에도 사용량 기록 (성공=false)
-    try {
-      const authHeader = req.headers.get('authorization')
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.replace('Bearer ', '')
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
-        const { data: { user } } = await supabase.auth.getUser(token)
-        
-        if (user) {
-          await consumeCredits(
-            user.id,
-            'script_generation',
-            'openrouter',
-            {
-              success: false,
-              errorMessage: (err as Error)?.message || 'Unknown error',
-              metadata: { latencyMs: Date.now() - started }
-            }
-          )
+
+    console.log('🎯 OpenRouter response received:', {
+      hasChoices: !!completion.choices,
+      choicesLength: completion.choices?.length || 0,
+      firstChoiceContent: completion.choices?.[0]?.message?.content?.slice(0, 200),
+      fullFirstChoice: completion.choices?.[0],
+      fullMessage: completion.choices?.[0]?.message
+    })
+
+    // 일부 모델/프로바이더는 message.content를 문자열이 아닌 배열(part)로 반환할 수 있으므로 방어적으로 추출
+    // GPT-5는 reasoning 필드에 실제 답변을 넣고 content는 비워둘 수 있음
+    const normalizeContent = (msg: any): string => {
+      console.log('🔍 Normalizing content from message:', msg)
+      
+      const c = msg?.content
+      const reasoning = msg?.reasoning
+      
+      // GPT-5의 경우 reasoning 필드에 실제 답변이 있을 수 있음
+      if (reasoning && typeof reasoning === 'string' && reasoning.trim()) {
+        console.log('✅ Reasoning content found (GPT-5 style):', reasoning.slice(0, 100))
+        return reasoning.trim()
+      }
+      
+      if (!c) {
+        console.log('❌ No content found in message')
+        return ''
+      }
+      
+      if (typeof c === 'string') {
+        console.log('✅ String content found:', c.slice(0, 100))
+        return c.trim()
+      }
+      
+      if (Array.isArray(c)) {
+        console.log('📋 Array content found, length:', c.length)
+        const texts = c.map((p: any) => {
+          if (typeof p === 'string') return p
+          if (typeof p?.text === 'string') return p.text
+          if (typeof p?.content === 'string') return p.content
+          return ''
+        })
+        const result = texts.filter(Boolean).join('\n').trim()
+        console.log('📋 Array content result:', result.slice(0, 100))
+        return result
+      }
+      
+      console.log('❌ Unknown content type:', typeof c)
+      return ''
+    }
+
+    let script = ''
+    if (Array.isArray(completion?.choices) && completion.choices.length > 0) {
+      for (const ch of completion.choices) {
+        const t = normalizeContent(ch?.message)
+        if (t) { script = t; break }
+      }
+    }
+
+    // 코드펜스로 감싼 출력 방지
+    if (script) {
+      script = script.replace(/^```(?:markdown|md)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    }
+
+    console.log('📄 Final script:', {
+      length: script.length,
+      preview: script.slice(0, 300),
+      isEmpty: !script
+    })
+
+    if (!script) {
+      console.warn('⚠️ Empty script after first try — retrying once with explicit instruction')
+      const retry = await openrouter.chat.completions.create({
+        model: DEFAULT_LLM_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt + '\n\nIMPORTANT: Output the final storyboard now in Markdown. Do not include any reasoning or commentary.' },
+          { role: 'user', content }
+        ],
+        // Keep standard fields only
+        temperature: 0.5,
+        max_tokens: 1400
+      }, { timeout: 60000 })
+
+      console.log('🎯 Retry response received:', {
+        hasChoices: !!retry.choices,
+        choicesLength: retry.choices?.length || 0,
+        firstChoiceContent: retry.choices?.[0]?.message?.content?.slice(0, 200)
+      })
+
+      if (Array.isArray(retry?.choices) && retry.choices.length > 0) {
+        for (const ch of retry.choices) {
+          const t = normalizeContent(ch?.message)
+          if (t) { script = t; break }
+        }
+        if (script) {
+          script = script.replace(/^```(?:markdown|md)?\s*/i, '').replace(/\s*```$/i, '').trim()
         }
       }
-    } catch (recordError) {
-      console.warn('Failed to record failed usage:', recordError)
     }
-    
-    const status = (err as { status?: number; code?: number })?.status || (err as { status?: number; code?: number })?.code
-    if (status && TRANSIENT_STATUSES.includes(status)) {
-      return NextResponse.json({ error: 'Temporary service issue' }, { status: 503 })
+
+    if (!script) {
+      console.error('❌ Empty script after processing (including retry)')
+      return NextResponse.json({ error: 'Empty response from model' }, { status: 502 })
     }
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+
+    console.log('✅ Returning script to client')
+    return NextResponse.json({ script, meta: { provider: 'openrouter' } })
+  } catch (err: any) {
+    console.error('/api/script/generate error:', {
+      message: err?.message,
+      status: err?.status,
+      code: err?.code,
+      type: err?.type,
+      stack: err?.stack
+    })
+    return NextResponse.json({ 
+      error: err?.message || 'Generation failed',
+      details: err?.status ? `API Error ${err.status}` : 'Unknown error'
+    }, { status: 500 })
   }
 }
+
+

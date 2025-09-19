@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { Coins, Crown, Zap } from 'lucide-react'
 
@@ -14,6 +14,7 @@ export default function CreditStatus() {
   const { user } = useSupabase()
   const [credits, setCredits] = useState<UserCredits | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastFetchedUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const fetchCredits = async () => {
@@ -21,6 +22,10 @@ export default function CreditStatus() {
         setLoading(false)
         return
       }
+
+      // 동일 사용자에 대해 최초 1회만 자동 로드 (개발 모드 StrictMode 이중 실행 방지)
+      if (lastFetchedUserIdRef.current === user.id) return
+      lastFetchedUserIdRef.current = user.id
 
       try {
         const response = await fetch(`/api/credits?user_id=${user.id}`)
