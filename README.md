@@ -16,7 +16,7 @@ An AI-powered content planning tool for creators. Turn your ideas into complete 
 - **State Management**: Zustand
 - **Styling**: Tailwind CSS v4
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **AI**: OpenAI GPT-4o, Replicate
+- **AI**: Google Gemini 2.0, OpenRouter (GPT-5), Fal AI
 - **Canvas**: react-konva
 - **Deployment**: Vercel
 
@@ -75,8 +75,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 # App Configuration
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# AI Features (Optional)
-# OpenRouter API for Gemini 2.0 Flash Experimental
+# AI Features (Required for Script Generation)
+# Google Gemini AI (Primary) - Get from https://aistudio.google.com/
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# OpenRouter API (Fallback) - Get from https://openrouter.ai/
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 # Image Generation (FAL AI)

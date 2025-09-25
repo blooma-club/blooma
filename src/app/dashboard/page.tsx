@@ -78,36 +78,44 @@ export default function DashboardPage() {
   }, [loading, user?.id])
 
   const handleCreateProject = async () => {
-    if (!user?.id) {
+    if (!user?.id || !session?.access_token) {
       alert('Please sign in to create a project')
       return
     }
 
     setCreatingProject(true)
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           title: 'New Project',
           user_id: user.id,
-          is_public: false, // 모든 프로젝트는 Private로 고정
-        })
-        .select()
-        .single()
+          is_public: false,
+        }),
+      })
 
-      if (error) {
-        console.error('Error creating project:', error)
-        alert('Failed to create project')
-        return
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create project')
+      }
+
+      const data = result.data
       setProjects(prev => [data, ...prev])
 
       // 프로젝트 생성 후 바로 스토리보드 페이지로 이동
       router.push(`/project/${data.id}/storyboard`)
     } catch (error) {
       console.error('Error creating project:', error)
-      alert('Failed to create project')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Failed to create project: ${errorMessage}`)
     } finally {
       setCreatingProject(false)
     }
@@ -148,22 +156,32 @@ export default function DashboardPage() {
 
     setDeletingProjects(prev => new Set(prev).add(projectId))
     try {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId)
-        .eq('user_id', user?.id)
+      const response = await fetch('/api/projects', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          id: projectId,
+          user_id: user?.id,
+        }),
+      })
 
-      if (error) {
-        console.error('Error deleting project:', error)
-        alert('Failed to delete project')
-        return
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete project')
       }
 
       setProjects(prev => prev.filter(p => p.id !== projectId))
     } catch (error) {
       console.error('Error deleting project:', error)
-      alert('Failed to delete project')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Failed to delete project: ${errorMessage}`)
     } finally {
       setDeletingProjects(prev => {
         const newSet = new Set(prev)
@@ -180,8 +198,11 @@ export default function DashboardPage() {
   return (
     <div className="w-full min-h-screen bg-black flex flex-col">
       {/* 헤더: Projects 타이틀 + Account Settings */}
-      <header className="w-full bg-black border-b-2 border-neutral-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
+      <header className="w-full bg-black border-b-2 border-neutral-800 px-8 py-4 flex items-center justify-between">
+        <button
+          onClick={() => router.push('/')}
+          className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
+        >
           <Image
             src="/blooma.svg"
             alt="Blooma Logo"
@@ -191,13 +212,13 @@ export default function DashboardPage() {
             draggable={false}
           />
           <span className="text-2xl font-bold text-white select-none ml-1">Blooma</span>
-        </div>
-        
+        </button>
+
         {/* 오른쪽: 크레딧 상태 및 계정 설정 */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           {/* 크레딧 상태 */}
           <CreditStatus />
-          
+
           {/* 계정 설정 드롭다운 */}
           <AccountDropdown />
         </div>
@@ -208,17 +229,17 @@ export default function DashboardPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-4xl font-bold text-white">Projects</h1>
-                         <Button
-               variant="default"
-               onClick={handleCreateProject}
-               disabled={creatingProject || !user?.id}
-               className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
-               aria-label="New project"
-               tabIndex={0}
-             >
-               <Plus className="h-4 w-4 mr-2" />
-               {creatingProject ? 'Creating...' : 'New Project'}
-             </Button>
+            <Button
+              variant="default"
+              onClick={handleCreateProject}
+              disabled={creatingProject || !user?.id}
+              className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+              aria-label="New project"
+              tabIndex={0}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {creatingProject ? 'Creating...' : 'New Project'}
+            </Button>
           </div>
           <p className="text-lg text-neutral-300 mb-0">
             Manage, search and create your projects easily
@@ -240,39 +261,39 @@ export default function DashboardPage() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 w-5 h-5 pointer-events-none" />
           </div>
           <div className="flex flex-row-reverse gap-4 flex-shrink-0">
-                         <Button
-               variant="outline"
-               size="icon"
-               onClick={() => fetchProjects()}
-               disabled={projectsLoading || !user?.id}
-               aria-label="Refresh projects"
-               tabIndex={0}
-               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-             >
-               <RefreshCw className={`w-5 h-5 ${projectsLoading ? 'animate-spin' : ''}`} />
-             </Button>
-                         <Button
-               variant="outline"
-               size="icon"
-               onClick={() => setViewMode('grid')}
-               disabled={!user?.id}
-               aria-label="Grid view"
-               tabIndex={0}
-               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-             >
-               <Grid className="w-5 h-5" />
-             </Button>
-                         <Button
-               variant="outline"
-               size="icon"
-               onClick={() => setViewMode('list')}
-               disabled={!user?.id}
-               aria-label="List view"
-               tabIndex={0}
-               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-             >
-               <List className="w-5 h-5" />
-             </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fetchProjects()}
+              disabled={projectsLoading || !user?.id}
+              aria-label="Refresh projects"
+              tabIndex={0}
+              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+            >
+              <RefreshCw className={`w-5 h-5 ${projectsLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setViewMode('grid')}
+              disabled={!user?.id}
+              aria-label="Grid view"
+              tabIndex={0}
+              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+            >
+              <Grid className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setViewMode('list')}
+              disabled={!user?.id}
+              aria-label="List view"
+              tabIndex={0}
+              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+            >
+              <List className="w-5 h-5" />
+            </Button>
           </div>
         </div>
 
@@ -336,14 +357,14 @@ export default function DashboardPage() {
               <h3 className="text-lg font-medium text-white mb-2">Error loading projects</h3>
               <p className="text-neutral-300 mb-4">{projectsError}</p>
               <div className="space-y-2">
-                                 <Button
-                   variant="default"
-                   onClick={() => fetchProjects()}
-                   className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
-                 >
-                   <RefreshCw className="h-4 w-4 mr-2" />
-                   Try Again
-                 </Button>
+                <Button
+                  variant="default"
+                  onClick={() => fetchProjects()}
+                  className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
               </div>
             </div>
           </div>
@@ -366,7 +387,9 @@ export default function DashboardPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-medium text-white mb-2">Please sign in</h3>
-              <p className="text-neutral-300 mb-4">You need to be signed in to view your projects.</p>
+              <p className="text-neutral-300 mb-4">
+                You need to be signed in to view your projects.
+              </p>
             </div>
           </div>
         ) : filteredProjects.length === 0 ? (
@@ -396,15 +419,15 @@ export default function DashboardPage() {
                   : 'Get started by creating your first project.'}
               </p>
               {!searchTerm && (
-                                 <Button
-                   variant="default"
-                   onClick={handleCreateProject}
-                   disabled={creatingProject}
-                   className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
-                 >
-                   <Plus className="h-4 w-4 mr-2" />
-                   {creatingProject ? 'Creating...' : 'Create Your First Project'}
-                 </Button>
+                <Button
+                  variant="default"
+                  onClick={handleCreateProject}
+                  disabled={creatingProject}
+                  className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {creatingProject ? 'Creating...' : 'Create Your First Project'}
+                </Button>
               )}
             </div>
           </div>

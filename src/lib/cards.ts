@@ -2,8 +2,7 @@ import type { Card } from '@/types'
 
 export type CreateCardOptions = {
   userId: string
-  storyboardId: string
-  projectId?: string
+  projectId: string
   currentCards: Card[]
 }
 
@@ -23,7 +22,6 @@ export const buildCardPayload = (opts: CreateCardOptions) => {
     content: '',
     type: 'scene' as const,
     user_id: opts.userId,
-    storyboard_id: opts.storyboardId,
     project_id: opts.projectId,
     order_index: opts.currentCards.length,
     scene_number: nextSceneIndex,
@@ -38,10 +36,15 @@ export const buildCardPayload = (opts: CreateCardOptions) => {
   }
 }
 
-export const linkPreviousCard = async (previousCardId: string, newCardId: string) => {
+export const linkPreviousCard = async (previousCardId: string, newCardId: string, accessToken?: string) => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+
   const res = await fetch('/api/cards', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ cards: [{ id: previousCardId, next_card_id: newCardId }] })
   })
   if (!res.ok) {
@@ -52,19 +55,24 @@ export const linkPreviousCard = async (previousCardId: string, newCardId: string
   }
 }
 
-export const createAndLinkCard = async (opts: CreateCardOptions, context: 'STORYBOARD' = 'STORYBOARD') => {
+export const createAndLinkCard = async (opts: CreateCardOptions, context: string = 'STORYBOARD', accessToken?: string) => {
   const payload = buildCardPayload(opts)
 
   // 생성
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+
   const response = await fetch('/api/cards', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload)
   })
 
   const json = await response.json().catch(() => ({}))
   // 통일된 로깅
-  // eslint-disable-next-line no-console
+   
   console.log(`📡 [${context} ADD CARD] API response:`, {
     status: response.status,
     statusText: response.statusText,
@@ -83,7 +91,7 @@ export const createAndLinkCard = async (opts: CreateCardOptions, context: 'STORY
   // 연결
   const lastCard = opts.currentCards[opts.currentCards.length - 1]
   if (lastCard?.id) {
-    await linkPreviousCard(lastCard.id, inserted.id)
+    await linkPreviousCard(lastCard.id, inserted.id, accessToken)
   }
 
   return inserted

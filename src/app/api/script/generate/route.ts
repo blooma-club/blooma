@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 // Ensure Node runtime and extend max duration so long LLM calls don't 502
 export const runtime = 'nodejs'
 export const maxDuration = 60
+import { generateScriptWithGemini, createGeminiSystemPrompt, DEFAULT_GEMINI_MODEL, validateGeminiConfig } from '@/lib/gemini'
+// Keep OpenRouter as fallback
 import { openrouter, DEFAULT_LLM_MODEL } from '@/lib/openrouter'
 
 type OptionalSettings = {
@@ -23,8 +25,9 @@ export async function POST(req: Request) {
     const body = await req.json()
     const userScript: string = body.userScript || ''
     const settings: OptionalSettings = body.settings || {}
+    const useGemini: boolean = body.useGemini !== false // Default to true
 
-    console.log('📝 Input data:', { userScriptLength: userScript.length, settings })
+    console.log('📝 Input data:', { userScriptLength: userScript.length, settings, useGemini })
 
     const lang = settings.language || 'English'
 
@@ -40,11 +43,49 @@ export async function POST(req: Request) {
     const briefBlock = briefLines.length ? `# Brief\n${briefLines.join('\n')}\n` : ''
     const scriptBlock = userScript?.trim() ? `\n# User Script\n${userScript}` : ''
 
-    // Build content for the model: Brief + User Script only (visual/ratio removed by request)
+    // Build content for the model: Brief + User Script only
     const content = `${briefBlock}${scriptBlock}`
     
     console.log('📋 Content for LLM:', content.slice(0, 500) + '...')
 
+    // Try Gemini first, fallback to OpenRouter if needed
+    if (useGemini) {
+      console.log('🤖 Attempting script generation with Gemini AI...')
+      
+      const geminiConfig = validateGeminiConfig()
+      if (geminiConfig.isValid) {
+        const systemPrompt = createGeminiSystemPrompt(lang)
+        
+        const geminiResult = await generateScriptWithGemini(
+          content,
+          DEFAULT_GEMINI_MODEL,
+          {
+            temperature: 0.7,
+            maxTokens: 1200,
+            systemInstruction: systemPrompt
+          }
+        )
+        
+        if (geminiResult.success && geminiResult.script) {
+          console.log('✅ Script generated successfully with Gemini')
+          return NextResponse.json({ 
+            script: geminiResult.script, 
+            meta: { 
+              ...geminiResult.meta,
+              provider: 'gemini',
+              model: DEFAULT_GEMINI_MODEL
+            } 
+          })
+        } else {
+          console.warn('⚠️ Gemini generation failed, falling back to OpenRouter:', geminiResult.error)
+        }
+      } else {
+        console.warn('⚠️ Gemini not properly configured, using OpenRouter:', geminiConfig.error)
+      }
+    }
+
+    // Fallback to OpenRouter
+    console.log('🤖 Using OpenRouter as fallback...')
     const systemPrompt = `You are an award‑winning creative director and senior storyboard writer.
 
 Your task: Generate or improve a production‑ready storyboard script by combining the Brief (optional settings) and the User Script (if provided). Always output in ${lang}.
@@ -200,7 +241,7 @@ Begin the document with:
     }
 
     console.log('✅ Returning script to client')
-    return NextResponse.json({ script, meta: { provider: 'openrouter' } })
+    return NextResponse.json({ script, meta: { provider: 'openrouter', model: DEFAULT_LLM_MODEL } })
   } catch (err: any) {
     console.error('/api/script/generate error:', {
       message: err?.message,

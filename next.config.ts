@@ -54,6 +54,11 @@ remotePatterns.push(
   // FAL AI 이미지 도메인
   {
     protocol: 'https',
+    hostname: 'fal.media',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
     hostname: 'v3.fal.media',
     pathname: '/**'
   },

@@ -17,17 +17,21 @@ export async function GET(req: NextRequest) {
     // Fallback: serve a one-shot snapshot from DB so clients don't see 404
     console.log(`[SSE] Storyboard not found in memory: ${id}. Attempting DB snapshot fallback.`)
     try {
-      const { data: row, error } = await supabase
-        .from('storyboards')
-        .select('title, description')
-        .eq('id', id)
-        .single()
-      if (error || !row) {
-        console.log(`[SSE] DB snapshot not available for: ${id}`)
+      const { data: cardsData, error } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('project_id', id)
+        .order('order_index', { ascending: true })
+        
+      if (error || !cardsData || cardsData.length === 0) {
+        console.log(`[SSE] Cards snapshot not available for: ${id}`)
         return new Response('Not found', { status: 404 })
       }
 
-      let title = row.title || ''
+      // Derive title from first card
+      let title = cardsData[0]?.title ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}` : 'Storyboard'
+      
+      // Convert cards to frames format
       let frames: Array<{
         id: string;
         scene?: number;
@@ -39,12 +43,17 @@ export async function GET(req: NextRequest) {
         status?: string;
         error?: string;
         imageUrl?: string;
-      }> = []
-      try {
-        const desc = JSON.parse(row.description || '{}')
-        frames = Array.isArray(desc.frames) ? desc.frames : []
-        title = title || desc.title || ''
-      } catch {}
+      }> = cardsData.map((card, index) => ({
+        id: card.id,
+        scene: card.scene_number || index + 1,
+        shotDescription: card.shot_description || card.content || '',
+        shot: card.shot_type || '',
+        dialogue: card.dialogue || '',
+        sound: card.sound || '',
+        imagePrompt: card.image_prompt || '',
+        status: card.storyboard_status || 'ready',
+        imageUrl: card.image_url || (card.image_urls && card.image_urls[0]) || undefined
+      }))
 
       const toClientFrame = (f: {
         id: string;

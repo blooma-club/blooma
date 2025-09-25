@@ -55,7 +55,7 @@ export function useToast() {
     return {
       push: (t: { title: string; description?: string }) => {
         // fallback to alert if provider missing
-        // eslint-disable-next-line no-alert
+         
         alert(t.title + (t.description ? '\n' + t.description : ''))
       },
     }

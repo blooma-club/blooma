@@ -11,14 +11,18 @@ export default function ProjectIndexRedirect() {
 
   const useIso = typeof window !== 'undefined' ? useLayoutEffect : useEffect
   useIso(() => {
-    if (id) router.replace(`/project/${id}/storyboard`)
+    if (id) router.replace(`/project/${id}/setup`)
   }, [id, router])
 
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div className="text-center">
         <div className="mb-4">
-          <svg className="mx-auto h-8 w-8 animate-spin text-neutral-400" fill="none" viewBox="0 0 24 24">
+          <svg
+            className="mx-auto h-8 w-8 animate-spin text-neutral-400"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
             <circle
               className="opacity-25"
               cx="12"
@@ -34,7 +38,7 @@ export default function ProjectIndexRedirect() {
             ></path>
           </svg>
         </div>
-        <div className="text-neutral-300 text-sm">Redirecting to storyboard...</div>
+        <div className="text-neutral-300 text-sm">Redirecting to setup...</div>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Card } from '@/types'
 import type { StoryboardFrame } from '@/types/storyboard'
+import { supabase } from './supabase'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -38,6 +39,43 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     sound: card.sound || '',
     imagePrompt: card.image_prompt || '',
     status: (card.storyboard_status as 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error') || 'ready',
-    imageUrl: getImageUrlFromCard(card)
+    imageUrl: getImageUrlFromCard(card),
+    // Timeline fields (mapping from snake_case to camelCase)
+    duration: card.duration || 3,
+    audioUrl: card.audioUrl,
+    voiceOverUrl: card.voiceOverUrl,
+    voiceOverText: card.voiceOverText,
+    startTime: card.startTime,
   };
+}
+
+// Project ownership verification function
+export async function verifyProjectOwnership(projectId: string, userId: string): Promise<{ isOwner: boolean; project?: any; error?: string }> {
+  try {
+    if (!projectId || !userId) {
+      return { isOwner: false, error: 'Project ID and User ID are required' };
+    }
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows returned - project doesn't exist or user doesn't own it
+        return { isOwner: false, error: 'Project not found or access denied' };
+      }
+      return { isOwner: false, error: error.message };
+    }
+
+    return { isOwner: true, project };
+  } catch (error) {
+    return { 
+      isOwner: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
 }

@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { CardInput } from '@/types'
 import { deleteImageFromR2 } from '@/lib/r2'
+import { createClient } from '@supabase/supabase-js'
 
 // 허용 컬럼 화이트리스트 (DB 컬럼과 1:1 매핑)
 const ALLOWED_KEYS = new Set([
   'id',
-  'storyboard_id',
+  'project_id',
   'user_id',
   'type',
   'title',
@@ -32,17 +33,46 @@ const ALLOWED_KEYS = new Set([
   'image_prompt',
   'storyboard_status',
   'shot_description',
+  // Timeline fields
+  'duration',
+  'audio_url',
+  'voice_over_url',
+  'voice_over_text',
+  'start_time',
 ])
 
 // Extended type for database insertion
 type CardInsert = CardInput & {
-  storyboard_id: string
+  project_id: string
   user_id: string
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CardInsert | CardInsert[] = await request.json()
+    // Create authenticated Supabase client from request headers
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const body: (CardInput & { project_id?: string }) | (CardInput & { project_id?: string })[] = await request.json()
     const allowedKeys = ALLOWED_KEYS
     
     if (Array.isArray(body)) {
@@ -69,9 +99,15 @@ export async function POST(request: NextRequest) {
         return filtered
       })
 
-      const { data, error } = await supabase
+      // Add user_id to each card
+      const cardsWithUserId = cardsToInsert.map(card => ({
+        ...card,
+        user_id: user.id,
+      }))
+
+      const { data, error } = await supabaseClient
         .from('cards')
-        .insert(cardsToInsert)
+        .insert(cardsWithUserId)
         .select()
 
       if (error) {
@@ -85,9 +121,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data, success: true })
     } else {
       // Handle single card
-      if (!body.title || !body.storyboard_id || !body.user_id) {
+      if (!body.title || !body.project_id) {
         return NextResponse.json(
-          { error: 'Title, storyboard_id, and user_id are required' },
+          { error: 'Title and project_id are required' },
           { status: 400 }
         )
       }
@@ -101,12 +137,13 @@ export async function POST(request: NextRequest) {
       // Round position and dimension values to integers for database compatibility
       const cardToInsert = {
         ...filtered,
+        user_id: user.id, // Add authenticated user's ID
       }
       if (typeof cardToInsert.selected_image_url === 'number') {
         cardToInsert.selected_image_url = Math.round(cardToInsert.selected_image_url)
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('cards')
         .insert(cardToInsert)
         .select()
@@ -133,6 +170,29 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Create authenticated Supabase client from request headers
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     const body: { cards: (CardInput & { id: string })[] } = await request.json()
     
     if (!body.cards || !Array.isArray(body.cards) || body.cards.length === 0) {
@@ -147,7 +207,7 @@ export async function PUT(request: NextRequest) {
       // Remove timestamp fields if they exist
       const { created_at, updated_at, ...cardWithoutTimestamps } = card as any
       
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('cards')
         .update({
           title: cardWithoutTimestamps.title,
@@ -201,6 +261,29 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Create authenticated Supabase client from request headers
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     const body: { cardIds: string[] } = await request.json()
     
     if (!body.cardIds || !Array.isArray(body.cardIds) || body.cardIds.length === 0) {
@@ -210,11 +293,12 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // 먼저 삭제할 카드들의 이미지 키를 가져옴
-    const { data: cardsToDelete } = await supabase
+    // 먼저 삭제할 카드들의 이미지 키를 가져옴 (사용자의 카드만)
+    const { data: cardsToDelete } = await supabaseClient
       .from('cards')
       .select('image_key')
       .in('id', body.cardIds)
+      .eq('user_id', user.id) // Only user's own cards
 
     // R2에서 이미지 삭제
     const imageKeys = cardsToDelete?.map(card => card.image_key).filter(Boolean) || []
@@ -223,11 +307,12 @@ export async function DELETE(request: NextRequest) {
       await Promise.allSettled(deletePromises)
     }
 
-    // 카드 삭제
-    const { error } = await supabase
+    // 카드 삭제 (사용자의 카드만)
+    const { error } = await supabaseClient
       .from('cards')
       .delete()
       .in('id', body.cardIds)
+      .eq('user_id', user.id) // Only user's own cards
 
     if (error) {
       console.error('Supabase error:', error)
@@ -253,27 +338,45 @@ export async function DELETE(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const storyboardId = searchParams.get('storyboard_id')
-    const userId = searchParams.get('user_id')
+    // Create authenticated Supabase client from request headers
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
     
-    if (!storyboardId) {
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
       return NextResponse.json(
-        { error: 'storyboard_id parameter is required' },
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
+    const { searchParams } = new URL(request.url)
+    const projectId = searchParams.get('project_id')
+    
+    if (!projectId) {
+      return NextResponse.json(
+        { error: 'project_id parameter is required' },
         { status: 400 }
       )
     }
 
-    let query = supabase
+    const { data, error } = await supabaseClient
       .from('cards')
       .select('*')
-      .eq('storyboard_id', storyboardId)
-
-    if (userId) {
-      query = query.eq('user_id', userId)
-    }
-
-    const { data, error } = await query.order('order_index', { ascending: true })
+      .eq('project_id', projectId)
+      .eq('user_id', user.id) // Use authenticated user's ID
+      .order('order_index', { ascending: true })
 
     if (error) {
       console.error('Supabase error:', error)

@@ -19,6 +19,7 @@ export type OptionalSettings = {
   keyMessage: string
   language: string
   constraints: string
+  aiModel: string
 }
 
 type Props = {
@@ -27,14 +28,48 @@ type Props = {
 }
 
 const intents = [
-  'Advertisement/Commercial', 'Social Media Post', 'YouTube Video', 'Product Demo', 'Explainer Video', 'Short-form (Reels/TikTok)', 'Game Trailer', 'Short Film', 'Other'
+  'Advertisement/Commercial',
+  'Social Media Post',
+  'YouTube Video',
+  'Product Demo',
+  'Explainer Video',
+  'Short-form (Reels/TikTok)',
+  'Game Trailer',
+  'Short Film',
+  'Other',
 ]
 
-const languages = ['English', 'Chinese', 'Korean', 'Japanese', 'French', 'Spanish', 'German', 'Italian']
+const languages = [
+  'English',
+  'Chinese',
+  'Korean',
+  'Japanese',
+  'French',
+  'Spanish',
+  'German',
+  'Italian',
+]
+
+const aiModels = [
+  {
+    id: 'gemini',
+    label: 'Google Gemini 2.0 Flash (Fast & Efficient)',
+    desc: 'Latest Gemini model optimized for creative writing',
+  },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter GPT-5 (Fallback)',
+    desc: 'Powerful OpenAI model for complex scripts',
+  },
+]
 
 export default function OptionalSettingsPanel({ settings, onChange }: Props) {
   return (
-    <section className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6" aria-label="Optional Settings" tabIndex={0}>
+    <section
+      className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6"
+      aria-label="Optional Settings"
+      tabIndex={0}
+    >
       <h3 className="text-sm font-semibold text-white mb-4">Optional Settings</h3>
 
       <div className="space-y-4 text-sm">
@@ -46,12 +81,19 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
               <ChevronDown className="h-4 w-4 opacity-50" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-full min-w-[200px] bg-neutral-900 border-neutral-700">
-              <DropdownMenuRadioGroup value={settings.intent} onValueChange={(value) => onChange({ intent: value })}>
+              <DropdownMenuRadioGroup
+                value={settings.intent}
+                onValueChange={value => onChange({ intent: value })}
+              >
                 <DropdownMenuRadioItem value="" className="text-white hover:bg-neutral-800">
                   Select
                 </DropdownMenuRadioItem>
                 {intents.map(v => (
-                  <DropdownMenuRadioItem key={v} value={v} className="text-white hover:bg-neutral-800">
+                  <DropdownMenuRadioItem
+                    key={v}
+                    value={v}
+                    className="text-white hover:bg-neutral-800"
+                  >
                     {v}
                   </DropdownMenuRadioItem>
                 ))}
@@ -65,7 +107,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
             <label className="block text-neutral-300 mb-1">Genre</label>
             <input
               value={settings.genre}
-              onChange={e=>onChange({ genre: e.target.value })}
+              onChange={e => onChange({ genre: e.target.value })}
               placeholder="e.g. Cinematic, Comedy, Documentary"
               className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
               aria-label="Genre"
@@ -75,7 +117,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
             <label className="block text-neutral-300 mb-1">Tone/Mood</label>
             <input
               value={settings.tone}
-              onChange={e=>onChange({ tone: e.target.value })}
+              onChange={e => onChange({ tone: e.target.value })}
               placeholder="e.g. Energetic, Serious, Emotional, Dynamic"
               className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
               aria-label="Tone/Mood"
@@ -87,7 +129,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
           <label className="block text-neutral-300 mb-1">Target Audience</label>
           <input
             value={settings.audience}
-            onChange={e=>onChange({ audience: e.target.value })}
+            onChange={e => onChange({ audience: e.target.value })}
             placeholder="e.g. Young professionals, Parents, Gamers"
             className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
             aria-label="Target Audience"
@@ -98,7 +140,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
           <label className="block text-neutral-300 mb-1">Objective/Purpose</label>
           <input
             value={settings.objective}
-            onChange={e=>onChange({ objective: e.target.value })}
+            onChange={e => onChange({ objective: e.target.value })}
             placeholder="e.g. Increase conversions, Brand awareness, Product introduction"
             className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
             aria-label="Objective"
@@ -109,7 +151,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
           <label className="block text-neutral-300 mb-1">Key Message</label>
           <input
             value={settings.keyMessage}
-            onChange={e=>onChange({ keyMessage: e.target.value })}
+            onChange={e => onChange({ keyMessage: e.target.value })}
             placeholder="Short and clear message"
             className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
             aria-label="Key Message"
@@ -121,27 +163,67 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
             <label className="block text-neutral-300 mb-1">Language</label>
             <select
               value={settings.language}
-              onChange={e=>onChange({ language: e.target.value })}
+              onChange={e => onChange({ language: e.target.value })}
               className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white"
               aria-label="Language"
             >
-              {languages.map(v => <option key={v} value={v}>{v}</option>)}
+              {languages.map(v => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-neutral-300 mb-1">Constraints</label>
             <input
               value={settings.constraints}
-              onChange={e=>onChange({ constraints: e.target.value })}
+              onChange={e => onChange({ constraints: e.target.value })}
               placeholder="Restrictions/Brand guidelines"
               className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500"
               aria-label="Constraints"
             />
           </div>
         </div>
+
+        <div>
+          <label className="block text-neutral-300 mb-1">AI Model for Script Generation</label>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white text-left flex items-center justify-between">
+              <div className="flex flex-col items-start">
+                <span>
+                  {aiModels.find(m => m.id === settings.aiModel)?.label ||
+                    'Google Gemini 2.0 Flash (Fast & Efficient)'}
+                </span>
+                <span className="text-xs text-neutral-400">
+                  {aiModels.find(m => m.id === settings.aiModel)?.desc ||
+                    'Latest Gemini model optimized for creative writing'}
+                </span>
+              </div>
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-full min-w-[300px] bg-neutral-900 border-neutral-700">
+              <DropdownMenuRadioGroup
+                value={settings.aiModel || 'gemini'}
+                onValueChange={value => onChange({ aiModel: value })}
+              >
+                {aiModels.map(model => (
+                  <DropdownMenuRadioItem
+                    key={model.id}
+                    value={model.id}
+                    className="text-white hover:bg-neutral-800 p-3"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-xs text-neutral-400">{model.desc}</span>
+                    </div>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </section>
   )
 }
-
-

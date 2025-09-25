@@ -1,24 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { Project, ProjectInput } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
+    // Create authenticated Supabase client from request headers (like other API routes)
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     const body: ProjectInput = await request.json()
     
-    if (!body.title || !body.user_id) {
+    if (!body.title) {
       return NextResponse.json(
-        { error: 'Title and user_id are required' },
+        { error: 'Title is required' },
         { status: 400 }
       )
     }
 
-    const { data, error } = await supabase
+    // Use the authenticated user's ID instead of trusting the client
+    const { data, error } = await supabaseClient
       .from('projects')
       .insert({
         title: body.title,
         description: body.description,
-        user_id: body.user_id,
+        user_id: user.id, // Use authenticated user's ID
         is_public: false, // 모든 프로젝트는 Private로 고정
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -91,42 +116,26 @@ export async function GET(request: NextRequest) {
     // For each project, get the first scene's image for preview
     const projectsWithPreview = await Promise.all(
       projects.map(async (project) => {
-        // Check if project has storyboards
-        console.log('GET /api/projects - Checking storyboards for project:', project.id)
-        const { data: storyboards, error: storyboardsError } = await supabase
-          .from('storyboards')
-          .select('id')
-          .eq('project_id', project.id)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: true })
-          .limit(1)
-
-        if (storyboardsError) {
-          console.error('GET /api/projects - Error fetching storyboards for project:', project.id, storyboardsError)
-          return { ...project, has_cards: false, preview_image: null }
-        }
-
-        if (!storyboards || storyboards.length === 0) {
-          return { ...project, has_cards: false, preview_image: null }
-        }
-
-        // Get the first card with an image from the first storyboard
+        // Check if project has cards (since we're not using storyboards table)
+        console.log('GET /api/projects - Checking cards for project:', project.id)
+        
+        // Get the first card with an image for this specific project
         const { data: firstCard, error: cardError } = await supabase
           .from('cards')
           .select('image_url, image_urls, selected_image_url')
-          .eq('storyboard_id', storyboards[0].id)
           .eq('user_id', userId)
-          .order('order_index', { ascending: true })
+          .eq('project_id', project.id)
+          .order('created_at', { ascending: true })
           .limit(1)
           .single()
 
         if (cardError || !firstCard) {
-          // Check if there are any cards at all
+          // Check if there are any cards at all for this specific project
           const { data: anyCards, error: anyCardsError } = await supabase
             .from('cards')
             .select('id')
-            .eq('storyboard_id', storyboards[0].id)
             .eq('user_id', userId)
+            .eq('project_id', project.id)
             .limit(1)
 
           const hasCards = !anyCardsError && anyCards && anyCards.length > 0
@@ -193,6 +202,41 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json({ data, success: true })
+  } catch (error) {
+    console.error('API error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body: { id: string; user_id: string } = await request.json()
+    
+    if (!body.id || !body.user_id) {
+      return NextResponse.json(
+        { error: 'Project ID and User ID are required' },
+        { status: 400 }
+      )
+    }
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', body.id)
+      .eq('user_id', body.user_id)
+
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json(
+        { error: 'Failed to delete project' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

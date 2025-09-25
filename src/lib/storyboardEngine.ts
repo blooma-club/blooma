@@ -17,6 +17,7 @@ export interface FrameRecord {
   enhancedDescription?: string
   imagePrompt?: string
   imageUrl?: string
+  characterImageUrls?: string[] // Reference images for characters mentioned in this frame
   status: 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error'
   error?: string
 }
@@ -34,6 +35,14 @@ export interface StoryboardRecord {
   // AI Model settings
   aiModel?: string
   aiQuality?: 'fast' | 'balanced' | 'high'
+  // Character references for image generation
+  characters?: Array<{
+    id: string
+    name: string
+    imageUrl?: string
+    originalImageUrl?: string
+    editPrompt?: string
+  }>
 }
 
 const storyboards = new Map<string, StoryboardRecord>()
@@ -102,6 +111,14 @@ export async function createStoryboard(params: {
   topTitle?: string
   // AI Model settings
   aiModel?: string
+  // Character references for image generation
+  characters?: Array<{
+    id: string
+    name: string
+    imageUrl?: string
+    originalImageUrl?: string
+    editPrompt?: string
+  }>
 }) {
   // Allow callers to provide a top-level title (extracted earlier). If not provided,
   // attempt to extract it here. If a top title exists we strip it from the script
@@ -109,7 +126,7 @@ export async function createStoryboard(params: {
   const providedTop = params.topTitle
   const detectedTop = providedTop ?? extractTitle(params.rawScript)
   const scriptWithoutTitle = providedTop ? params.rawScript : (detectedTop ? stripTitle(params.rawScript) : params.rawScript)
-  let scenes: ParsedScene[] = parseScript(scriptWithoutTitle)
+  const scenes: ParsedScene[] = parseScript(scriptWithoutTitle)
   // If any scene is missing required metadata (shotDescription, shotType, dialogue, sound),
   // attempt to enrich it using the LLM so cards always have those fields.
   if (process.env.OPENROUTER_API_KEY) {
@@ -127,7 +144,8 @@ export async function createStoryboard(params: {
       }
     }
   }
-  const storyboardId = crypto.randomUUID()
+  // In the new architecture, use project ID as storyboard ID
+  const storyboardId = params.projectId || crypto.randomUUID()
   // Debug: log parsed scenes to help diagnose scene numbering issues
   try {
     console.log('[createStoryboard] parsed scenes:', scenes.map((s, idx) => ({ idx, order: s.order, firstLine: (s.raw || '').split('\n')[0].slice(0, 140) })))
@@ -178,7 +196,9 @@ export async function createStoryboard(params: {
     title: detectedTop || 'Storyboard',
     // AI Model settings
     aiModel: params.aiModel,
-    aiQuality: 'balanced' // Default to balanced for image generation
+    aiQuality: 'balanced', // Default to balanced for image generation
+    // Character references for image generation
+    characters: params.characters || []
   }
 
   // Generate image prompts for each frame
@@ -306,7 +326,48 @@ function enhanceText(base: string, style: string) {
 }
 
 function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
-  const parts = [frame.enhancedDescription || frame.baseDescription]
+  const baseDescription = frame.enhancedDescription || frame.baseDescription
+  const parts = [baseDescription]
+  
+  // Add character references if characters are mentioned in the shot description
+  if (sb.characters && sb.characters.length > 0) {
+    const characterRefs = []
+    const characterImageUrls = []
+    
+    for (const character of sb.characters) {
+      // Check if character is mentioned in the description (case-insensitive)
+      const characterName = character.name.toLowerCase()
+      const description = baseDescription.toLowerCase()
+      
+      if (description.includes(characterName)) {
+        // Build character reference description
+        let characterRef = `${character.name}`
+        
+        // Add visual description if available
+        if (character.editPrompt && character.editPrompt.trim()) {
+          characterRef += ` (${character.editPrompt.trim()})`
+        }
+        
+        characterRefs.push(characterRef)
+        
+        // Collect character image URLs for visual reference
+        if (character.imageUrl) {
+          characterImageUrls.push(character.imageUrl)
+        } else if (character.originalImageUrl) {
+          characterImageUrls.push(character.originalImageUrl)
+        }
+      }
+    }
+    
+    // Store character image URLs in the frame for later use during image generation
+    frame.characterImageUrls = characterImageUrls
+    
+    // Add character references to the prompt
+    if (characterRefs.length > 0) {
+      parts.push(`featuring: ${characterRefs.join(', ')}`)
+    }
+  }
+  
   if (frame.shotType) parts.push(frame.shotType)
   parts.push(sb.style, `aspect ${sb.aspectRatio}`)
   return parts.join(', ')
@@ -384,7 +445,11 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
             record.aiModel || DEFAULT_MODEL,
             {
               aspectRatio: record.aspectRatio,
-              style: record.style
+              style: record.style,
+              // Pass character reference images if available
+              imageUrls: frame.characterImageUrls && frame.characterImageUrls.length > 0 
+                ? frame.characterImageUrls 
+                : undefined
             }
           )
           
@@ -408,24 +473,34 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
 
             // 3) DB 업데이트
             try {
+              const updateData = {
+                image_url: frame.imageUrl,
+                image_urls: [frame.imageUrl],
+                selected_image_url: 0,
+                image_key: key || undefined,
+                image_size: size || undefined,
+                image_type: 'generated',
+                storyboard_status: 'ready'
+              }
+              
+              console.log(`[Engine] Updating card ${i} with R2 data:`, {
+                storyboardId,
+                order_index: i,
+                image_url: frame.imageUrl?.slice(0, 50) + '...',
+                image_key: key,
+                image_size: size
+              })
+              
               const { error: updateError } = await supabase
                 .from('cards')
-                .update({ 
-                  image_url: frame.imageUrl,
-                  image_urls: [frame.imageUrl],
-                  selected_image_url: 0,
-                  image_key: key || undefined,
-                  image_size: size || undefined,
-                  image_type: 'generated',
-                  storyboard_status: 'ready'
-                })
-                .eq('storyboard_id', storyboardId)
+                .update(updateData)
+                .eq('project_id', storyboardId)
                 .eq('order_index', i)
               
               if (updateError) {
                 console.error(`[Engine] Failed to update card in database for frame ${i}:`, updateError)
               } else {
-                console.log(`[Engine] Updated card in database for frame ${i}: ${storyboardId}`)
+                console.log(`[Engine] Successfully updated card in database for frame ${i}: ${storyboardId}`)
               }
             } catch (dbError) {
               console.error(`[Engine] Database update error for frame ${i}:`, dbError)
@@ -464,7 +539,7 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
             .update({ 
               storyboard_status: 'error'
             })
-            .eq('storyboard_id', storyboardId)
+            .eq('project_id', storyboardId)
             .eq('order_index', i)
           
           if (updateError) {

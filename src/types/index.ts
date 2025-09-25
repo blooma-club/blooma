@@ -26,21 +26,22 @@ export interface Project {
   preview_image?: string | null // 첫 번째 씬의 미리보기 이미지
 }
 
-// 스토리보드 타입
+// Simple Storyboard type for store compatibility
 export interface Storyboard {
   id: string
   user_id: string
-  project_id?: string
+  project_id: string
   title: string
   description?: string
-  created_at?: string
-  updated_at?: string
+  is_public: boolean
+  created_at: string
+  updated_at: string
 }
 
 // 카드 타입 (Editor + Storyboard 통합) - 메타데이터 완전 통합
 export interface Card {
   id: string
-  storyboard_id: string
+  project_id: string
   user_id: string
   type: 'scene' | 'card'
   title: string
@@ -68,6 +69,13 @@ export interface Card {
   storyboard_status?: string  // 처리 상태 (ready, pending, error 등)
   shot_description?: string   // 촬영 설명 (content와 별도)
 
+  // Timeline 관련 필드
+  duration?: number           // 장면 지속 시간 (초)
+  audioUrl?: string          // 배경 음악/사운드 URL
+  voiceOverUrl?: string      // 보이스오버 오디오 URL
+  voiceOverText?: string     // 보이스오버 스크립트 텍스트
+  startTime?: number         // 타임라인에서의 시작 시간 (초)
+
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>
 
@@ -78,7 +86,7 @@ export interface Card {
 // 버전 타입
 export interface Version {
   id: string
-  storyboard_id: string
+  project_id: string
   user_id: string
   version_number: number
   title: string
@@ -91,17 +99,14 @@ export interface Version {
 export type UserProfile = User
 
 // 클라이언트 사이드 편의성 타입
-export interface StoryboardWithCards extends Storyboard {
+export interface ProjectWithCards extends Project {
   cards: Card[]
-}
-
-export interface ProjectWithStoryboards extends Project {
-  storyboards: Storyboard[]
 }
 
 // 카드 생성/수정을 위한 입력 타입 (완전 통합)
 export interface CardInput {
   id?: string
+  project_id?: string
   type: Card['type'] // 'scene' | 'card'
   title: string
   content: string
@@ -124,12 +129,7 @@ export interface CardInput {
   metadata?: Record<string, unknown>
 }
 
-// 스토리보드 생성/수정을 위한 입력 타입
-export interface StoryboardInput {
-  title: string
-  description?: string
-  project_id?: string
-}
+// Note: StoryboardInput type removed - cards are created directly under projects
 
 // 프로젝트 생성/수정을 위한 입력 타입
 export interface ProjectInput {

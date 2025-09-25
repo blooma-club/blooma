@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -111,15 +111,15 @@ export default function ProjectHeader() {
         <ArrowLeft className="w-4 h-4" />
         Dashboard
       </button>
-      <div className="w-px h-4 bg-gray-600" />
+      <div className="w-px h-4 bg-gray-600 mx-2" />
       <h1 className="text-sm font-medium text-gray-300">Project</h1>
-      <div className="w-px h-4 bg-gray-600" />
+      <div className="w-px h-4 bg-gray-600 mx-2" />
       {isEditing ? (
         <div className="flex items-center gap-3">
           <input
             type="text"
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            onChange={e => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             className="text-sm font-semibold bg-neutral-900 text-white px-3 py-2 rounded-lg border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0 max-w-xs transition-all"
             autoFocus

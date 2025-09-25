@@ -58,7 +58,7 @@ export default function CreditStatus() {
   const defaultCredits = {
     credits: 100,
     credits_used: 0,
-    subscription_tier: 'basic' as const
+    subscription_tier: 'basic' as const,
   }
 
   const creditData = credits || defaultCredits
@@ -72,7 +72,7 @@ export default function CreditStatus() {
           color: 'text-amber-400',
           bgColor: 'bg-amber-400/10',
           borderColor: 'border-amber-400/30',
-          label: 'Pro'
+          label: 'Pro',
         }
       case 'enterprise':
         return {
@@ -80,7 +80,7 @@ export default function CreditStatus() {
           color: 'text-purple-400',
           bgColor: 'bg-purple-400/10',
           borderColor: 'border-purple-400/30',
-          label: 'Enterprise'
+          label: 'Enterprise',
         }
       default: // 'basic'
         return {
@@ -88,7 +88,7 @@ export default function CreditStatus() {
           color: 'text-blue-400',
           bgColor: 'bg-blue-400/10',
           borderColor: 'border-blue-400/30',
-          label: 'Basic'
+          label: 'Basic',
         }
     }
   }
@@ -97,13 +97,13 @@ export default function CreditStatus() {
   const TierIcon = tierInfo.icon
 
   return (
-    <div className={`flex items-center gap-3 px-3 py-2 rounded-lg ${tierInfo.bgColor} border ${tierInfo.borderColor}`}>
+    <div
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg ${tierInfo.bgColor} border ${tierInfo.borderColor}`}
+    >
       {/* 구독 티어 */}
       <div className="flex items-center gap-1.5">
         <TierIcon className={`w-4 h-4 ${tierInfo.color}`} />
-        <span className={`text-xs font-medium ${tierInfo.color}`}>
-          {tierInfo.label}
-        </span>
+        <span className={`text-xs font-medium ${tierInfo.color}`}>{tierInfo.label}</span>
       </div>
 
       {/* 구분선 */}
@@ -115,9 +115,7 @@ export default function CreditStatus() {
         <span className="text-sm font-medium text-white">
           {creditData.credits.toLocaleString()}
         </span>
-        <span className="text-xs text-neutral-400">
-          credits
-        </span>
+        <span className="text-xs text-neutral-400">credits</span>
       </div>
     </div>
   )

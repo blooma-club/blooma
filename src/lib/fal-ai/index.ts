@@ -392,15 +392,23 @@ async function generateWithFluxProV11Ultra(prompt: string, options: any): Promis
 
 // Flux.1 Kontext [pro] 모델 (텍스트-투-이미지)
 async function generateWithFluxProKontextPro(prompt: string, options: any): Promise<string> {
+  const inputPayload: any = {
+    prompt,
+    aspect_ratio: options.aspectRatio || '1:1',
+    guidance_scale: options.guidanceScale || 3.5,
+    num_images: options.numImages || 1,
+    output_format: options.outputFormat || 'jpeg',
+    safety_tolerance: options.safetyTolerance || '2'
+  }
+
+  // Add image input if available (for image-to-image generation)
+  if (options.imageUrls && options.imageUrls.length > 0) {
+    inputPayload.image_url = options.imageUrls[0]
+    inputPayload.strength = 0.75 // Controls how much the input image influences the result
+  }
+
   const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext/text-to-image', {
-    input: {
-      prompt,
-      aspect_ratio: options.aspectRatio || '1:1',
-      guidance_scale: options.guidanceScale || 3.5,
-      num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg',
-      safety_tolerance: options.safetyTolerance || '2'
-    } as any,
+    input: inputPayload,
     logs: true,
     onQueueUpdate(update: any) {
       if (update?.status === 'IN_PROGRESS') {

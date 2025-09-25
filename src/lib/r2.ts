@@ -177,4 +177,111 @@ export async function deleteImagesFromR2(keys: string[]): Promise<{ success: str
   return { success, failed }
 }
 
+/**
+ * Upload character image to R2 with proper directory structure
+ * @param characterId - Unique character identifier
+ * @param src - Image source (URL or data URL)
+ * @param projectId - Optional project ID for organization
+ */
+export async function uploadCharacterImageToR2(
+  characterId: string, 
+  src: string, 
+  projectId?: string
+): Promise<UploadResult> {
+  const bucket = process.env.R2_BUCKET_NAME
+  if (!bucket) throw new Error('R2_BUCKET_NAME must be set')
+
+  let buffer: Uint8Array | null = null
+  let contentType: string | null = null
+
+  // Retry logic
+  const maxRetries = 3
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (src.startsWith('data:')) {
+        const m = src.match(/^data:(.*?);base64,(.*)$/)
+        if (!m) throw new Error('Invalid data URL')
+        contentType = m[1]
+        const b = Buffer.from(m[2], 'base64')
+        buffer = new Uint8Array(b)
+      } else {
+        console.log(`[R2] Attempting to download character image (attempt ${attempt}/${maxRetries}): ${src.substring(0, 100)}...`)
+
+        const res = await fetch(src, {
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+          headers: {
+            'User-Agent': 'Blooma/1.0'
+          }
+        })
+
+        if (!res.ok) {
+          const errorMsg = `Failed to download character image: ${res.status} ${res.statusText}`
+          console.warn(`[R2] Character image download failed (attempt ${attempt}): ${errorMsg}`)
+
+          if (res.status === 409 && attempt < maxRetries) {
+            const delay = Math.pow(2, attempt) * 1000 // exponential backoff
+            console.log(`[R2] Waiting ${delay}ms before retry...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            continue
+          }
+
+          throw new Error(errorMsg)
+        }
+
+        contentType = res.headers.get('content-type')
+        const ab = await res.arrayBuffer()
+        buffer = new Uint8Array(ab)
+        console.log(`[R2] Successfully downloaded character image (${buffer.length} bytes)`)
+      }
+
+      if (!buffer) throw new Error('No character image data')
+
+      const ext = extFromContentType(contentType)
+      // Use characters directory with optional project organization
+      const basePath = projectId ? `characters/${projectId}` : 'characters'
+      const key = `${basePath}/${characterId}_${Date.now()}.${ext}`
+
+      console.log(`[R2] Uploading character image to R2: ${key} ${projectId ? `(organized by project: ${projectId})` : '(global characters folder)'}`)
+
+      await r2Client.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: Buffer.from(buffer),
+        ContentType: contentType || undefined
+      }))
+
+      // Public URL strategy
+      const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
+      const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+
+      // Presigned GET URL as fallback
+      let signedUrl: string | null = null
+      try {
+        const getCmd = new GetObjectCommand({ Bucket: bucket, Key: key })
+        signedUrl = await getSignedUrl(r2Client, getCmd, { expiresIn: 60 * 60 }) // 1 hour
+      } catch (err) {
+        signedUrl = null
+      }
+
+      console.log(`[R2] Successfully uploaded character image to R2: ${key}`)
+      return { publicUrl, key, signedUrl, contentType, size: buffer?.length || null }
+
+    } catch (error) {
+      lastError = error as Error
+      console.error(`[R2] Character image upload attempt ${attempt} failed:`, error)
+
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 // exponential backoff
+        console.log(`[R2] Waiting ${delay}ms before retry...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+
+  // All retries failed
+  throw lastError || new Error('Character image upload failed after all retries')
+}
+
 

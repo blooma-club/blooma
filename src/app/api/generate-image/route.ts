@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
       aspectRatio,
       quality = 'balanced',
       width,
-      height
+      height,
+      image_url,
+      imageUrls
     } = await request.json()
 
     if (!prompt) {
@@ -36,7 +38,15 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[API] Generating image with model: ${modelId}`)
-    console.log(`[API] Options:`, { style, aspectRatio, quality, width, height })
+    console.log(`[API] Options:`, { style, aspectRatio, quality, width, height, image_url, imageUrls })
+
+    // Prepare image URLs for the generation
+    let inputImageUrls: string[] = []
+    if (image_url) {
+      inputImageUrls = [image_url]
+    } else if (imageUrls && Array.isArray(imageUrls)) {
+      inputImageUrls = imageUrls
+    }
 
     // 통합된 이미지 생성 함수 사용
     const result = await generateImageWithModel(prompt, modelId, {
@@ -44,7 +54,8 @@ export async function POST(request: NextRequest) {
       aspectRatio,
       width,
       height,
-      quality
+      quality,
+      imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined
     })
 
     if (!result.success) {
