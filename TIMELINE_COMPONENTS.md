@@ -28,6 +28,7 @@ The main timeline component that closely matches the design from the reference i
 - ✅ Fullscreen toggle
 - ✅ Add frame buttons (left and right)
 - ✅ Hover tooltips with frame previews
+- ✅ AI-powered audio generation via ElevenLabs (voice-over) and Suno (background music)
 
 ### 2. MultiTrackTimelineEditor
 
@@ -84,6 +85,7 @@ const MyTimelineComponent = () => {
         onUpdateFrame={handleUpdateFrame}
         onSave={handleSave}
         onAddFrame={handleAddFrame}
+        projectId="my-project-id"
       />
     </div>
   )
@@ -157,6 +159,22 @@ The components use Tailwind CSS classes and can be customized by:
 - Integrate with video playback libraries
 
 ## Integration
+
+### AI Audio Providers
+
+The timeline sidebar can generate voice-overs (ElevenLabs) and background music (Suno). Configure the following environment variables to enable these services:
+
+- `ELEVENLABS_API_KEY` – ElevenLabs API key
+- `ELEVENLABS_VOICE_ID` – Default voice ID to synthesize narration
+- `ELEVENLABS_MODEL_ID` *(optional)* – Override the voice model (defaults to `eleven_monolingual_v1`)
+- `ELEVENLABS_VOICE_STABILITY` *(optional)* – Float value for stability (defaults to `0.6`)
+- `ELEVENLABS_VOICE_SIMILARITY` *(optional)* – Float value for similarity boost (defaults to `0.75`)
+- `ELEVENLABS_VOICE_STYLE` *(optional)* – Float value for style intensity
+- `SUNO_API_KEY` – Suno API token
+- `SUNO_MODEL_ID` *(optional)* – Music generation model, defaults to `chirp-v3-5`
+- `SUNO_DEFAULT_TAGS` *(optional)* – Comma-separated tags passed to Suno
+
+Both providers upload generated audio to your configured R2 bucket via the existing `R2_BUCKET_NAME` settings. Ensure the timeline component receives a `projectId` prop so generated assets can be organized per project.
 
 ### With Existing Storyboard System
 

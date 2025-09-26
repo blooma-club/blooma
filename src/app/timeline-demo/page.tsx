@@ -96,6 +96,7 @@ export default function TimelineDemoPage() {
           onUpdateFrame={handleUpdateFrame}
           onSave={handleSave}
           onAddFrame={handleAddFrame}
+          projectId="demo"
         />
       </div>
     </div>

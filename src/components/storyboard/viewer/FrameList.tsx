@@ -12,6 +12,9 @@ interface FrameListProps {
   onFrameDelete: (frameId: string) => void
   onAddFrame: () => void
   deletingFrameId?: string | null
+  onGenerateVideo?: (frameId: string) => void
+  onPlayVideo?: (frameId: string) => void
+  generatingVideoId?: string | null
 }
 
 export const FrameList: React.FC<FrameListProps> = ({
@@ -20,7 +23,10 @@ export const FrameList: React.FC<FrameListProps> = ({
   onFrameEditMetadata,
   onFrameDelete,
   onAddFrame,
-  deletingFrameId = null
+  deletingFrameId = null,
+  onGenerateVideo,
+  onPlayVideo,
+  generatingVideoId = null,
 }) => {
   return (
     <div className="flex justify-center">
@@ -38,6 +44,10 @@ export const FrameList: React.FC<FrameListProps> = ({
                 onOpen={() => onFrameEdit(i)}
                 onEdit={() => onFrameEditMetadata(frame.id)}
                 onDelete={() => onFrameDelete(frame.id)}
+                videoUrl={frame.videoUrl}
+                onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
+                onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+                isGeneratingVideo={generatingVideoId === frame.id}
               />
             </div>
             

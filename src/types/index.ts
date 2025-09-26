@@ -75,6 +75,12 @@ export interface Card {
   voiceOverUrl?: string      // 보이스오버 오디오 URL
   voiceOverText?: string     // 보이스오버 스크립트 텍스트
   startTime?: number         // 타임라인에서의 시작 시간 (초)
+  videoUrl?: string          // 생성된 비디오 URL (camelCase helper)
+  video_url?: string         // 생성된 비디오 URL (원본 snake_case)
+  videoKey?: string          // 비디오 R2 오브젝트 키 (camelCase helper)
+  video_key?: string         // 비디오 R2 오브젝트 키 (원본 snake_case)
+  videoPrompt?: string       // 비디오 생성 프롬프트 (camelCase helper)
+  video_prompt?: string      // 비디오 생성 프롬프트 (원본 snake_case)
 
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>
@@ -127,6 +133,18 @@ export interface CardInput {
 
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>
+
+  // Timeline 관련 필드 (선택적 사용)
+  duration?: number
+  audio_url?: string
+  voice_over_url?: string
+  voice_over_text?: string
+  start_time?: number
+  video_url?: string
+  videoKey?: string
+  videoPrompt?: string
+  video_key?: string
+  video_prompt?: string
 }
 
 // Note: StoryboardInput type removed - cards are created directly under projects

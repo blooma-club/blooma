@@ -16,9 +16,15 @@ export interface StoryboardFrame {
   // Timeline-related fields
   duration?: number // Duration in seconds
   audioUrl?: string // Background music/sound URL
+  sunoTrackUrl?: string // Original Suno clip URL or identifier
   voiceOverUrl?: string // Voice-over audio URL
   voiceOverText?: string // Voice-over script text
+  voiceOverVoiceId?: string // Selected ElevenLabs voice identifier
   startTime?: number // Start time in timeline (seconds)
+  // Video-related fields
+  videoUrl?: string // Generated video derived from the storyboard image
+  videoKey?: string // Cloud storage object key
+  videoPrompt?: string // Prompt used when generating the video
 }
 
 export interface Character {

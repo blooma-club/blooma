@@ -3,20 +3,34 @@ import { uploadImageToR2 } from '../../../lib/r2'
 import { generateImageWithModel } from '../../../lib/fal-ai'
 
 // 헬퍼: 여러 이미지 업로드
-async function uploadImagesToR2(imageUrls: string[], storyboardId: string, frameId: string) {
-  const uploads = await Promise.all(
-    imageUrls.map(url => uploadImageToR2(storyboardId, frameId, url))
-  )
+async function uploadImagesToR2(imageUrls: string[], projectId: string, frameId: string) {
+  const uploads = await Promise.all(imageUrls.map(url => uploadImageToR2(projectId, frameId, url)))
   return uploads.map(u => u.publicUrl || u.key).filter(Boolean)
 }
 
 // Multi-image edit via Gemini 2.5 Flash Image
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, image_urls, storyboardId, frameId, numImages = 1, output_format = 'jpeg' } = await req.json()
+    const {
+      prompt,
+      image_urls,
+      projectId,
+      storyboardId,
+      frameId,
+      numImages = 1,
+      output_format = 'jpeg',
+    } = await req.json()
+
+    const resolvedProjectId = projectId || storyboardId
 
     // 유효성 검증
-    if (!prompt?.trim() || !Array.isArray(image_urls) || image_urls.length === 0 || !storyboardId || !frameId) {
+    if (
+      !prompt?.trim() ||
+      !Array.isArray(image_urls) ||
+      image_urls.length === 0 ||
+      !resolvedProjectId ||
+      !frameId
+    ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -35,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 생성된 이미지들 R2에 업로드
-    const uploadedUrls = await uploadImagesToR2(result.imageUrls, storyboardId, frameId)
+    const uploadedUrls = await uploadImagesToR2(result.imageUrls, resolvedProjectId, frameId)
 
     if (!uploadedUrls.length) {
       return NextResponse.json({ error: 'Failed to upload images' }, { status: 500 })

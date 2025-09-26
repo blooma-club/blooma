@@ -39,6 +39,9 @@ const ALLOWED_KEYS = new Set([
   'voice_over_url',
   'voice_over_text',
   'start_time',
+  'video_url',
+  'video_key',
+  'video_prompt',
 ])
 
 // Extended type for database insertion
@@ -232,6 +235,9 @@ export async function PUT(request: NextRequest) {
           image_prompt: cardWithoutTimestamps.image_prompt,
           storyboard_status: cardWithoutTimestamps.storyboard_status,
           shot_description: cardWithoutTimestamps.shot_description,
+          video_url: cardWithoutTimestamps.video_url,
+          video_key: cardWithoutTimestamps.video_key,
+          video_prompt: cardWithoutTimestamps.video_prompt,
           next_card_id: cardWithoutTimestamps.next_card_id,
           prev_card_id: cardWithoutTimestamps.prev_card_id,
           updated_at: new Date().toISOString(),

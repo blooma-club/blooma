@@ -83,6 +83,9 @@ The migration adds these columns to the `cards` table:
 | `voice_over_url`  | TEXT          | NULL    | Voice-over audio file URL    |
 | `voice_over_text` | TEXT          | NULL    | Voice-over script text       |
 | `start_time`      | DECIMAL(10,2) | 0.0     | Scene start time in timeline |
+| `video_url`       | TEXT          | NULL    | Generated storyboard video URL |
+| `video_key`       | TEXT          | NULL    | Cloudflare R2 object key      |
+| `video_prompt`    | TEXT          | NULL    | Prompt used to create video   |
 
 ## Troubleshooting
 

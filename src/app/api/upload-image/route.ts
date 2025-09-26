@@ -8,10 +8,12 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const storyboardId = formData.get('storyboardId') as string
+    const storyboardIdValue = formData.get('storyboardId') as string | null
+    const projectIdValue = formData.get('projectId') as string | null
+    const projectId = projectIdValue || storyboardIdValue
     const frameId = formData.get('frameId') as string
 
-    if (!file || !storyboardId || !frameId) {
+    if (!file || !projectId || !frameId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
     // If this is an "empty" / unsaved storyboard (local working area),
     // do NOT persist the uploaded image to R2. Return the data URL so the
     // frontend can use the image without creating a permanent object.
-    if (!storyboardId || storyboardId === 'default' || storyboardId === 'empty') {
+    if (!projectId || projectId === 'default' || projectId === 'empty') {
       return NextResponse.json({
         success: true,
         publicUrl: dataUrl,
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
       console.warn('Failed to delete existing image:', error)
     }
 
-    const result = await uploadImageToR2(storyboardId, frameId, dataUrl)
+    const result = await uploadImageToR2(projectId, frameId, dataUrl)
 
     console.log('[Upload] R2 result:', {
       publicUrl: result.publicUrl,

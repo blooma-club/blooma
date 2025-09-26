@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
-    const { frameId, duration, audioUrl, voiceOverUrl, voiceOverText, startTime } = body
+    const { frameId, duration, audioUrl, voiceOverUrl, voiceOverText, startTime, videoUrl } = body
 
     if (!frameId) {
       return NextResponse.json({ error: 'Frame ID is required' }, { status: 400 })
@@ -18,6 +18,7 @@ export async function PUT(req: NextRequest) {
     if (voiceOverUrl !== undefined) updateData.voice_over_url = voiceOverUrl
     if (voiceOverText !== undefined) updateData.voice_over_text = voiceOverText
     if (startTime !== undefined) updateData.start_time = startTime
+    if (videoUrl !== undefined) updateData.video_url = videoUrl
 
     const { data, error } = await supabase
       .from('cards')
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     // Get timeline data for all frames in the project (using snake_case column names)
     const { data, error } = await supabase
       .from('cards')
-      .select('id, duration, audio_url, voice_over_url, voice_over_text, start_time, order_index')
+      .select('id, duration, audio_url, voice_over_url, voice_over_text, start_time, video_url, order_index')
       .eq('project_id', projectId)
       .order('order_index')
 
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     // Perform batch updates
     const updates = frames.map(async (frame: any) => {
-      const { id, duration, audioUrl, voiceOverUrl, voiceOverText, startTime } = frame
+      const { id, duration, audioUrl, voiceOverUrl, voiceOverText, startTime, videoUrl } = frame
       
       if (!id) return null
 
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       if (voiceOverUrl !== undefined) updateData.voice_over_url = voiceOverUrl
       if (voiceOverText !== undefined) updateData.voice_over_text = voiceOverText
       if (startTime !== undefined) updateData.start_time = startTime
+      if (videoUrl !== undefined) updateData.video_url = videoUrl
 
       const { data, error } = await supabase
         .from('cards')

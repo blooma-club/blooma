@@ -140,6 +140,8 @@ export default function StoryboardPage() {
   const [sbTitle, setSbTitle] = useState<string>('Storyboard')
   const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
   const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
+  const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
+  const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
   // aspect ratio is selected at build time; not yet sent back in API payload. Placeholder for future.
   const [ratio] = useState<'16:9' | '1:1' | '9:16' | '4:3' | '3:4'>('3:4')
 
@@ -430,8 +432,16 @@ export default function StoryboardPage() {
           errorMessage = '로그인이 필요합니다. 다시 로그인해 주세요.'
         }
 
+        if (typeof errorMessage === 'string' && errorMessage.includes('Failed to fetch')) {
+          errorMessage = 'Supabase와의 통신 중 문제가 발생했습니다. 네트워크 연결을 확인한 후 다시 시도해 주세요.'
+        }
+
         // Log the full error object for debugging
-        console.error('[STORYBOARD] Full error object:', JSON.stringify(error, null, 2))
+        const serialisedError =
+          error instanceof Error
+            ? { message: error.message, name: error.name, stack: error.stack }
+            : error
+        console.error('[STORYBOARD] Full error object:', serialisedError)
 
         setError(errorMessage)
         setLoading(false)
@@ -698,6 +708,154 @@ export default function StoryboardPage() {
     }
   }, [user?.id, projectId, session, cards, setCards])
 
+  const handleGenerateSceneFromPrompt = useCallback(
+    async (promptText: string) => {
+      if (!user?.id || !projectId || !session) {
+        throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.')
+      }
+
+      const trimmedPrompt = promptText.trim()
+      if (!trimmedPrompt) {
+        throw new Error('생성할 씬에 대한 설명을 입력해 주세요.')
+      }
+
+      const currentCardsSnapshot = useStoryboardStore.getState().cards[projectId] || []
+      let inserted: Card | null = null
+
+      try {
+        inserted = await createAndLinkCard(
+          {
+            userId: user.id,
+            projectId: projectId,
+            currentCards: currentCardsSnapshot,
+          },
+          'TIMELINE_GENERATE',
+          session.access_token
+        )
+      } catch (error) {
+        throw error instanceof Error
+          ? new Error(error.message)
+          : new Error('씬을 생성할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+      }
+
+      if (!inserted) {
+        throw new Error('새로운 씬이 정상적으로 생성되지 않았습니다.')
+      }
+
+      const insertedWithPrompt: Card = {
+        ...inserted,
+        shot_description: trimmedPrompt,
+        image_prompt: trimmedPrompt,
+        storyboard_status: 'generating',
+      }
+
+      const cardsAfterInsert = [...currentCardsSnapshot, insertedWithPrompt]
+      setCards(projectId, cardsAfterInsert)
+      setFrames(prev => [...prev, cardToFrame(insertedWithPrompt, prev.length)])
+
+      try {
+        const response = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: trimmedPrompt,
+            aspectRatio: ratio,
+          }),
+        })
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          imageUrl?: string
+          error?: string
+        }
+
+        if (!response.ok || !payload?.imageUrl) {
+          throw new Error(payload?.error || '이미지를 생성할 수 없습니다.')
+        }
+
+        const generatedImageUrl = payload.imageUrl
+
+        const updateResponse = await fetch('/api/cards', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            cards: [
+              {
+                id: insertedWithPrompt.id,
+                image_url: generatedImageUrl,
+                image_prompt: trimmedPrompt,
+                shot_description: trimmedPrompt,
+                storyboard_status: 'ready',
+              },
+            ],
+          }),
+        })
+
+        const updatePayload = (await updateResponse.json().catch(() => ({}))) as {
+          error?: string
+        }
+
+        if (!updateResponse.ok) {
+          throw new Error(updatePayload?.error || '생성된 이미지를 저장하지 못했습니다.')
+        }
+
+        const refreshedCards = useStoryboardStore.getState().cards[projectId] || cardsAfterInsert
+        const mergedCards = refreshedCards.map(card =>
+          card.id === insertedWithPrompt.id
+            ? {
+                ...card,
+                image_url: generatedImageUrl,
+                image_prompt: trimmedPrompt,
+                shot_description: trimmedPrompt,
+                storyboard_status: 'ready',
+              }
+            : card
+        )
+        setCards(projectId, mergedCards)
+        setFrames(prev =>
+          prev.map(frame =>
+            frame.id === insertedWithPrompt.id
+              ? {
+                  ...frame,
+                  imageUrl: generatedImageUrl,
+                  imagePrompt: trimmedPrompt,
+                  shotDescription: trimmedPrompt,
+                  status: 'ready',
+                }
+              : frame
+          )
+        )
+      } catch (error) {
+        const refreshedCards = useStoryboardStore.getState().cards[projectId] || cardsAfterInsert
+        const erroredCards = refreshedCards.map(card =>
+          card.id === insertedWithPrompt.id
+            ? {
+                ...card,
+                storyboard_status: 'error',
+              }
+            : card
+        )
+        setCards(projectId, erroredCards)
+        setFrames(prev =>
+          prev.map(frame =>
+            frame.id === insertedWithPrompt.id
+              ? {
+                  ...frame,
+                  status: 'error',
+                }
+              : frame
+          )
+        )
+        throw error instanceof Error
+          ? error
+          : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
+      }
+    },
+    [user?.id, projectId, session, setCards, ratio]
+  )
+
   const handleOpenStoryboardEdit = useCallback(
     (cardId: string) => {
       // 실제 카드 데이터에서 메타데이터 가져오기
@@ -782,6 +940,130 @@ export default function StoryboardPage() {
     },
     [user?.id, projectId, session, deletingFrameId, deleteCard, setFrames, setIndex]
   )
+
+  const handleGenerateVideo = useCallback(
+    async (frameId: string) => {
+      if (!projectId) return
+      const frame = frames.find(f => f.id === frameId)
+      if (!frame) return
+
+      if (!frame.imageUrl) {
+        setError('Generate an image for this scene before creating a video.')
+        return
+      }
+
+      if (!user || !session?.access_token) {
+        setError('You must be signed in to generate videos.')
+        return
+      }
+
+      try {
+        setGeneratingVideoId(frameId)
+        setError(null)
+
+        const requestPrompt = (frame.imagePrompt || frame.shotDescription || '').trim()
+
+        const response = await fetch('/api/video/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            frameId,
+            projectId,
+            imageUrl: frame.imageUrl,
+            prompt: requestPrompt,
+          }),
+        })
+
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as {
+          videoUrl?: string
+          videoKey?: string | null
+          videoPrompt?: string
+          error?: string
+        }
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to generate video')
+        }
+
+        const videoUrl = payload.videoUrl
+        const videoKey = payload.videoKey ?? null
+        const updatedVideoPrompt = payload.videoPrompt ?? requestPrompt
+        if (!videoUrl) {
+          throw new Error('Video generation completed without returning a usable URL')
+        }
+
+        setFrames(prev =>
+          prev.map(f =>
+            f.id === frameId
+              ? { ...f, videoUrl, videoKey: videoKey ?? undefined, videoPrompt: updatedVideoPrompt }
+              : f
+          )
+        )
+
+        const storeState = useStoryboardStore.getState()
+        const existingCards = storeState.cards[projectId] || []
+        const updatedCards = existingCards.map(card =>
+          card.id === frameId
+            ? {
+                ...card,
+                video_url: videoUrl,
+                videoUrl,
+                video_key: videoKey ?? null,
+                videoKey: videoKey ?? undefined,
+                video_prompt: updatedVideoPrompt,
+                videoPrompt: updatedVideoPrompt,
+              }
+            : card
+        )
+        setCards(projectId, updatedCards)
+
+        setVideoPreview({ frameId, url: videoUrl })
+      } catch (error) {
+        console.error('❌ [VIDEO] Generation failed:', error)
+        setError(error instanceof Error ? error.message : 'Failed to generate video')
+      } finally {
+        setGeneratingVideoId(null)
+      }
+    },
+    [frames, projectId, session, setCards, setFrames, user]
+  )
+
+  const handlePlayVideo = useCallback(
+    (frameId: string) => {
+      const frame = frames.find(f => f.id === frameId)
+      if (!frame || !frame.videoUrl) {
+        setError('No video available yet for this scene. Generate one first.')
+        return
+      }
+
+      setVideoPreview({ frameId, url: frame.videoUrl })
+    },
+    [frames]
+  )
+
+  useEffect(() => {
+    if (!videoPreview) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setVideoPreview(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [videoPreview])
 
   // 단순 카드 (드래그 제거)
   // FrameCard 컴포넌트 제거: StoryboardCard로 직접 렌더링
@@ -872,6 +1154,9 @@ export default function StoryboardPage() {
                 deletingFrameId={deletingFrameId}
                 loading={loading}
                 cardsLength={cards.length}
+                onGenerateVideo={handleGenerateVideo}
+                onPlayVideo={handlePlayVideo}
+                generatingVideoId={generatingVideoId}
               />
             )}
 
@@ -886,6 +1171,9 @@ export default function StoryboardPage() {
                 onFrameDelete={handleDeleteFrame}
                 onAddFrame={handleAddFrame}
                 deletingFrameId={deletingFrameId}
+                onGenerateVideo={handleGenerateVideo}
+                onPlayVideo={handlePlayVideo}
+                generatingVideoId={generatingVideoId}
               />
             )}
           </>
@@ -947,6 +1235,8 @@ export default function StoryboardPage() {
                   console.error('Error creating new frame:', error)
                 }
               }}
+              projectId={projectId}
+              onGenerateScene={handleGenerateSceneFromPrompt}
             />
           </div>
         )}
@@ -984,6 +1274,9 @@ export default function StoryboardPage() {
                   const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${newIndex + 1}`
                   router.replace(newUrl, { scroll: false })
                 }}
+                onGenerateVideo={frame => handleGenerateVideo(frame.id)}
+                onPlayVideo={frame => handlePlayVideo(frame.id)}
+                isGeneratingVideo={generatingVideoId === currentFrame.id}
               />
             }
             right={
@@ -1011,6 +1304,36 @@ export default function StoryboardPage() {
           />
         )}
       </div>
+
+      {videoPreview && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={() => setVideoPreview(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl p-6"
+            onClick={event => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setVideoPreview(null)}
+              className="absolute top-4 right-4 px-3 py-1 rounded-md border border-neutral-700 text-xs text-neutral-300 hover:bg-neutral-800"
+            >
+              Close
+            </button>
+            <div className="text-sm text-neutral-300 mb-4 pr-16">Storyboard clip preview</div>
+            <div className="relative w-full bg-black rounded-xl overflow-hidden">
+              <video
+                key={videoPreview.url}
+                src={videoPreview.url}
+                controls
+                autoPlay
+                className="w-full max-h-[70vh] object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
