@@ -220,6 +220,9 @@ export type Database = {
           voice_over_url?: string
           voice_over_text?: string
           start_time?: number
+          video_url?: string
+          video_key?: string
+          video_prompt?: string
 
           created_at?: string
           updated_at?: string
@@ -255,6 +258,9 @@ export type Database = {
           voice_over_url?: string
           voice_over_text?: string
           start_time?: number
+          video_url?: string
+          video_key?: string
+          video_prompt?: string
 
           created_at?: string
           updated_at?: string
@@ -293,6 +299,9 @@ export type Database = {
           voice_over_url?: string
           voice_over_text?: string
           start_time?: number
+          video_url?: string
+          video_key?: string
+          video_prompt?: string
 
           created_at?: string
           updated_at?: string

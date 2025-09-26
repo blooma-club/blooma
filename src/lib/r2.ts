@@ -1,12 +1,28 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-type UploadResult = {
+export type UploadResult = {
   publicUrl: string | null
   key: string
   signedUrl?: string | null
   contentType: string | null
   size?: number | null
+}
+
+type AudioUploadParams = {
+  projectId: string
+  frameId: string
+  buffer: Uint8Array
+  contentType?: string | null
+  kind?: 'voice' | 'music' | 'fx'
+}
+
+type VideoUploadParams = {
+  projectId: string
+  frameId: string
+  buffer: Uint8Array
+  contentType?: string | null
+  kind?: 'storyboard' | 'animation'
 }
 
 const getEndpoint = (): string => {
@@ -35,7 +51,25 @@ function extFromContentType(ct: string | null) {
   return 'png'
 }
 
-export async function uploadImageToR2(storyboardId: string, frameId: string, src: string): Promise<UploadResult> {
+function audioExtFromContentType(ct: string | null) {
+  if (!ct) return 'mp3'
+  if (ct.includes('wav')) return 'wav'
+  if (ct.includes('mpeg')) return 'mp3'
+  if (ct.includes('ogg')) return 'ogg'
+  if (ct.includes('aac')) return 'aac'
+  return 'mp3'
+}
+
+function videoExtFromContentType(ct: string | null) {
+  if (!ct) return 'mp4'
+  if (ct.includes('webm')) return 'webm'
+  if (ct.includes('quicktime')) return 'mov'
+  if (ct.includes('x-matroska')) return 'mkv'
+  if (ct.includes('ogg')) return 'ogv'
+  return 'mp4'
+}
+
+export async function uploadImageToR2(projectId: string, frameId: string, src: string): Promise<UploadResult> {
   const bucket = process.env.R2_BUCKET_NAME
   if (!bucket) throw new Error('R2_BUCKET_NAME must be set')
 
@@ -89,7 +123,9 @@ export async function uploadImageToR2(storyboardId: string, frameId: string, src
       if (!buffer) throw new Error('No image data')
 
       const ext = extFromContentType(contentType)
-      const key = `storyboards/${storyboardId}/${frameId}_${Date.now()}.${ext}`
+      const sanitizedProject = projectId.replace(/[^a-zA-Z0-9-_]/g, '_') || 'project'
+      const sanitizedFrame = frameId.replace(/[^a-zA-Z0-9-_]/g, '_') || 'frame'
+      const key = `projects/${sanitizedProject}/storyboard/${sanitizedFrame}_${Date.now()}.${ext}`
 
       console.log(`[R2] Uploading to R2: ${key}`)
 
@@ -284,4 +320,92 @@ export async function uploadCharacterImageToR2(
   throw lastError || new Error('Character image upload failed after all retries')
 }
 
+export async function uploadAudioToR2({
+  projectId,
+  frameId,
+  buffer,
+  contentType,
+  kind = 'voice',
+}: AudioUploadParams): Promise<UploadResult> {
+  const bucket = process.env.R2_BUCKET_NAME
+  if (!bucket) throw new Error('R2_BUCKET_NAME must be set')
+  if (!buffer || buffer.length === 0) throw new Error('No audio data provided for upload')
 
+  const ext = audioExtFromContentType(contentType ?? null)
+  const sanitizedProject = projectId.replace(/[^a-zA-Z0-9-_]/g, '_')
+  const sanitizedFrame = frameId.replace(/[^a-zA-Z0-9-_]/g, '_')
+  const key = `audio/${sanitizedProject}/${kind}/${sanitizedFrame}_${Date.now()}.${ext}`
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: Buffer.from(buffer),
+      ContentType: contentType || 'audio/mpeg',
+    })
+  )
+
+  const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
+  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+
+  let signedUrl: string | null = null
+  try {
+    const getCmd = new GetObjectCommand({ Bucket: bucket, Key: key })
+    signedUrl = await getSignedUrl(r2Client, getCmd, { expiresIn: 60 * 60 })
+  } catch (error) {
+    console.warn('[R2] Unable to create signed URL for audio asset:', error)
+  }
+
+  return {
+    publicUrl,
+    key,
+    signedUrl,
+    contentType: contentType || 'audio/mpeg',
+    size: buffer.length,
+  }
+}
+
+export async function uploadVideoToR2({
+  projectId,
+  frameId,
+  buffer,
+  contentType,
+  kind = 'storyboard',
+}: VideoUploadParams): Promise<UploadResult> {
+  const bucket = process.env.R2_BUCKET_NAME
+  if (!bucket) throw new Error('R2_BUCKET_NAME must be set')
+  if (!buffer || buffer.length === 0) throw new Error('No video data provided for upload')
+
+  const ext = videoExtFromContentType(contentType ?? null)
+  const sanitizedProject = projectId.replace(/[^a-zA-Z0-9-_]/g, '_')
+  const sanitizedFrame = frameId.replace(/[^a-zA-Z0-9-_]/g, '_')
+  const key = `video/${sanitizedProject}/${kind}/${sanitizedFrame}_${Date.now()}.${ext}`
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: Buffer.from(buffer),
+      ContentType: contentType || 'video/mp4',
+    })
+  )
+
+  const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
+  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+
+  let signedUrl: string | null = null
+  try {
+    const getCmd = new GetObjectCommand({ Bucket: bucket, Key: key })
+    signedUrl = await getSignedUrl(r2Client, getCmd, { expiresIn: 60 * 60 })
+  } catch (error) {
+    console.warn('[R2] Unable to create signed URL for video asset:', error)
+  }
+
+  return {
+    publicUrl,
+    key,
+    signedUrl,
+    contentType: contentType || 'video/mp4',
+    size: buffer.length,
+  }
+}

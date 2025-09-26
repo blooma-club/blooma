@@ -111,6 +111,9 @@ CREATE TABLE IF NOT EXISTS public.cards (
   voice_over_url TEXT,
   voice_over_text TEXT,
   start_time DECIMAL(10,2) DEFAULT 0.0,
+  video_url TEXT,
+  video_key TEXT,
+  video_prompt TEXT,
 
   -- Metadata
   metadata JSONB DEFAULT '{}',
@@ -191,7 +194,7 @@ You should now be able to:
 
 **Timeline errors:**
 
-- Make sure the timeline columns (`duration`, `audio_url`, etc.) exist in the `cards` table
+- Make sure the timeline columns (`duration`, `audio_url`, `voice_over_url`, `start_time`, `video_url`, `video_key`, `video_prompt`, etc.) exist in the `cards` table
 - These are included in the SQL script above
 
 That's it! Your Supabase setup is complete and the timeline error should be fixed.

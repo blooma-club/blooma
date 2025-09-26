@@ -14,6 +14,9 @@ interface FrameGridProps {
   deletingFrameId?: string | null
   loading?: boolean
   cardsLength?: number
+  onGenerateVideo?: (frameId: string) => void
+  onPlayVideo?: (frameId: string) => void
+  generatingVideoId?: string | null
 }
 
 export const FrameGrid: React.FC<FrameGridProps> = ({
@@ -24,7 +27,10 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   onAddFrame,
   deletingFrameId = null,
   loading = false,
-  cardsLength = 0
+  cardsLength = 0,
+  onGenerateVideo,
+  onPlayVideo,
+  generatingVideoId = null,
 }) => {
   if (loading) {
     return (
@@ -58,6 +64,10 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
             onOpen={() => onFrameOpen(i)}
             onEdit={() => onFrameEdit(frame.id)}
             onDelete={() => onFrameDelete(frame.id)}
+            videoUrl={frame.videoUrl}
+            onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
+            onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+            isGeneratingVideo={generatingVideoId === frame.id}
           />
         ))}
         

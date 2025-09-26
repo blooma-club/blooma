@@ -4,6 +4,17 @@ import type { Card } from '@/types'
 import type { StoryboardFrame } from '@/types/storyboard'
 import { supabase } from './supabase'
 
+type CardSnakeCaseFields = {
+  duration?: number
+  audio_url?: string
+  voice_over_url?: string
+  voice_over_text?: string
+  start_time?: number
+  video_url?: string
+  video_key?: string
+  video_prompt?: string
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -30,6 +41,7 @@ export function getImageUrlFromCard(card: Card): string | undefined {
 
 // Card를 StoryboardFrame으로 변환하는 함수
 export function cardToFrame(card: Card, index?: number): StoryboardFrame {
+  const snakeCaseCard = card as Card & CardSnakeCaseFields
   return {
     id: card.id,
     scene: card.scene_number || (index !== undefined ? index + 1 : 1),
@@ -41,16 +53,22 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     status: (card.storyboard_status as 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error') || 'ready',
     imageUrl: getImageUrlFromCard(card),
     // Timeline fields (mapping from snake_case to camelCase)
-    duration: card.duration || 3,
-    audioUrl: card.audioUrl,
-    voiceOverUrl: card.voiceOverUrl,
-    voiceOverText: card.voiceOverText,
-    startTime: card.startTime,
+    duration: card.duration ?? snakeCaseCard.duration ?? 3,
+    audioUrl: card.audioUrl ?? snakeCaseCard.audio_url,
+    voiceOverUrl: card.voiceOverUrl ?? snakeCaseCard.voice_over_url,
+    voiceOverText: card.voiceOverText ?? snakeCaseCard.voice_over_text,
+    startTime: card.startTime ?? snakeCaseCard.start_time,
+    videoUrl: card.videoUrl ?? snakeCaseCard.video_url,
+    videoKey: card.videoKey ?? snakeCaseCard.video_key,
+    videoPrompt: card.videoPrompt ?? snakeCaseCard.video_prompt,
   };
 }
 
 // Project ownership verification function
-export async function verifyProjectOwnership(projectId: string, userId: string): Promise<{ isOwner: boolean; project?: any; error?: string }> {
+export async function verifyProjectOwnership(
+  projectId: string,
+  userId: string
+): Promise<{ isOwner: boolean; project?: any; error?: string }> {
   try {
     if (!projectId || !userId) {
       return { isOwner: false, error: 'Project ID and User ID are required' };
@@ -68,14 +86,27 @@ export async function verifyProjectOwnership(projectId: string, userId: string):
         // No rows returned - project doesn't exist or user doesn't own it
         return { isOwner: false, error: 'Project not found or access denied' };
       }
-      return { isOwner: false, error: error.message };
+      console.error('[verifyProjectOwnership] Supabase error:', error)
+      return {
+        isOwner: false,
+        error: error.message || 'Failed to verify project access (Supabase error)'
+      };
     }
 
     return { isOwner: true, project };
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object'
+        ? JSON.stringify(error)
+        : 'Unknown error'
+    console.error('[verifyProjectOwnership] Unexpected error:', error)
     return { 
       isOwner: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: message.includes('Failed to fetch')
+        ? 'Network error while verifying access. Please check your connection and retry.'
+        : message 
     };
   }
 }

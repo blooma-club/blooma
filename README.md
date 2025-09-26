@@ -118,6 +118,27 @@ If `FAL_KEY` is missing, placeholder images are used as a fallback.
 
 If you prefer to use other AI services directly:
 
+#### Step 2.4: Audio Generation (ElevenLabs & Suno)
+
+To enable AI-generated voice-overs and background music on the timeline, configure the following variables:
+
+```env
+# ElevenLabs
+ELEVENLABS_API_KEY=
+ELEVENLABS_VOICE_ID=
+ELEVENLABS_MODEL_ID=eleven_monolingual_v1
+ELEVENLABS_VOICE_STABILITY=0.6
+ELEVENLABS_VOICE_SIMILARITY=0.75
+ELEVENLABS_VOICE_STYLE=0
+
+# Suno
+SUNO_API_KEY=
+SUNO_MODEL_ID=chirp-v3-5
+SUNO_DEFAULT_TAGS=ambient cinematic soundtrack
+```
+
+Generated audio assets are uploaded to the configured R2 bucket (`R2_BUCKET_NAME`). Ensure your R2 credentials are valid before enabling these features.
+
 #### Step 3: Database Setup
 
 Run the SQL scripts in the `supabase/` directory to set up your database:
