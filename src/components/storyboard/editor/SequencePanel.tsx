@@ -6,7 +6,7 @@ interface SequencePanelProps {
   frames: StoryboardFrame[];
   currentIndex: number;
   onSelect: (index: number) => void;
-  onAddFrame?: () => void;
+  onAddFrame?: (insertIndex?: number) => void;
 }
 
 export const SequencePanel: React.FC<SequencePanelProps> = ({ frames, currentIndex, onSelect, onAddFrame }) => {
@@ -18,7 +18,14 @@ export const SequencePanel: React.FC<SequencePanelProps> = ({ frames, currentInd
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold tracking-wide text-neutral-300 uppercase">Frames</h3>
-          {onAddFrame && <button onClick={onAddFrame} className="px-3 py-2 rounded border border-neutral-700 text-sm hover:bg-neutral-800 text-white">＋</button>}
+          {onAddFrame && (
+            <button
+              onClick={() => onAddFrame?.()}
+              className="px-3 py-2 rounded border border-neutral-700 text-sm hover:bg-neutral-800 text-white"
+            >
+              ＋
+            </button>
+          )}
         </div>
         <ul className="space-y-2">
           {frames.map((f, i) => {

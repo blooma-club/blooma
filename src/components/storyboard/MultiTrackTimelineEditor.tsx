@@ -30,7 +30,7 @@ interface MultiTrackTimelineEditorProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
   onSave?: () => void
-  onAddFrame?: () => void
+  onAddFrame?: (insertIndex?: number) => void
 }
 
 interface TimelineClip {
@@ -409,7 +409,7 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
         <div className="flex items-center justify-between p-4 border-b border-neutral-700">
           <div className="flex items-center gap-4">
             <button
-              onClick={onAddFrame}
+              onClick={() => onAddFrame?.()}
               className="flex items-center justify-center w-8 h-8 bg-white rounded-full hover:bg-neutral-200 transition-colors"
             >
               <Plus className="w-4 h-4 text-black" />
@@ -469,7 +469,7 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
               <Maximize2 className="w-4 h-4" />
             </button>
             <button
-              onClick={onAddFrame}
+              onClick={() => onAddFrame?.()}
               className="flex items-center justify-center w-8 h-8 bg-white rounded-full hover:bg-neutral-200 transition-colors"
             >
               <Plus className="w-4 h-4 text-black" />

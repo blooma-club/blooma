@@ -299,25 +299,125 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // 먼저 삭제할 카드들의 이미지 키를 가져옴 (사용자의 카드만)
-    const { data: cardsToDelete } = await supabaseClient
+    type CardLinkInfo = {
+      id: string
+      image_key: string | null
+      prev_card_id: string | null
+      next_card_id: string | null
+    }
+
+    const { data: cardsToDelete, error: fetchError } = await supabaseClient
       .from('cards')
-      .select('image_key')
+      .select('id, image_key, prev_card_id, next_card_id')
       .in('id', body.cardIds)
       .eq('user_id', user.id) // Only user's own cards
 
-    // R2에서 이미지 삭제
-    const imageKeys = cardsToDelete?.map(card => card.image_key).filter(Boolean) || []
+    if (fetchError) {
+      console.error('Supabase error:', fetchError)
+      return NextResponse.json(
+        { error: 'Failed to load cards for deletion', details: fetchError.message },
+        { status: 500 }
+      )
+    }
+
+    const cards: CardLinkInfo[] = cardsToDelete ?? []
+    if (cards.length === 0) {
+      return NextResponse.json({ success: true, deletedCount: 0, deletedImages: 0 })
+    }
+
+    const idSet = new Set(cards.map(card => card.id))
+    const cardMap = new Map(cards.map(card => [card.id, card]))
+    const deletableIds = cards.map(card => card.id)
+
+    const findNextSurvivor = (startingId: string | null): string | null => {
+      let cursor = startingId
+      const visited = new Set<string>()
+      while (cursor && idSet.has(cursor)) {
+        if (visited.has(cursor)) {
+          cursor = null
+          break
+        }
+        visited.add(cursor)
+        const next = cardMap.get(cursor)?.next_card_id
+        if (!next) return null
+        cursor = next
+      }
+      return cursor ?? null
+    }
+
+    const findPrevSurvivor = (startingId: string | null): string | null => {
+      let cursor = startingId
+      const visited = new Set<string>()
+      while (cursor && idSet.has(cursor)) {
+        if (visited.has(cursor)) {
+          cursor = null
+          break
+        }
+        visited.add(cursor)
+        const prev = cardMap.get(cursor)?.prev_card_id
+        if (!prev) return null
+        cursor = prev
+      }
+      return cursor ?? null
+    }
+
+    // Re-link adjacent cards so foreign keys don't point at deleted rows
+    const neighborUpdates = new Map<string, { next_card_id?: string | null; prev_card_id?: string | null; updated_at: string }>()
+    const updateTimestamp = new Date().toISOString()
+
+    for (const card of cards) {
+      if (card.prev_card_id && !idSet.has(card.prev_card_id)) {
+        const nextSurvivor = findNextSurvivor(card.next_card_id)
+        const patch = neighborUpdates.get(card.prev_card_id) ?? { updated_at: updateTimestamp }
+        patch.next_card_id = nextSurvivor
+        patch.updated_at = updateTimestamp
+        neighborUpdates.set(card.prev_card_id, patch)
+      }
+
+      if (card.next_card_id && !idSet.has(card.next_card_id)) {
+        const prevSurvivor = findPrevSurvivor(card.prev_card_id)
+        const patch = neighborUpdates.get(card.next_card_id) ?? { updated_at: updateTimestamp }
+        patch.prev_card_id = prevSurvivor
+        patch.updated_at = updateTimestamp
+        neighborUpdates.set(card.next_card_id, patch)
+      }
+    }
+
+    if (neighborUpdates.size > 0) {
+      const updatePromises = Array.from(neighborUpdates.entries()).map(async ([cardId, patch]) => {
+        const { error: updateError } = await supabaseClient
+          .from('cards')
+          .update(patch)
+          .eq('id', cardId)
+          .eq('user_id', user.id) // Only user's own cards
+
+        if (updateError) {
+          throw updateError
+        }
+      })
+
+      try {
+        await Promise.all(updatePromises)
+      } catch (updateError) {
+        console.error('Supabase error:', updateError)
+        const details = updateError instanceof Error ? updateError.message : (updateError as { message?: string })?.message || 'Unknown error'
+        return NextResponse.json(
+          { error: 'Failed to update linked cards', details },
+          { status: 500 }
+        )
+      }
+    }
+
+    const imageKeys = cards.map(card => card.image_key).filter(Boolean) as string[]
     if (imageKeys.length > 0) {
       const deletePromises = imageKeys.map(key => deleteImageFromR2(key))
       await Promise.allSettled(deletePromises)
     }
 
-    // 카드 삭제 (사용자의 카드만)
     const { error } = await supabaseClient
       .from('cards')
       .delete()
-      .in('id', body.cardIds)
+      .in('id', deletableIds)
       .eq('user_id', user.id) // Only user's own cards
 
     if (error) {
@@ -330,7 +430,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      deletedCount: body.cardIds.length,
+      deletedCount: deletableIds.length,
       deletedImages: imageKeys.length
     })
   } catch (error) {

@@ -52,8 +52,27 @@ function normalizeVoice(raw: Record<string, unknown>): ElevenLabsVoiceOption | n
 
 export async function GET() {
   const apiKey = process.env.ELEVENLABS_API_KEY
+  const defaultVoiceId = process.env.ELEVENLABS_VOICE_ID || null
+
   if (!apiKey) {
-    return NextResponse.json({ error: 'ELEVENLABS_API_KEY is not configured' }, { status: 500 })
+    const fallbackName =
+      process.env.ELEVENLABS_VOICE_NAME ||
+      process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_NAME ||
+      'Default Voice'
+    const fallbackVoices: ElevenLabsVoiceOption[] = defaultVoiceId
+      ? [
+          {
+            id: defaultVoiceId,
+            name: fallbackName,
+          },
+        ]
+      : []
+
+    return NextResponse.json({
+      voices: fallbackVoices,
+      defaultVoiceId,
+      warning: 'ELEVENLABS_API_KEY is not configured; returning fallback voice list.',
+    })
   }
 
   try {

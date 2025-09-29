@@ -1,3 +1,4 @@
+import { fal } from '@fal-ai/client'
 import { uploadAudioToR2 } from './r2'
 
 interface VoiceOverParams {
@@ -55,10 +56,7 @@ export async function generateVoiceOverWithElevenLabs({
   clarityBoost,
   style,
 }: VoiceOverParams): Promise<AudioGenerationResult> {
-  const apiKey = process.env.ELEVENLABS_API_KEY
-  if (!apiKey) {
-    throw new Error('ELEVENLABS_API_KEY is not configured')
-  }
+  ensureFalVoiceConfigured()
 
   const resolvedVoiceId = voiceId || process.env.ELEVENLABS_VOICE_ID
   if (!resolvedVoiceId) {
@@ -67,7 +65,9 @@ export async function generateVoiceOverWithElevenLabs({
 
   const payload: Record<string, unknown> = {
     text,
-    model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_monolingual_v1',
+    voice: resolvedVoiceId,
+    voice_id: resolvedVoiceId,
+    model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_v3',
     voice_settings: {
       stability: stability ?? Number(process.env.ELEVENLABS_VOICE_STABILITY ?? 0.6),
       similarity_boost: clarityBoost ?? Number(process.env.ELEVENLABS_VOICE_SIMILARITY ?? 0.75),
@@ -76,30 +76,45 @@ export async function generateVoiceOverWithElevenLabs({
     },
   }
 
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${resolvedVoiceId}`, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': apiKey,
-      'Content-Type': 'application/json',
-      Accept: 'audio/mpeg',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(120000),
-  })
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`ElevenLabs request failed: ${response.status} ${response.statusText} - ${errText}`)
+  if (process.env.ELEVENLABS_API_KEY) {
+    payload.api_key = process.env.ELEVENLABS_API_KEY
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const buffer = new Uint8Array(arrayBuffer)
+  let submission: unknown
+  try {
+    submission = await fal.subscribe('fal-ai/elevenlabs/text-to-dialogue/eleven-v3', {
+      input: payload,
+      logs: true,
+    })
+  } catch (error) {
+    throw new Error(`Fal ElevenLabs request failed: ${(error as Error)?.message || 'Unknown error'}`)
+  }
+
+  const audioUrl = extractAudioUrl(submission)
+
+  let buffer: Uint8Array
+  let contentType = 'audio/mpeg'
+
+  if (audioUrl.startsWith('data:')) {
+    const match = audioUrl.match(/^data:(.*?);base64,(.*)$/)
+    if (!match) {
+      throw new Error('Received malformed data URI from ElevenLabs response')
+    }
+    contentType = match[1] || 'audio/mpeg'
+    buffer = new Uint8Array(Buffer.from(match[2], 'base64'))
+  } else {
+    const downloaded = await fetchAudioBuffer(audioUrl)
+    buffer = downloaded.buffer
+    if (downloaded.contentType) {
+      contentType = downloaded.contentType
+    }
+  }
 
   const uploadResult = await uploadAudioToR2({
     projectId,
     frameId,
     buffer,
-    contentType: response.headers.get('content-type') || 'audio/mpeg',
+    contentType,
     kind: 'voice',
   })
 
@@ -109,6 +124,134 @@ export async function generateVoiceOverWithElevenLabs({
     key: uploadResult.key,
     contentType: uploadResult.contentType,
   }
+}
+
+function ensureFalVoiceConfigured() {
+  const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
+  if (!falKey) {
+    throw new Error('FAL_KEY is not configured for voice generation')
+  }
+  fal.config({ credentials: falKey })
+}
+
+function isLikelyAudioUrl(candidate: string): boolean {
+  const lower = candidate.toLowerCase()
+  if (!/^https?:\/\//.test(candidate)) return false
+  return (
+    lower.endsWith('.mp3') ||
+    lower.endsWith('.wav') ||
+    lower.endsWith('.ogg') ||
+    lower.endsWith('.aac') ||
+    lower.includes('/audio/') ||
+    lower.includes('.mp3?') ||
+    lower.includes('.wav?')
+  )
+}
+
+function extractAudioUrl(submission: unknown): string {
+  let audioUrl: string | undefined
+  let base64Fallback: string | undefined
+
+  const stack: unknown[] = [submission]
+  const seen = new Set<unknown>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    if (!current || seen.has(current)) continue
+    seen.add(current)
+
+    if (typeof current === 'string') {
+      const trimmed = current.trim()
+      if (!audioUrl && (trimmed.startsWith('data:audio') || isLikelyAudioUrl(trimmed))) {
+        audioUrl = trimmed
+        break
+      }
+      if (!audioUrl && trimmed.length > 50) {
+        base64Fallback = trimmed
+      }
+      continue
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) stack.push(item)
+      continue
+    }
+
+    if (typeof current === 'object') {
+      const record = current as Record<string, unknown>
+      const candidates = [record.url, record.audio_url, record.audioUrl]
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && (candidate.startsWith('data:audio') || isLikelyAudioUrl(candidate))) {
+          audioUrl = candidate
+          break
+        }
+      }
+      if (audioUrl) break
+
+      const base64Candidate =
+        typeof record.base64 === 'string'
+          ? record.base64
+          : typeof record.b64 === 'string'
+            ? record.b64
+            : undefined
+
+      if (!audioUrl && base64Candidate && base64Candidate.length > 50) {
+        base64Fallback = base64Candidate
+      }
+
+      for (const value of Object.values(record)) {
+        stack.push(value)
+      }
+    }
+  }
+
+  if (!audioUrl && base64Fallback) {
+    audioUrl = base64Fallback.startsWith('data:')
+      ? base64Fallback
+      : `data:audio/mpeg;base64,${base64Fallback}`
+  }
+
+  if (!audioUrl) {
+    throw new Error('Fal ElevenLabs response did not include an audio URL')
+  }
+
+  return audioUrl
+}
+
+async function fetchAudioBuffer(url: string, attempts = 3) {
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(120000),
+        headers: { 'User-Agent': 'Blooma/1.0' },
+      })
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => 'Unknown error')
+        throw new Error(
+          `Failed to download generated audio: ${response.status} ${response.statusText} - ${errText}`
+        )
+      }
+
+      const contentType = response.headers.get('content-type') || 'audio/mpeg'
+      const buffer = new Uint8Array(await response.arrayBuffer())
+
+      return { buffer, contentType }
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts) {
+        const delay = Math.min(4000 * attempt, 8000)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Failed to download generated audio')
 }
 
 async function wait(ms: number) {

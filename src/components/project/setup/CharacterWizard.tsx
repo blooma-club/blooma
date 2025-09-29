@@ -13,6 +13,21 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getImageGenerationModels } from '@/lib/fal-ai'
 
+const CHARACTER_IMAGE_STYLE =
+  'full-body portrait, white background, neutral pose facing forward, clean even lighting'
+
+const ensureCharacterStyle = (prompt: string) => {
+  const trimmed = (prompt || '').trim()
+  if (!trimmed) return CHARACTER_IMAGE_STYLE
+  const styleParts = CHARACTER_IMAGE_STYLE.toLowerCase().split(',')
+  const lower = trimmed.toLowerCase()
+  if (styleParts.every(part => lower.includes(part.trim()))) {
+    return trimmed
+  }
+  const sanitized = trimmed.replace(/[.,;]+$/, '')
+  return `${sanitized}, ${CHARACTER_IMAGE_STYLE}`
+}
+
 type Character = {
   id: string
   name: string
@@ -47,6 +62,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
   useEffect(() => {
     onChangeRef.current(characters)
   }, [characters])
+
   // Character 모델은 지정된 3가지만 허용 (working models only)
   const allowedCharacterModelIds = [
     'fal-ai/flux-pro/kontext/text-to-image',
@@ -71,6 +87,22 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
   // Auto-detection state
   const [detecting, setDetecting] = useState(false)
   const [autoGenerating, setAutoGenerating] = useState(false)
+  const [autoDetectionAttempted, setAutoDetectionAttempted] = useState(false)
+
+  // Manual creation state
+  const [manualName, setManualName] = useState('')
+  const [manualPrompt, setManualPrompt] = useState('')
+  const [manualError, setManualError] = useState<string | null>(null)
+  const [manualSaving, setManualSaving] = useState(false)
+  const manualFileInputRef = React.useRef<HTMLInputElement | null>(null)
+  const [manualImageFile, setManualImageFile] = useState<File | null>(null)
+  const [manualImagePreview, setManualImagePreview] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (manualImagePreview) URL.revokeObjectURL(manualImagePreview)
+    }
+  }, [manualImagePreview])
 
   // Handle character editing
   const handleEditCharacter = (character: Character) => {
@@ -112,6 +144,39 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     setEditingCharacter(null)
   }
 
+  const resetManualForm = useCallback(() => {
+    setManualName('')
+    setManualPrompt('')
+    setManualError(null)
+    setManualSaving(false)
+    setManualImageFile(null)
+    setManualImagePreview(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }, [])
+
+  const handleManualFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setManualImageFile(file)
+    setManualError(null)
+    setManualImagePreview(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      if (!file) return null
+      return URL.createObjectURL(file)
+    })
+    // reset input so same file can be selected again
+    event.target.value = ''
+  }, [])
+
+  const handleManualRemoveImage = useCallback(() => {
+    setManualImageFile(null)
+    setManualImagePreview(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }, [])
+
   // 단일 이미지 생성 후 리스트에 추가
   const handleGenerateImage = useCallback(async () => {
     if (!characterName.trim()) {
@@ -122,9 +187,10 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     setError(null)
     setLoading(true)
     try {
-      const prompt = imagePrompt?.trim().length
+      const basePrompt = imagePrompt?.trim().length
         ? imagePrompt.trim()
-        : 'portrait of an original cinematic character, detailed, professional lighting, neutral background'
+        : 'portrait of an original cinematic character'
+      const prompt = ensureCharacterStyle(basePrompt)
 
       // Generate image
       const res = await fetch('/api/generate-image', {
@@ -187,7 +253,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
         name: characterName.trim(),
         imageUrl: finalImageUrl,
         originalImageUrl: undefined,
-        editPrompt: imagePrompt.trim() || undefined,
+        editPrompt: prompt,
         // Add R2 metadata if available
         ...(imageKey && { imageKey }),
         ...(imageSize && { imageSize }),
@@ -214,11 +280,103 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
    * 2. For each detected character, generates a portrait using /api/generate-image
    * 3. Adds all generated characters to the existing character list
    */
+  const handleManualCreateCharacter = useCallback(async () => {
+    const trimmedName = manualName.trim()
+    const trimmedPrompt = manualPrompt.trim()
+    const styledPrompt = trimmedPrompt ? ensureCharacterStyle(trimmedPrompt) : undefined
+
+    if (!trimmedName) {
+      setManualError('Character name is required')
+      return
+    }
+
+    setManualSaving(true)
+    setManualError(null)
+
+    const characterId = crypto.randomUUID()
+    let finalImageUrl: string | undefined
+    let originalImageUrl: string | undefined
+    let imageKey: string | undefined
+    let imageSize: number | undefined
+    let originalImageKey: string | undefined
+    let originalImageSize: number | undefined
+
+    if (manualImageFile) {
+      try {
+        const formData = new FormData()
+        formData.append('file', manualImageFile)
+        formData.append('characterId', characterId)
+        formData.append('projectId', projectId || '')
+        formData.append('characterName', trimmedName)
+        formData.append('editPrompt', styledPrompt || '')
+        formData.append('userId', userId || '')
+        formData.append('isUpdate', 'false')
+
+        const uploadRes = await fetch('/api/characters/upload-image', {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadData = await uploadRes.json()
+
+        if (!uploadRes.ok || !uploadData?.success) {
+          throw new Error(uploadData?.error || 'Upload failed')
+        }
+
+        finalImageUrl = uploadData.publicUrl || uploadData.signedUrl || undefined
+        originalImageUrl = finalImageUrl
+        imageKey = uploadData.key
+        imageSize = uploadData.size
+
+        const remoteCharacter = uploadData?.character as
+          | {
+              image_url?: string | null
+              original_image_url?: string | null
+              image_key?: string | null
+              image_size?: number | null
+              original_image_key?: string | null
+              original_image_size?: number | null
+            }
+          | undefined
+
+        if (remoteCharacter) {
+          finalImageUrl = remoteCharacter.image_url || remoteCharacter.original_image_url || finalImageUrl
+          originalImageUrl = remoteCharacter.original_image_url || finalImageUrl
+          imageKey = remoteCharacter.image_key ?? imageKey
+          imageSize = remoteCharacter.image_size ?? imageSize
+          originalImageKey = remoteCharacter.original_image_key ?? imageKey
+          originalImageSize = remoteCharacter.original_image_size ?? imageSize
+        }
+      } catch (err) {
+        console.error('[CharacterWizard] Manual upload failed:', err)
+        setManualError(err instanceof Error ? err.message : 'Upload failed')
+        setManualSaving(false)
+        return
+      }
+    }
+
+    const entry: Character = {
+      id: characterId,
+      name: trimmedName,
+      ...(finalImageUrl && { imageUrl: finalImageUrl }),
+      ...(originalImageUrl && { originalImageUrl }),
+      ...(styledPrompt && { editPrompt: styledPrompt }),
+      ...(imageKey && { imageKey }),
+      ...(imageSize && { imageSize }),
+      ...(originalImageKey && { originalImageKey }),
+      ...(originalImageSize && { originalImageSize }),
+    }
+
+    setCharacters(prev => [...prev, entry])
+    resetManualForm()
+  }, [manualImageFile, manualName, manualPrompt, projectId, resetManualForm, userId])
+
   const handleAutoDetectCharacters = useCallback(async () => {
     if (!script?.trim()) {
       setError('No script available for character detection')
       return
     }
+
+    setAutoDetectionAttempted(true)
 
     setDetecting(true)
     setError(null)
@@ -253,8 +411,9 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
       for (const detectedChar of detectedCharacters) {
         try {
           // Create a comprehensive prompt for character image generation
-          const visualPrompt =
-            `portrait of ${detectedChar.name}, ${detectedChar.description}, ${detectedChar.visualTraits || ''}, detailed cinematic character portrait, professional lighting, neutral background`.trim()
+          const visualPrompt = ensureCharacterStyle(
+            `portrait of ${detectedChar.name}, ${detectedChar.description}, ${detectedChar.visualTraits || ''}`.trim()
+          )
 
           console.log(
             `🎨 Generating image for ${detectedChar.name} with prompt: ${visualPrompt.substring(0, 100)}...`
@@ -350,7 +509,9 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
             name: detectedChar.name,
             imageUrl: undefined,
             originalImageUrl: undefined,
-            editPrompt: `portrait of ${detectedChar.name}, ${detectedChar.description}`,
+            editPrompt: ensureCharacterStyle(
+              `portrait of ${detectedChar.name}, ${detectedChar.description}`
+            ),
           })
         }
       }
@@ -373,6 +534,14 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
       setAutoGenerating(false)
     }
   }, [script, model])
+
+  useEffect(() => {
+    if (autoDetectionAttempted) return
+    if (!script?.trim()) return
+    if (characters.length > 0) return
+
+    void handleAutoDetectCharacters()
+  }, [autoDetectionAttempted, characters.length, handleAutoDetectCharacters, script])
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start min-w-[1200px]">
@@ -522,6 +691,105 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                 {error}
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6 space-y-4">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-lg font-semibold text-white">Upload Your Own</h3>
+            <button
+              type="button"
+              onClick={resetManualForm}
+              className="text-xs text-neutral-400 underline"
+            >
+              Reset
+            </button>
+          </div>
+          <p className="text-xs text-neutral-400">
+            Add a character using your own reference photo. This skips image generation so you can keep existing looks.
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Character name *</label>
+              <input
+                value={manualName}
+                onChange={event => setManualName(event.target.value)}
+                placeholder="Enter the character's name"
+                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-500 focus:border-neutral-500 focus:outline-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Prompt notes</label>
+              <textarea
+                value={manualPrompt}
+                onChange={event => setManualPrompt(event.target.value)}
+                rows={3}
+                placeholder="Optional notes to remember how to regenerate this character"
+                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-500 focus:border-neutral-500 focus:outline-none text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className="block text-xs font-medium text-neutral-300">Reference image</span>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="relative w-full sm:w-40 aspect-[3/4] rounded-lg overflow-hidden border border-neutral-800 bg-neutral-950">
+                  {manualImagePreview ? (
+                    <img
+                      src={manualImagePreview}
+                      alt="Manual character preview"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-[11px] text-neutral-500">
+                      No image selected
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 sm:w-44">
+                  <button
+                    type="button"
+                    onClick={() => manualFileInputRef.current?.click()}
+                    className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-100 transition-colors hover:border-neutral-500 hover:text-white"
+                  >
+                    {manualImagePreview ? 'Replace image' : 'Upload image'}
+                  </button>
+                  {manualImagePreview && (
+                    <button
+                      type="button"
+                      onClick={handleManualRemoveImage}
+                      className="w-full rounded border border-neutral-800 px-3 py-2 text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200 transition-colors"
+                    >
+                      Remove image
+                    </button>
+                  )}
+                  <span className="text-[11px] text-neutral-500">PNG or JPG up to 10MB.</span>
+                </div>
+              </div>
+              <input
+                ref={manualFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleManualFileChange}
+              />
+            </div>
+
+            {manualError && (
+              <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {manualError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleManualCreateCharacter}
+              disabled={manualSaving || !manualName.trim()}
+              className="w-full h-11 rounded bg-white text-black text-sm font-semibold hover:bg-neutral-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {manualSaving ? 'Saving…' : 'Add character'}
+            </button>
           </div>
         </div>
       </div>
@@ -716,9 +984,10 @@ function CharacterEditForm({
     setGenerating(true)
     setError(null)
     try {
-      const prompt =
-        editedCharacter.editPrompt?.trim() || 'portrait of an original cinematic character'
-      const fullPrompt = `${prompt}, detailed, professional lighting, neutral background`
+      const styledPrompt = ensureCharacterStyle(
+        editedCharacter.editPrompt?.trim() || `portrait of ${editedCharacter.name}`
+      )
+      const fullPrompt = `${styledPrompt}, highly detailed`
 
       // Prepare request body
       const requestBody: {
@@ -797,6 +1066,7 @@ function CharacterEditForm({
       setEditedCharacter(prev => ({
         ...prev,
         imageUrl: finalImageUrl,
+        editPrompt: styledPrompt,
         // Update R2 metadata if available
         ...(imageKey && { imageKey }),
         ...(imageSize && { imageSize }),

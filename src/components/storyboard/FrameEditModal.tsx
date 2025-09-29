@@ -1,22 +1,76 @@
 'use client'
-
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
 import { useStoryboardStore } from '@/store/storyboard'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Image from 'next/image'
-
+import { supabase, type SupabaseCharacter } from '@/lib/supabase'
+import { buildCharacterSnippet, getCharacterMentionSlug } from '@/lib/characterMentions'
 export interface FrameEditModalProps {
   frame: StoryboardFrame
   projectId: string
   onClose: () => void
   onSaved?: (updated: StoryboardFrame) => void
 }
-
 const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClose, onSaved }) => {
   const [draft, setDraft] = useState<StoryboardFrame>({ ...frame })
   const setCards = useStoryboardStore(s => s.setCards)
-  const { session } = useSupabase()
+  const { session, user } = useSupabase()
+  const [characters, setCharacters] = useState<SupabaseCharacter[]>([])
+  const [isLoadingCharacters, setIsLoadingCharacters] = useState(false)
+  useEffect(() => {
+    if (!projectId || !user?.id) {
+      setCharacters([])
+      return
+    }
+    let isMounted = true
+    const fetchCharacters = async () => {
+      setIsLoadingCharacters(true)
+      const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+      if (!isMounted) return
+      if (error) {
+        console.warn('[FrameEditModal] Failed to load characters:', error)
+        setCharacters([])
+      } else {
+        setCharacters(data ?? [])
+      }
+      setIsLoadingCharacters(false)
+    }
+    fetchCharacters()
+    return () => {
+      isMounted = false
+    }
+  }, [projectId, user?.id])
+  const characterPromptSnippets = useMemo(() => {
+    return characters
+      .map(character => {
+        const slug = getCharacterMentionSlug(character.name || '')
+        const snippet = buildCharacterSnippet(character)
+        return {
+          id: character.id,
+          name: character.name || 'Character',
+          imageUrl: character.image_url || character.original_image_url || null,
+          snippet,
+          slug,
+        }
+      })
+      .filter(character => character.slug)
+  }, [characters])
+  const handleInsertCharacter = (slug: string) => {
+    if (!slug) return
+    const mention = `@${slug}`
+    setDraft(prev => {
+      const current = prev.imagePrompt || ''
+      const separator = current.trim() ? (current.endsWith('\n') ? '' : '\n') : ''
+      const nextPrompt = `${current}${separator}${mention}`
+      return { ...prev, imagePrompt: nextPrompt }
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,7 +135,6 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     onSaved?.(draft)
     onClose()
   }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
@@ -160,7 +213,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
               </Field>
               <Field
                 label="Image Prompt"
-                help="Prompt for generating images separate from Shot Description."
+                help="Prompt for generating images separate from Shot Description. Use @mentions to reference project characters."
               >
                 <textarea
                   value={draft.imagePrompt || ''}
@@ -169,6 +222,44 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                   className="px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-white text-xs resize-y font-mono w-full focus:border-gray-500 focus:outline-none"
                 />
               </Field>
+              {characterPromptSnippets.length > 0 && (
+                <div className="space-y-2 rounded border border-gray-700 bg-gray-900/60 p-3">
+                  <div className="text-xs font-medium text-gray-200">Project characters</div>
+                  <p className="text-[11px] text-gray-400">
+                    Click to insert an @mention that links the character image to your prompt.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {characterPromptSnippets.map(character => (
+                      <button
+                        key={character.id}
+                        type="button"
+                        onClick={() => handleInsertCharacter(character.slug)}
+                        className="group flex items-center gap-2 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-[11px] text-gray-200 hover:border-gray-500 hover:text-white"
+                        title={character.snippet}
+                      >
+                        {character.imageUrl ? (
+                          <div className="relative h-6 w-6 overflow-hidden rounded-sm border border-gray-700">
+                            <Image
+                              src={character.imageUrl}
+                              alt={character.name}
+                              fill
+                              sizes="24px"
+                              className="object-cover"
+                            />
+                          </div>
+                        ) : null}
+                        <span className="flex flex-col text-left">
+                          <span>{character.name}</span>
+                          <span className="text-[10px] text-gray-400">@{character.slug}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {isLoadingCharacters && (
+                    <div className="text-[11px] text-gray-500">Refreshing characters…</div>
+                  )}
+                </div>
+              )}
               <Field label="Dialogue / VO">
                 <input
                   type="text"
@@ -209,7 +300,6 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     </div>
   )
 }
-
 const Field: React.FC<{ label: string; help?: string; children: React.ReactNode }> = ({
   label,
   help,
@@ -221,5 +311,4 @@ const Field: React.FC<{ label: string; help?: string; children: React.ReactNode 
     {help && <p className="text-[10px] text-gray-400">{help}</p>}
   </div>
 )
-
 export default FrameEditModal

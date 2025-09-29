@@ -185,10 +185,9 @@ export async function generateVideoFromImage({
       seed,
     },
     logs: true,
-    onQueueUpdate(update: Record<string, unknown>) {
-      const status = typeof update.status === 'string' ? update.status : undefined
-      if (status === 'IN_PROGRESS') {
-        console.log(`[videoProviders][${resolvedModel}]`, status)
+    onQueueUpdate(status) {
+      if (status.status === 'IN_PROGRESS') {
+        console.log(`[videoProviders][${resolvedModel}]`, status.status)
       }
     },
   })

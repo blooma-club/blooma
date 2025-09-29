@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
 import type { Card } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, type SupabaseCharacter } from '@/lib/supabase'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { useStoryboardStore } from '@/store/storyboard'
 import { useHydratedUIStore } from '@/store/ui'
@@ -20,6 +20,7 @@ import ImageEditPanel from '@/components/storyboard/editor/ImageEditPanel'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import ProfessionalVideoTimeline from '@/components/storyboard/ProfessionalVideoTimeline'
 import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
+import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 
 // Empty state component for projects with no cards
 const EmptyStoryboardState = ({
@@ -144,6 +145,7 @@ export default function StoryboardPage() {
   const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
   // aspect ratio is selected at build time; not yet sent back in API payload. Placeholder for future.
   const [ratio] = useState<'16:9' | '1:1' | '9:16' | '4:3' | '3:4'>('3:4')
+  const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
 
   // View mode 상태: 'storyboard' | 'editor' | 'timeline'
   const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'timeline'>(
@@ -229,6 +231,44 @@ export default function StoryboardPage() {
 
   // 근본적 해결: 실제 데이터 변경 시그니처 기반 동기화
   const lastSyncSignatureRef = useRef<string>('')
+
+  useEffect(() => {
+    if (!projectId || !user?.id) {
+      setProjectCharacters([])
+      return
+    }
+
+    let isMounted = true
+
+    const loadCharacters = async () => {
+      const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+
+      if (!isMounted) return
+
+      if (error) {
+        console.warn('[StoryboardPage] Failed to load project characters:', error)
+        setProjectCharacters([])
+        return
+      }
+
+      setProjectCharacters(data ?? [])
+    }
+
+    loadCharacters().catch(err => {
+      if (!isMounted) return
+      console.warn('[StoryboardPage] Unexpected error loading characters:', err)
+      setProjectCharacters([])
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [projectId, user?.id])
 
   useEffect(() => {
     if (!projectId) return
@@ -600,6 +640,11 @@ export default function StoryboardPage() {
     router.replace(newUrl, { scroll: false })
   }, [projectId, router])
 
+  const handleNavigateToCharacters = useCallback(() => {
+    if (!projectId || !sbId) return
+    router.push(`/project/${projectId}/storyboard/${sbId}/characters`)
+  }, [projectId, router, sbId])
+
   // Timeline frame update handler
   const handleUpdateFrame = useCallback(
     async (frameId: string, updates: Partial<StoryboardFrame>) => {
@@ -684,29 +729,67 @@ export default function StoryboardPage() {
   )
 
   // Add / Delete frame handlers
-  const handleAddFrame = useCallback(async () => {
-    if (!user?.id || !projectId || !session) return
+  const handleAddFrame = useCallback(
+    async (insertIndex?: number) => {
+      if (!user?.id || !projectId || !session) return
 
-    const currentCards = cards
-    try {
-      const inserted = await createAndLinkCard(
-        {
-          userId: user.id,
-
-          projectId: projectId,
-          currentCards,
-        },
-        'STORYBOARD',
-        session.access_token
+      const allCards = useStoryboardStore.getState().cards[projectId] || []
+      const targetIndex = Math.min(
+        Math.max(insertIndex ?? allCards.length, 0),
+        allCards.length
       )
-      const updated = [...currentCards, inserted]
-      setCards(projectId, updated)
-    } catch (e) {
-      console.error('❌ [STORYBOARD ADD FRAME] Failed to add frame:', e)
-      const msg = e instanceof Error ? e.message : '알 수 없는 오류'
-      alert(`카드 생성에 실패했습니다: ${msg}`)
-    }
-  }, [user?.id, projectId, session, cards, setCards])
+
+      try {
+        const inserted = await createAndLinkCard(
+          {
+            userId: user.id,
+            projectId: projectId,
+            currentCards: allCards,
+            insertIndex: targetIndex,
+          },
+          'STORYBOARD',
+          session.access_token
+        )
+
+        const mergedCards = [...allCards]
+        mergedCards.splice(targetIndex, 0, inserted)
+
+        const reindexedCards = mergedCards.map((card, idx, arr) => ({
+          ...card,
+          order_index: idx,
+          scene_number: idx + 1,
+          prev_card_id: idx > 0 ? arr[idx - 1].id : undefined,
+          next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
+        }))
+
+        setCards(projectId, reindexedCards)
+        setFrames(reindexedCards.map((card, idx) => cardToFrame(card, idx)))
+        setIndex(targetIndex)
+
+        await fetch('/api/cards', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            cards: reindexedCards.map(card => ({
+              id: card.id,
+              order_index: card.order_index,
+              scene_number: card.scene_number,
+              prev_card_id: card.prev_card_id,
+              next_card_id: card.next_card_id,
+            })),
+          }),
+        }).catch(() => {})
+      } catch (e) {
+        console.error('❌ [STORYBOARD ADD FRAME] Failed to add frame:', e)
+        const msg = e instanceof Error ? e.message : '알 수 없는 오류'
+        alert(`카드 생성에 실패했습니다: ${msg}`)
+      }
+    },
+    [user?.id, projectId, session, setCards, setFrames, setIndex]
+  )
 
   const handleGenerateSceneFromPrompt = useCallback(
     async (promptText: string) => {
@@ -718,6 +801,10 @@ export default function StoryboardPage() {
       if (!trimmedPrompt) {
         throw new Error('생성할 씬에 대한 설명을 입력해 주세요.')
       }
+
+      const mentionMatches = resolveCharacterMentions(trimmedPrompt, projectCharacters)
+      const requestPrompt = buildPromptWithCharacterMentions(trimmedPrompt, mentionMatches)
+      const mentionImageUrls = Array.from(new Set(mentionMatches.flatMap(match => match.imageUrls)))
 
       const currentCardsSnapshot = useStoryboardStore.getState().cards[projectId] || []
       let inserted: Card | null = null
@@ -754,13 +841,18 @@ export default function StoryboardPage() {
       setFrames(prev => [...prev, cardToFrame(insertedWithPrompt, prev.length)])
 
       try {
+        const generationPayload: Record<string, unknown> = {
+          prompt: requestPrompt,
+          aspectRatio: ratio,
+        }
+        if (mentionImageUrls.length > 0) {
+          generationPayload.imageUrls = mentionImageUrls
+        }
+
         const response = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: trimmedPrompt,
-            aspectRatio: ratio,
-          }),
+          body: JSON.stringify(generationPayload),
         })
 
         const payload = (await response.json().catch(() => ({}))) as {
@@ -853,7 +945,7 @@ export default function StoryboardPage() {
           : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
       }
     },
-    [user?.id, projectId, session, setCards, ratio]
+    [user?.id, projectId, session, setCards, ratio, projectCharacters]
   )
 
   const handleOpenStoryboardEdit = useCallback(
@@ -991,7 +1083,7 @@ export default function StoryboardPage() {
         }
 
         const videoUrl = payload.videoUrl
-        const videoKey = payload.videoKey ?? null
+        const videoKey = payload.videoKey ?? undefined
         const updatedVideoPrompt = payload.videoPrompt ?? requestPrompt
         if (!videoUrl) {
           throw new Error('Video generation completed without returning a usable URL')
@@ -1013,8 +1105,8 @@ export default function StoryboardPage() {
                 ...card,
                 video_url: videoUrl,
                 videoUrl,
-                video_key: videoKey ?? null,
-                videoKey: videoKey ?? undefined,
+                video_key: videoKey,
+                videoKey,
                 video_prompt: updatedVideoPrompt,
                 videoPrompt: updatedVideoPrompt,
               }
@@ -1085,6 +1177,7 @@ export default function StoryboardPage() {
             onNavigateToStoryboard={handleNavigateToStoryboard}
             onNavigateToEditor={handleNavigateToEditor}
             onNavigateToTimeline={handleNavigateToTimeline}
+            onNavigateToCharacters={handleNavigateToCharacters}
           />
 
           {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
@@ -1284,6 +1377,8 @@ export default function StoryboardPage() {
                 projectId={projectId}
                 frameId={currentFrame.id}
                 currentImageUrl={currentFrame.imageUrl}
+                imagePrompt={currentFrame.imagePrompt}
+                characters={projectCharacters}
                 onImageUpdated={url => handleImageUpdated(currentFrame.id, url)}
               />
             }

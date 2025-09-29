@@ -213,30 +213,106 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const body: { id: string; user_id: string } = await request.json()
-    
-    if (!body.id || !body.user_id) {
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: request.headers.get('Authorization') || '',
+          },
+        },
+      }
+    )
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseClient.auth.getUser()
+
+    if (authError || !user) {
+      console.error('DELETE /api/projects - Auth error:', authError)
       return NextResponse.json(
-        { error: 'Project ID and User ID are required' },
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const body: { id?: string } = await request.json()
+
+    if (!body.id) {
+      return NextResponse.json(
+        { error: 'Project ID is required' },
         { status: 400 }
       )
     }
 
-    const { error } = await supabase
+    const projectId = body.id
+
+    const { data: project, error: projectLookupError } = await supabaseClient
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (projectLookupError || !project) {
+      console.error('DELETE /api/projects - Project lookup failed:', projectLookupError)
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      )
+    }
+
+    const dependentTables = [
+      {
+        name: 'cards',
+        perform: () =>
+          supabaseClient
+            .from('cards')
+            .delete()
+            .eq('project_id', projectId)
+            .eq('user_id', user.id),
+      },
+      {
+        name: 'characters',
+        perform: () =>
+          supabaseClient
+            .from('characters')
+            .delete()
+            .eq('project_id', projectId)
+            .eq('user_id', user.id),
+      },
+    ] as const
+
+    for (const table of dependentTables) {
+      const { error: deleteError } = await table.perform()
+      if (!deleteError) {
+        continue
+      }
+
+      console.error(`DELETE /api/projects - Failed to delete from ${table.name}:`, deleteError)
+      return NextResponse.json(
+        { error: `Failed to delete related ${table.name}` },
+        { status: 500 }
+      )
+    }
+
+    const { error: deleteProjectError } = await supabaseClient
       .from('projects')
       .delete()
-      .eq('id', body.id)
-      .eq('user_id', body.user_id)
+      .eq('id', projectId)
+      .eq('user_id', user.id)
 
-    if (error) {
-      console.error('Supabase error:', error)
+    if (deleteProjectError) {
+      console.error('DELETE /api/projects - Failed to delete project:', deleteProjectError)
       return NextResponse.json(
         { error: 'Failed to delete project' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

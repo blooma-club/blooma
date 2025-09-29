@@ -10,13 +10,39 @@ interface FrameGridProps {
   onFrameOpen: (frameIndex: number) => void
   onFrameEdit: (frameId: string) => void
   onFrameDelete: (frameId: string) => void
-  onAddFrame: () => void
+  onAddFrame: (insertIndex?: number) => void
   deletingFrameId?: string | null
   loading?: boolean
   cardsLength?: number
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
   generatingVideoId?: string | null
+}
+
+const SideInsertButton = ({
+  position,
+  onClick,
+  label,
+}: {
+  position: 'left' | 'right'
+  onClick: () => void
+  label: string
+}) => {
+  const positionClass =
+    position === 'left'
+      ? 'left-0 -translate-x-1/2'
+      : 'right-0 translate-x-1/2'
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`absolute top-1/2 -translate-y-1/2 ${positionClass} z-30 flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-neutral-600 bg-neutral-900 text-neutral-200 shadow transition-all duration-150 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:border-neutral-400 hover:text-neutral-100`}
+      aria-label={label}
+    >
+      <Plus className="h-4 w-4" />
+    </button>
+  )
 }
 
 export const FrameGrid: React.FC<FrameGridProps> = ({
@@ -54,27 +80,40 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
     <div className="flex justify-center">
       <div className="grid grid-cols-4 gap-6 w-full max-w-[2000px]">
         {frames.map((frame, i) => (
-          <StoryboardCard
-            key={frame.id}
-            sceneNumber={i + 1}
-            imageUrl={frame.imageUrl}
-            status={frame.status as any}
-            imageFit="cover"
-            deleting={deletingFrameId === frame.id}
-            onOpen={() => onFrameOpen(i)}
-            onEdit={() => onFrameEdit(frame.id)}
-            onDelete={() => onFrameDelete(frame.id)}
-            videoUrl={frame.videoUrl}
-            onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
-            onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
-            isGeneratingVideo={generatingVideoId === frame.id}
-          />
+          <div key={frame.id} className="relative group">
+            {i === 0 && (
+              <SideInsertButton
+                position="left"
+                label="Add scene at the beginning"
+                onClick={() => onAddFrame(0)}
+              />
+            )}
+            <StoryboardCard
+              sceneNumber={i + 1}
+              imageUrl={frame.imageUrl}
+              status={frame.status as any}
+              imageFit="cover"
+              deleting={deletingFrameId === frame.id}
+              onOpen={() => onFrameOpen(i)}
+              onEdit={() => onFrameEdit(frame.id)}
+              onDelete={() => onFrameDelete(frame.id)}
+              videoUrl={frame.videoUrl}
+              onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
+              onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+              isGeneratingVideo={generatingVideoId === frame.id}
+            />
+            <SideInsertButton
+              position="right"
+              label={`Add scene after scene ${i + 1}`}
+              onClick={() => onAddFrame(i + 1)}
+            />
+          </div>
         ))}
         
         {/* Add new frame button */}
         <button 
           type="button" 
-          onClick={onAddFrame} 
+          onClick={() => onAddFrame()} 
           className="w-full h-96 border-2 border-dashed border-neutral-600 rounded-lg flex flex-col items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50" 
           aria-label="Add new frame"
         >

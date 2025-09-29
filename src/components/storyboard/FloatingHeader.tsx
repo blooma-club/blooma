@@ -9,6 +9,7 @@ interface FloatingHeaderProps {
   onNavigateToStoryboard: () => void
   onNavigateToEditor: () => void
   onNavigateToTimeline: () => void
+  onNavigateToCharacters?: () => void
 }
 
 export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
@@ -19,6 +20,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   onNavigateToStoryboard,
   onNavigateToEditor,
   onNavigateToTimeline,
+  onNavigateToCharacters,
 }) => {
   const displayIndex = total > 0 ? index + 1 : 0
 
@@ -35,6 +37,15 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         <div className="flex items-center gap-3">
           {/* Storyboard/Editor/Timeline 네비게이션 */}
           <div className="flex items-center gap-2">
+            {onNavigateToCharacters && (
+              <button
+                type="button"
+                onClick={onNavigateToCharacters}
+                className="px-3 py-1 rounded text-sm border border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Characters
+              </button>
+            )}
             <button
               onClick={onNavigateToStoryboard}
               className={`px-3 py-1 rounded text-sm border transition-colors ${

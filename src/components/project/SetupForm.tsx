@@ -69,7 +69,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     keyMessage: '',
     language: 'English',
     constraints: '',
-    aiModel: 'gemini',
+    aiModel: 'gemini-2.0-flash-exp',
   }
 
   // 간단한 상태 관리 - 모든 드래프트 데이터를 하나의 객체로 관리
@@ -137,12 +137,17 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
 
     const savedDraft = loadDraftFromLocal(projectId)
     if (savedDraft) {
+      const savedSettings = ((savedDraft as any).settings || {}) as OptionalSettings
       setDraftData({
         script: savedDraft.script || '',
         visualStyle: savedDraft.visualStyle || 'photo',
         ratio: (savedDraft.ratio as '16:9' | '1:1' | '9:16') || '16:9',
         selectedModel: savedDraft.selectedModel || 'fal-ai/flux-pro/kontext/text-to-image',
-        settings: (savedDraft as any).settings || DEFAULT_SETTINGS,
+        settings: {
+          ...DEFAULT_SETTINGS,
+          ...savedSettings,
+          aiModel: 'gemini-2.0-flash-exp',
+        },
         characters: (savedDraft as any).characters || [],
       })
       console.log('Draft restored from localStorage:', savedDraft)
@@ -388,7 +393,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
           projectId,
           userScript: textValue,
           settings,
-          useGemini: settings.aiModel !== 'openrouter',
+          useGemini: true,
         }),
       })
 

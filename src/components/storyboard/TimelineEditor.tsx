@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { StoryboardFrame } from '@/types/storyboard'
 import { Play, Pause, Upload, Volume2, Mic, Clock, Plus, X, Image } from 'lucide-react'
 
@@ -7,6 +7,14 @@ interface TimelineEditorProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
   onSave?: () => void
+}
+
+interface ElevenLabsVoiceOption {
+  id: string
+  name: string
+  category?: string
+  labels?: Record<string, string>
+  previewUrl?: string
 }
 
 export const TimelineEditor: React.FC<TimelineEditorProps> = ({
@@ -19,6 +27,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [currentTime, setCurrentTime] = useState(0)
   const [hoveredFrame, setHoveredFrame] = useState<StoryboardFrame | null>(null)
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [voiceOptions, setVoiceOptions] = useState<ElevenLabsVoiceOption[]>([])
+  const [defaultVoiceId, setDefaultVoiceId] = useState<string | null>(null)
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+  const [voiceLoadError, setVoiceLoadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const voiceInputRef = useRef<HTMLInputElement>(null)
 
@@ -38,6 +50,60 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   })
 
   const selectedFrame = frames.find(f => f.id === selectedFrameId)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadVoices = async () => {
+      setIsLoadingVoices(true)
+      setVoiceLoadError(null)
+
+      try {
+        const response = await fetch('/api/audio/voices')
+        const payload = (await response.json().catch(() => ({}))) as {
+          voices?: ElevenLabsVoiceOption[]
+          defaultVoiceId?: string | null
+          error?: string
+          warning?: string
+        }
+
+        const resolvedVoices = Array.isArray(payload.voices) ? payload.voices : []
+        const resolvedDefaultVoiceId =
+          typeof payload.defaultVoiceId === 'string' && payload.defaultVoiceId.length > 0
+            ? payload.defaultVoiceId
+            : null
+
+        if (!isMounted) return
+
+        if (!response.ok) {
+          setVoiceOptions(resolvedVoices)
+          setDefaultVoiceId(resolvedDefaultVoiceId)
+          setVoiceLoadError(payload.error || payload.warning || 'Failed to load ElevenLabs voices')
+          return
+        }
+
+        setVoiceOptions(resolvedVoices)
+        setDefaultVoiceId(resolvedDefaultVoiceId)
+        setVoiceLoadError(payload.warning || null)
+      } catch (error) {
+        if (!isMounted) return
+        console.error('Failed to load ElevenLabs voices:', error)
+        setVoiceOptions([])
+        setDefaultVoiceId(null)
+        setVoiceLoadError((error as Error).message || 'Failed to load voices')
+      } finally {
+        if (isMounted) {
+          setIsLoadingVoices(false)
+        }
+      }
+    }
+
+    loadVoices()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleDurationChange = useCallback(
     (frameId: string, newDuration: number) => {
@@ -64,6 +130,16 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     [onUpdateFrame]
   )
 
+  const handleVoiceSelectionChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      if (!selectedFrame) return
+
+      const value = event.target.value
+      onUpdateFrame(selectedFrame.id, { voiceOverVoiceId: value || undefined })
+    },
+    [selectedFrame, onUpdateFrame]
+  )
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -83,6 +159,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const handleFrameMouseMove = useCallback((event: React.MouseEvent) => {
     setMousePosition({ x: event.clientX, y: event.clientY })
   }, [])
+
+  const defaultVoiceOption = defaultVoiceId
+    ? voiceOptions.find(voice => voice.id === defaultVoiceId)
+    : undefined
 
   return (
     <div className="h-full bg-neutral-950 text-white flex flex-col">
@@ -373,6 +453,43 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                     className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-white resize-none"
                     rows={3}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-neutral-400">ElevenLabs Voice</label>
+                  <select
+                    value={selectedFrame.voiceOverVoiceId || ''}
+                    onChange={handleVoiceSelectionChange}
+                    disabled={isLoadingVoices}
+                    className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-sm text-white focus:border-neutral-500 disabled:opacity-80"
+                  >
+                    <option value="">
+                      {defaultVoiceOption
+                        ? `Use default (${defaultVoiceOption.name})`
+                        : 'Use project default voice'}
+                    </option>
+                    {voiceOptions.map(voice => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.name}
+                        {voice.id === defaultVoiceId
+                          ? ' (Default)'
+                          : voice.category
+                            ? ` – ${voice.category}`
+                            : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {isLoadingVoices ? (
+                    <p className="text-xs text-neutral-500">Loading voices…</p>
+                  ) : voiceLoadError ? (
+                    <p className="text-xs text-red-400">{voiceLoadError}</p>
+                  ) : (
+                    <p className="text-xs text-neutral-500">
+                      {voiceOptions.length > 0
+                        ? 'Selecting a voice overrides the project default.'
+                        : 'No ElevenLabs voices returned. The project default will be used.'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Voice Over Audio */}

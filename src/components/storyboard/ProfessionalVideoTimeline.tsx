@@ -27,7 +27,7 @@ interface ProfessionalVideoTimelineProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
   onSave?: () => void
-  onAddFrame?: () => void
+  onAddFrame?: (insertIndex?: number) => void
   projectId?: string
   onGenerateScene?: (prompt: string) => Promise<void>
 }
@@ -288,20 +288,27 @@ export const ProfessionalVideoTimeline: React.FC<ProfessionalVideoTimelineProps>
           voices?: ElevenLabsVoiceOption[]
           defaultVoiceId?: string | null
           error?: string
+          warning?: string
         }
 
-        if (!response.ok) {
-          throw new Error(payload.error || 'Failed to load ElevenLabs voices')
-        }
-
-        if (!isMounted) return
-
-        setVoiceOptions(Array.isArray(payload.voices) ? payload.voices : [])
-        setDefaultVoiceId(
+        const resolvedVoices = Array.isArray(payload.voices) ? payload.voices : []
+        const resolvedDefaultVoiceId =
           typeof payload.defaultVoiceId === 'string' && payload.defaultVoiceId.length > 0
             ? payload.defaultVoiceId
             : null
-        )
+
+        if (!isMounted) return
+
+        if (!response.ok) {
+          setVoiceOptions(resolvedVoices)
+          setDefaultVoiceId(resolvedDefaultVoiceId)
+          setVoiceLoadError(payload.error || payload.warning || 'Failed to load ElevenLabs voices')
+          return
+        }
+
+        setVoiceOptions(resolvedVoices)
+        setDefaultVoiceId(resolvedDefaultVoiceId)
+        setVoiceLoadError(payload.warning || null)
       } catch (error) {
         if (!isMounted) return
         console.error('Failed to load ElevenLabs voices:', error)

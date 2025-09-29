@@ -52,14 +52,8 @@ const languages = [
 
 const aiModels = [
   {
-    id: 'gemini',
-    label: 'Google Gemini 2.0 Flash (Fast & Efficient)',
-    desc: 'Latest Gemini model optimized for creative writing',
-  },
-  {
-    id: 'openrouter',
-    label: 'OpenRouter GPT-5 (Fallback)',
-    desc: 'Powerful OpenAI model for complex scripts',
+    id: 'gemini-2.0-flash-exp',
+    label: 'Gemini 2.0 Flash',
   },
 ]
 
@@ -190,21 +184,12 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
           <label className="block text-neutral-300 mb-1">AI Model for Script Generation</label>
           <DropdownMenu>
             <DropdownMenuTrigger className="w-full px-3 py-2 rounded-md bg-neutral-900 border border-neutral-700 text-white text-left flex items-center justify-between">
-              <div className="flex flex-col items-start">
-                <span>
-                  {aiModels.find(m => m.id === settings.aiModel)?.label ||
-                    'Google Gemini 2.0 Flash (Fast & Efficient)'}
-                </span>
-                <span className="text-xs text-neutral-400">
-                  {aiModels.find(m => m.id === settings.aiModel)?.desc ||
-                    'Latest Gemini model optimized for creative writing'}
-                </span>
-              </div>
+              <span>{aiModels.find(m => m.id === settings.aiModel)?.label || 'Gemini 2.0 Flash'}</span>
               <ChevronDown className="h-4 w-4 opacity-50" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-full min-w-[300px] bg-neutral-900 border-neutral-700">
               <DropdownMenuRadioGroup
-                value={settings.aiModel || 'gemini'}
+                value={settings.aiModel || 'gemini-2.0-flash-exp'}
                 onValueChange={value => onChange({ aiModel: value })}
               >
                 {aiModels.map(model => (
@@ -213,10 +198,7 @@ export default function OptionalSettingsPanel({ settings, onChange }: Props) {
                     value={model.id}
                     className="text-white hover:bg-neutral-800 p-3"
                   >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.label}</span>
-                      <span className="text-xs text-neutral-400">{model.desc}</span>
-                    </div>
+                    {model.label}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>

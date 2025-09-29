@@ -38,6 +38,8 @@ export default function ScriptEditor(props: Props) {
     onNext,
   } = props
 
+  const hasScriptContent = textValue.trim().length > 0
+
   return (
     <form
       onSubmit={onSubmit}
@@ -137,7 +139,7 @@ export default function ScriptEditor(props: Props) {
           <Button
             type="button"
             onClick={onNext}
-            disabled={!textValue && !file}
+            disabled={!hasScriptContent && !file}
             className="min-w-[120px] h-12 bg-white hover:bg-neutral-200 text-black"
           >
             Next

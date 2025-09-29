@@ -4,6 +4,7 @@ export type CreateCardOptions = {
   userId: string
   projectId: string
   currentCards: Card[]
+  insertIndex?: number
 }
 
 export const computeNextSceneIndex = (currentCards: Card[]): number => {
@@ -13,9 +14,19 @@ export const computeNextSceneIndex = (currentCards: Card[]): number => {
   return next
 }
 
+const clampInsertIndex = (opts: CreateCardOptions) => {
+  const { currentCards, insertIndex } = opts
+  if (insertIndex === undefined || Number.isNaN(insertIndex)) {
+    return currentCards.length
+  }
+  return Math.min(Math.max(insertIndex, 0), currentCards.length)
+}
+
 export const buildCardPayload = (opts: CreateCardOptions) => {
+  const insertIndex = clampInsertIndex(opts)
   const nextSceneIndex = computeNextSceneIndex(opts.currentCards)
-  const lastCard = opts.currentCards[opts.currentCards.length - 1]
+  const previousCard = opts.currentCards[insertIndex - 1]
+  const followingCard = opts.currentCards[insertIndex]
 
   return {
     title: `Scene ${nextSceneIndex}`,
@@ -23,16 +34,16 @@ export const buildCardPayload = (opts: CreateCardOptions) => {
     type: 'scene' as const,
     user_id: opts.userId,
     project_id: opts.projectId,
-    order_index: opts.currentCards.length,
-    scene_number: nextSceneIndex,
+    order_index: insertIndex,
+    scene_number: insertIndex + 1,
     shot_description: '',
     shot_type: '',
     dialogue: '',
     sound: '',
     image_prompt: '',
     storyboard_status: 'ready',
-    prev_card_id: lastCard?.id || null,
-    next_card_id: null
+    prev_card_id: previousCard?.id || null,
+    next_card_id: followingCard?.id || null,
   }
 }
 
@@ -55,7 +66,12 @@ export const linkPreviousCard = async (previousCardId: string, newCardId: string
   }
 }
 
-export const createAndLinkCard = async (opts: CreateCardOptions, context: string = 'STORYBOARD', accessToken?: string) => {
+export const createAndLinkCard = async (
+  opts: CreateCardOptions,
+  context: string = 'STORYBOARD',
+  accessToken?: string
+) => {
+  const insertIndex = clampInsertIndex(opts)
   const payload = buildCardPayload(opts)
 
   // 생성
@@ -89,12 +105,12 @@ export const createAndLinkCard = async (opts: CreateCardOptions, context: string
   if (!inserted?.id) throw new Error('API 응답에 카드 ID가 없습니다')
 
   // 연결
-  const lastCard = opts.currentCards[opts.currentCards.length - 1]
-  if (lastCard?.id) {
-    await linkPreviousCard(lastCard.id, inserted.id, accessToken)
+  if (insertIndex === opts.currentCards.length) {
+    const lastCard = opts.currentCards[opts.currentCards.length - 1]
+    if (lastCard?.id) {
+      await linkPreviousCard(lastCard.id, inserted.id, accessToken)
+    }
   }
 
   return inserted
 }
-
-
