@@ -308,22 +308,23 @@ export function generateModelSpecificPrompt(
   return enhancedPrompt
 }
 
-function mapAspectRatioToImageSize(aspectRatio?: string): string | undefined {
-  if (!aspectRatio) return undefined
+function mapAspectRatioToImageSize(aspectRatio?: string): [number, number] {
+  if (!aspectRatio) return [1024, 1024] // default square
+
   const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
   switch (normalized) {
     case '1:1':
-      return 'square'
+      return [1024, 1024]
     case '3:4':
-      return 'portrait_4_3'
+      return [1024, 1365]
     case '4:3':
-      return 'landscape_4_3'
+      return [1365, 1024]
     case '16:9':
-      return 'landscape_16_9'
+      return [1536, 864]
     case '9:16':
-      return 'portrait_16_9'
+      return [864, 1536]
     default:
-      return undefined
+      return [1024, 1024]
   }
 }
 
@@ -573,13 +574,12 @@ async function generateImageByModel(
 
 // Imagen 4 모델
 async function generateWithImagen4(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/imagen4', {
+  const aspectRatio = (options.aspectRatio || '1:1').replace(/\s+/g, '')
+  const submission: any = await fal.subscribe('fal-ai/imagen4/preview', {
     input: {
       prompt,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-      width: options.width || 1024,
-      height: options.height || 1024,
-      num_inference_steps: options.quality === 'high' ? 50 : 30
+      aspect_ratio: aspectRatio,
+      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted'
     }
   })
 
@@ -588,13 +588,10 @@ async function generateWithImagen4(prompt: string, options: any): Promise<string
 
 // Imagen 4 Ultra 모델
 async function generateWithImagen4Ultra(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/imagen4-ultra', {
+  const submission: any = await fal.subscribe('fal-ai/imagen4/preview/ultra', {
     input: {
       prompt,
       negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-      width: options.width || 1024,
-      height: options.height || 1024,
-      num_inference_steps: options.quality === 'high' ? 70 : 50
     }
   })
 

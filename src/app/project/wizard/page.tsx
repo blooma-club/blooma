@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase, type SupabaseCharacter } from '@/lib/supabase'
+import { DEFAULT_MODEL } from '@/lib/fal-ai'
 
 type WizardAnswers = {
   q1: string
@@ -44,7 +45,7 @@ type CharacterUiState = {
   error: string | null
 }
 
-const DEFAULT_CHARACTER_MODEL = 'fal-ai/flux-pro/kontext'
+const DEFAULT_CHARACTER_MODEL = DEFAULT_MODEL
 
 const normalizeName = (value?: string | null) => (value || '').trim().toLowerCase()
 
@@ -658,7 +659,7 @@ Please generate a detailed storyboard script in English.`
           ratio: '16:9',
           aspectRatio: '16:9',
           visualStyle: answers.q2,
-          aiModel: 'fal-ai/flux-pro/kontext',
+          aiModel: DEFAULT_MODEL,
           characters: characterPayload,
         }),
       })

@@ -230,7 +230,7 @@ export default function PreviewPanel({
                     >
                       <span>{ratio}</span>
                       <svg
-                        className="h-4 w-4 text-neutral-500"
+                        className="fixed h-4 w-4 text-neutral-500"
                         viewBox="0 0 20 20"
                         fill="none"
                         xmlns="http://www.w3.org/2000/svg"
@@ -256,13 +256,27 @@ export default function PreviewPanel({
                       value={ratio}
                       onValueChange={value => setRatio(value as typeof ratio)}
                     >
-                      {(['16:9', '1:1', '9:16'] as const).map(option => (
+                      {(['9:16', '3:4', '1:1', '4:3', '16:9'] as const).map(option => (
                         <DropdownMenuRadioItem
                           key={option}
                           value={option}
                           className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
                         >
-                          {option}
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="flex-shrink-0 border border-neutral-400 rounded-[2px] bg-neutral-800"
+                              style={{
+                                aspectRatio: option.includes(':')
+                                  ? `${option.split(':')[0]} / ${option.split(':')[1]}`
+                                  : '1 / 1',
+
+                                // Fixed visual height for consistency
+                                height: '20px',
+                                width: 'auto',
+                              }}
+                            />
+                            <span>{option}</span>
+                          </div>
                         </DropdownMenuRadioItem>
                       ))}
                     </DropdownMenuRadioGroup>
