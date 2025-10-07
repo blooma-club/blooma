@@ -48,6 +48,12 @@ const DEFAULT_CHARACTER_MODEL = 'fal-ai/flux-pro/kontext'
 
 const normalizeName = (value?: string | null) => (value || '').trim().toLowerCase()
 
+type HydratedCharacter = SupabaseCharacter & {
+  editPrompt?: string | null
+  imageUrl?: string | null
+  originalImageUrl?: string | null
+}
+
 export default function StoryboardWizardPage() {
   const router = useRouter()
   const { user, session } = useSupabase()
@@ -60,7 +66,7 @@ export default function StoryboardWizardPage() {
   const [projectId, setProjectId] = useState<string>('')
   const [isCreatingStoryboard, setIsCreatingStoryboard] = useState(false)
 
-  const [characters, setCharacters] = useState<SupabaseCharacter[]>([])
+  const [characters, setCharacters] = useState<HydratedCharacter[]>([])
   const [characterForms, setCharacterForms] = useState<Record<string, CharacterDetailsForm>>({})
   const [characterUiState, setCharacterUiState] = useState<Record<string, CharacterUiState>>({})
   const [characterSuggestions, setCharacterSuggestions] = useState<Record<string, DetectedCharacterSuggestion>>({})

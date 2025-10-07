@@ -331,8 +331,8 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
   
   // Add character references if characters are mentioned in the shot description
   if (sb.characters && sb.characters.length > 0) {
-    const characterRefs = []
-    const characterImageUrls = []
+    const characterRefs: string[] = []
+    const characterImageUrls: string[] = []
     
     for (const character of sb.characters) {
       // Check if character is mentioned in the description (case-insensitive)
