@@ -2,7 +2,16 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu'
+
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu'
 import { getImageGenerationModels, getModelInfo } from '@/lib/fal-ai'
 
 type Character = {
@@ -13,13 +22,12 @@ type Character = {
 type Props = {
   script: string
   characters: Character[]
-  // navigation/actions
   onBack?: () => void
   onEditScript?: () => void
   onEditCharacters?: () => void
   onGenerateStoryboard?: () => void
   generating?: boolean
-  // visual settings
+  onRegenerateScript?: () => void
   selectedModel: string
   setSelectedModel: (s: string) => void
   ratio: '16:9' | '1:1' | '9:16'
@@ -28,7 +36,22 @@ type Props = {
   onOpenStyleGallery: () => void
 }
 
-export default function PreviewPanel({ script, characters, onBack, onEditScript, onEditCharacters, onGenerateStoryboard, generating, selectedModel, setSelectedModel, ratio, setRatio, visualStyle, onOpenStyleGallery }: Props) {
+export default function PreviewPanel({
+  script,
+  characters,
+  onBack,
+  onEditScript,
+  onEditCharacters,
+  onGenerateStoryboard,
+  generating,
+  onRegenerateScript,
+  selectedModel,
+  setSelectedModel,
+  ratio,
+  setRatio,
+  visualStyle,
+  onOpenStyleGallery,
+}: Props) {
   const stylePresets: { id: string; label: string; img: string }[] = [
     { id: 'photo', label: 'Photo realistic', img: '/styles/photo.jpg' },
     { id: 'cinematic', label: 'Cinematic', img: '/styles/cinematic.jpg' },
@@ -37,144 +60,270 @@ export default function PreviewPanel({ script, characters, onBack, onEditScript,
     { id: 'pixel', label: 'Pixel', img: '/styles/pixel.jpg' },
   ]
 
-  const selectedStyle = stylePresets.find(s => s.id === visualStyle)
+  const selectedStyle = stylePresets.find(entry => entry.id === visualStyle)
+  const scriptLineCount = script?.trim() ? script.split('\n').filter(Boolean).length : 0
 
   return (
-    <div className="space-y-6">
-      {/* Top row: Left script preview + characters, Right visual settings */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Script Preview */}
-          <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white">Script Preview</h3>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={onEditScript} className="text-xs text-neutral-300 underline">Edit Script</button>
+    <div className="space-y-6 text-white">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="space-y-6">
+          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-neutral-500">
+                  Generated script
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onEditScript}
+                  className="rounded-full border border-neutral-700 bg-neutral-900/90 px-4 text-xs text-white hover:bg-neutral-800"
+                >
+                  Edit
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={onEditCharacters}
+                  className="rounded-full bg-white px-4 text-xs font-semibold text-black hover:bg-neutral-200"
+                >
+                  Select
+                </Button>
               </div>
             </div>
-            <div className="min-h-[420px] max-h-[60vh] overflow-auto p-3 border border-neutral-700 rounded-md bg-neutral-900 text-sm whitespace-pre-wrap text-white" aria-label="Script content" tabIndex={0}>
+            <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
+              <span>{scriptLineCount} lines</span>
+              <span>{script.length} characters</span>
+            </div>
+            <div
+              className="mt-4 max-h-[420px] overflow-y-auto rounded-2xl border border-neutral-800/80 bg-neutral-950/70 p-5 text-sm leading-relaxed text-neutral-200"
+              aria-label="Script content"
+              tabIndex={0}
+            >
               {script?.trim() ? script : 'No script yet.'}
             </div>
           </div>
 
-          {/* Characters */}
-          <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white">Characters</h3>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={onEditCharacters} className="text-xs text-neutral-300 underline">Edit Characters</button>
+          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Models</p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onEditCharacters}
+                className="rounded-full border border-neutral-700 bg-neutral-900/80 px-4 text-xs text-white hover:bg-neutral-800"
+              >
+                Edit models
+              </Button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {characters && characters.length > 0 ? (
-                characters.map((ch, idx) => (
-                  <div key={ch.id || idx} className="rounded-md border border-neutral-800 overflow-hidden bg-neutral-950">
-                    <div className="relative w-full aspect-[2/3]">
-                      {ch.imageUrl ? (
-                        <Image src={ch.imageUrl} alt={`character-${idx}`} fill className="object-cover" />
+                characters.map((character, index) => (
+                  <div
+                    key={character.id || index}
+                    className="overflow-hidden rounded-2xl border border-neutral-800/80 bg-neutral-950"
+                  >
+                    <div className="relative w-full pb-[150%]">
+                      {character.imageUrl ? (
+                        <Image
+                          src={character.imageUrl}
+                          alt={`character-${index}`}
+                          fill
+                          className="object-cover"
+                        />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">No image</div>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
+                          No image
+                        </div>
                       )}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="col-span-2 text-xs text-neutral-400">No characters yet.</div>
+                <div className="rounded-2xl border border-dashed border-neutral-700/80 bg-neutral-900/70 p-6 text-center text-xs text-neutral-400">
+                  No models yet. Select to configure characters before generating the storyboard.
+                </div>
               )}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="lg:col-span-1 rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white">Visual Settings</h3>
-          </div>
-          <div className="space-y-6 text-[13px]">
-            {/* Model */}
-            <section>
-              <div className="font-medium mb-2 flex items-center justify-between">
-                <span className="text-neutral-300">AI Model</span>
-                <span className="text-xs text-neutral-400 font-normal">{getModelInfo(selectedModel)?.cost || 0} credits</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className="w-full px-4 py-3 rounded-lg border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-200 inline-flex items-center justify-between group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-white"></div>
-                      <span className="font-medium text-sm">{getModelInfo(selectedModel)?.name || 'Select Model'}</span>
-                    </div>
-                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-neutral-300 transition-colors" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent sideOffset={4} className="w-64 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg">
-                  <DropdownMenuLabel className="text-xs font-semibold text-neutral-300 px-4 py-3 border-b border-neutral-700 bg-neutral-800 rounded-t-lg">Select AI Model</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={selectedModel} onValueChange={setSelectedModel}>
-                    {getImageGenerationModels().filter(model => !model.id.includes('imagen')).map((model) => (
-                      <DropdownMenuRadioItem key={model.id} value={model.id} className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full bg-white"></div>
-                          <span className="font-medium text-sm">{model.name}</span>
-                        </div>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </section>
-
-            {/* Aspect Ratio */}
-            <section>
-              <div className="font-medium mb-2 flex items-center justify-between">
-                <span className="text-neutral-300">Aspect Ratio</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className="w-full px-4 py-3 rounded-lg border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-200 inline-flex items-center justify-between group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-white"></div>
-                      <span className="font-medium text-sm">{ratio}</span>
-                    </div>
-                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-neutral-300 transition-colors" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent sideOffset={4} className="w-48 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg">
-                  <DropdownMenuLabel className="text-xs font-semibold text-neutral-300 px-4 py-3 border-b border-neutral-700 bg-neutral-800 rounded-t-lg">Select Aspect Ratio</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={ratio} onValueChange={(v) => setRatio(v as any)}>
-                    {(['16:9','1:1','9:16'] as const).map(r => (
-                      <DropdownMenuRadioItem key={r} value={r} className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full bg-white"></div>
-                          <span className="font-medium text-sm">{r}</span>
-                        </div>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </section>
-
-            {/* Visual Style */}
-            <section>
-              <div className="font-medium mb-2 flex items-center justify-between">
-                <span className="text-neutral-300">Visual Style</span>
-                <button type="button" className="text-xs text-neutral-300 underline" onClick={onOpenStyleGallery}>Change</button>
-              </div>
-              <button type="button" onClick={onOpenStyleGallery} className="group relative flex flex-col rounded-lg overflow-hidden border border-neutral-700 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition w-full">
-                <div className="aspect-[4/3] w-full bg-neutral-700 flex items-center justify-center text-[10px] text-neutral-300">
-                  <Image src={selectedStyle?.img || '/styles/photo.jpg'} alt={selectedStyle?.label || 'Selected style'} fill className="object-cover" />
-                  <span className="relative z-10 bg-black/60 text-white px-1 rounded-sm">Selected</span>
+        <aside className="space-y-6">
+          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">Visual settings</h3>
+            </div>
+            <div className="mt-4 space-y-6 text-[13px]">
+              <section>
+                <div className="mb-2 flex items-center justify-between text-sm font-medium">
+                  <span className="text-neutral-300">AI model</span>
+                  <span className="text-xs text-neutral-500">
+                    {getModelInfo(selectedModel)?.cost || 0} credits
+                  </span>
                 </div>
-                <div className="px-2 py-1.5 text-xs font-medium flex items-center gap-1 bg-black text-white relative">{selectedStyle?.label || 'Photo realistic'}</div>
-              </button>
-            </section>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
+                    >
+                      <span>{getModelInfo(selectedModel)?.name || selectedModel}</span>
+                      <svg
+                        className="h-4 w-4 text-neutral-500"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M6 8l4 4 4-4"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    sideOffset={4}
+                    className="w-64 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
+                  >
+                    <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
+                      Select AI model
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={selectedModel}
+                      onValueChange={value => setSelectedModel(value)}
+                    >
+                      {getImageGenerationModels().map(model => (
+                        <DropdownMenuRadioItem
+                          key={model.id}
+                          value={model.id}
+                          className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium">{model.name}</span>
+                            <span className="text-xs text-neutral-400">{model.description}</span>
+                          </div>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
+                  <span>Aspect ratio</span>
+                  <span className="text-xs text-neutral-500">{ratio}</span>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
+                    >
+                      <span>{ratio}</span>
+                      <svg
+                        className="h-4 w-4 text-neutral-500"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M6 8l4 4 4-4"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    sideOffset={4}
+                    className="w-48 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
+                  >
+                    <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
+                      Select aspect ratio
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={ratio}
+                      onValueChange={value => setRatio(value as typeof ratio)}
+                    >
+                      {(['16:9', '1:1', '9:16'] as const).map(option => (
+                        <DropdownMenuRadioItem
+                          key={option}
+                          value={option}
+                          className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
+                        >
+                          {option}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
+                  <span>Visual style</span>
+                  <button
+                    type="button"
+                    className="text-xs text-neutral-300 underline-offset-4 hover:underline"
+                    onClick={onOpenStyleGallery}
+                  >
+                    Change
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenStyleGallery}
+                  className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-neutral-700 text-left transition hover:border-neutral-500"
+                >
+                  <div className="relative w-full pb-[75%]">
+                    <Image
+                      src={selectedStyle?.img || '/styles/photo.jpg'}
+                      alt={selectedStyle?.label || 'Selected style'}
+                      fill
+                      className="object-cover"
+                    />
+                    <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 text-[10px] uppercase tracking-[0.18em] text-white">
+                      Selected
+                    </span>
+                  </div>
+                  <div className="bg-black/70 px-3 py-2 text-xs font-medium text-white">
+                    {selectedStyle?.label || 'Photo realistic'}
+                  </div>
+                </button>
+              </section>
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Footer actions */}
-      <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white rounded-md px-4">Back</button>
-        <button type="button" onClick={onGenerateStoryboard} disabled={generating || !script?.trim() || characters.length === 0} className="h-11 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-60 border border-neutral-700 text-white rounded-md px-4">{generating ? 'Generating Storyboard…' : 'Generate Storyboard'}</button>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onBack}
+          className="h-12 rounded-full border border-neutral-700 bg-neutral-900/90 px-6 text-sm text-white transition hover:bg-neutral-800"
+        >
+          Back
+        </Button>
+        <Button
+          type="button"
+          onClick={onGenerateStoryboard}
+          disabled={generating || !script?.trim() || characters.length === 0}
+          className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+        >
+          {generating ? 'Generating image...' : 'Generate image'}
+        </Button>
       </div>
     </div>
   )

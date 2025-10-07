@@ -21,7 +21,10 @@ export function buildCharacterSnippet(character: SupabaseCharacter): string {
   const parts: string[] = []
   if (character.name?.trim()) parts.push(character.name.trim())
   if (character.description?.trim()) parts.push(character.description.trim())
-  if (character.edit_prompt?.trim()) parts.push(character.edit_prompt.trim())
+  const editPrompt = character.edit_prompt ?? (character as any).editPrompt
+  if (typeof editPrompt === 'string' && editPrompt.trim()) {
+    parts.push(editPrompt.trim())
+  }
   return parts.join(', ')
 }
 
@@ -54,7 +57,12 @@ export function resolveCharacterMentions(
     if (!character) continue
 
     const snippet = buildCharacterSnippet(character)
-    const imageUrls = [character.image_url, character.original_image_url]
+    const imageUrls = [
+      (character as any).imageUrl,
+      character.image_url,
+      (character as any).originalImageUrl,
+      character.original_image_url,
+    ]
       .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
 
     mentions.push({ character, slug, snippet, imageUrls })

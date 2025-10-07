@@ -1,13 +1,19 @@
 import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
 import ToasterProvider from '@/components/ui/toast';
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-hanken-sans",
   subsets: ["latin"],
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+});
+
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -29,7 +35,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased min-h-screen bg-black text-white font-sans`}>
+      <body
+        className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
+      >
         <SupabaseProvider>
           <ToasterProvider>
             <div id="root" className="relative flex min-h-screen flex-col">

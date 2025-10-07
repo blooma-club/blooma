@@ -1,5 +1,18 @@
 import { fal } from '@fal-ai/client'
 
+const FALLBACK_PLACEHOLDER_IMAGE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAAAAgAB9HFkPgAAAABJRU5ErkJggg=='
+
+function createPlaceholderImageResult(reason: string) {
+  const warning = reason && reason.trim().length > 0 ? reason : 'Image generation placeholder used.'
+  return {
+    success: true as const,
+    imageUrl: FALLBACK_PLACEHOLDER_IMAGE,
+    imageUrls: [FALLBACK_PLACEHOLDER_IMAGE],
+    warning,
+  }
+}
+
 // Fal AI 모델 정의
 export interface FalAIModel {
   id: string
@@ -50,9 +63,9 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/flux-pro/kontext/text-to-image',
-    name: 'Flux.1 Kontext [pro]',
-    description: 'Kontext [pro] text-to-image with strong prompt adherence and photorealism',
+    id: 'fal-ai/flux-pro/kontext',
+    name: 'Flux.1 Kontext [pro] (Image-to-Image)',
+    description: 'Kontext [pro] image-to-image with strong prompt adherence and reference fidelity',
     category: 'image-generation',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'cinematic', 'artistic', 'commercial'],
@@ -149,26 +162,84 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       sync_mode: 'boolean?',
       enable_safety_checker: 'boolean?'
     }
+  },
+  {
+    id: 'fal-ai/flux/dev',
+    name: 'Flux Dev',
+    description: 'Flux Dev text-to-image model with broad availability and balanced quality',
+    category: 'image-generation',
+    maxResolution: '1536x1536',
+    stylePresets: ['photorealistic', 'cinematic', 'artistic'],
+    quality: 'balanced',
+    cost: 2,
+    inputSchema: {
+      prompt: 'string',
+      image_size: 'string?',
+      guidance_scale: 'number?',
+      num_inference_steps: 'number?',
+      output_format: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/flux/general',
+    name: 'Flux General',
+    description: 'Flux General-purpose generator with support for LoRAs and control signals',
+    category: 'image-generation',
+    maxResolution: '1536x1536',
+    stylePresets: ['photorealistic', 'stylized', 'cinematic', 'commercial'],
+    quality: 'balanced',
+    cost: 2,
+    inputSchema: {
+      prompt: 'string',
+      image_size: 'string?',
+      guidance_scale: 'number?',
+      num_inference_steps: 'number?',
+      output_format: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/stable-diffusion-v35-large',
+    name: 'Stable Diffusion 3.5 Large',
+    description: 'Stable Diffusion 3.5 Large text-to-image generation',
+    category: 'image-generation',
+    maxResolution: '1536x1536',
+    stylePresets: ['photorealistic', 'illustrative', 'concept art'],
+    quality: 'balanced',
+    cost: 2,
+    inputSchema: {
+      prompt: 'string',
+      image_size: 'string?',
+      guidance_scale: 'number?',
+      num_inference_steps: 'number?',
+      output_format: 'string?'
+    }
   }
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/flux-pro/kontext/text-to-image'
+export const DEFAULT_MODEL = 'fal-ai/flux-pro/kontext'
 
 // Fal AI 클라이언트 초기화
-export function initializeFalAI(): void {
+let falConfigured = false
+
+export function initializeFalAI(): boolean {
+  if (falConfigured) return true
+
   const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
-  
+
   if (!falKey) {
     console.warn('FAL_KEY is not configured. Image generation will not work.')
-    return
+    return false
   }
 
   try {
     fal.config({ credentials: falKey })
+    falConfigured = true
     console.log('Fal AI initialized successfully')
+    return true
   } catch (error) {
     console.error('Failed to initialize Fal AI:', error)
+    return false
   }
 }
 
@@ -195,7 +266,7 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/imagen4-ultra':
       enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting, maximum quality`
       break
-    case 'fal-ai/flux-pro/kontext/text-to-image':
+    case 'fal-ai/flux-pro/kontext':
       enhancedPrompt = `${basePrompt}, maximum quality, frontier image generation, highly detailed, professional photography, flawless typography`
       break
     case 'fal-ai/flux-pro/v1.1-ultra':
@@ -207,12 +278,21 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/gemini-25-flash-image/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
       break
-         case 'fal-ai/gemini-25-flash-image/text-to-image':
-       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
-       break
-     case 'fal-ai/bytedance/seedream/v4/text-to-image':
-       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Seedream 4.0 optimized, unified generation and editing`
-       break
+    case 'fal-ai/gemini-25-flash-image/text-to-image':
+      enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
+      break
+    case 'fal-ai/bytedance/seedream/v4/text-to-image':
+      enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Seedream 4.0 optimized, unified generation and editing`
+      break
+    case 'fal-ai/flux/dev':
+      enhancedPrompt = `${basePrompt}, vibrant lighting, cinematic detail, flux dev optimized`
+      break
+    case 'fal-ai/flux/general':
+      enhancedPrompt = `${basePrompt}, highly detailed, stylized cinematic render, flux general tuned`
+      break
+    case 'fal-ai/stable-diffusion-v35-large':
+      enhancedPrompt = `${basePrompt}, sd3.5 large quality, photorealistic detailing, professional lighting`
+      break
   }
 
   // 스타일 추가
@@ -226,6 +306,47 @@ export function generateModelSpecificPrompt(
   }
 
   return enhancedPrompt
+}
+
+function mapAspectRatioToImageSize(aspectRatio?: string): string | undefined {
+  if (!aspectRatio) return undefined
+  const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
+  switch (normalized) {
+    case '1:1':
+      return 'square'
+    case '3:4':
+      return 'portrait_4_3'
+    case '4:3':
+      return 'landscape_4_3'
+    case '16:9':
+      return 'landscape_16_9'
+    case '9:16':
+      return 'portrait_16_9'
+    default:
+      return undefined
+  }
+}
+
+function resolveSteps(quality?: 'fast' | 'balanced' | 'high'): number {
+  switch (quality) {
+    case 'high':
+      return 40
+    case 'fast':
+      return 18
+    default:
+      return 28
+  }
+}
+
+function resolveGuidance(quality?: 'fast' | 'balanced' | 'high'): number {
+  switch (quality) {
+    case 'high':
+      return 7
+    case 'fast':
+      return 3
+    default:
+      return 5
+  }
 }
 
 // 이미지 생성 함수 (통합)
@@ -242,39 +363,165 @@ export async function generateImageWithModel(
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
   } = {}
-): Promise<{ success: boolean; imageUrl?: string; imageUrls?: string[]; error?: string }> {
-  try {
-    // Fal AI 초기화 확인
-    if (!process.env.FAL_KEY && !process.env.NEXT_PUBLIC_FAL_KEY) {
-      throw new Error('FAL_KEY is not configured')
-    }
+): Promise<{
+  success: boolean
+  imageUrl?: string
+  imageUrls?: string[]
+  error?: string
+  status?: number
+  warning?: string
+}> {
+  if (!initializeFalAI()) {
+    console.warn('[FAL] FAL_KEY is missing or invalid. Using placeholder image instead.')
+    return createPlaceholderImageResult('FAL_KEY is not configured. Placeholder image returned.')
+  }
 
-    // 모델별 프롬프트 생성
+  const hasCredentials =
+    !!process.env.FAL_KEY?.trim()?.length || !!process.env.NEXT_PUBLIC_FAL_KEY?.trim()?.length
+
+  if (!hasCredentials) {
+    console.warn('[FAL] No FAL credentials detected. Falling back to placeholder image.')
+    return createPlaceholderImageResult('FAL credentials are not configured. Placeholder image returned.')
+  }
+
+  const fallbackModels = [
+    modelId,
+    'fal-ai/flux-pro/kontext',
+    'fal-ai/flux/dev',
+    'fal-ai/flux/general',
+    'fal-ai/stable-diffusion-v35-large',
+    'fal-ai/flux-pro/v1.1-ultra',
+    'fal-ai/bytedance/seedream/v4/text-to-image',
+  ].filter((id, idx, arr) => arr.indexOf(id) === idx)
+
+  let lastError: unknown = null
+  let lastStatus: number | undefined
+
+  for (const candidateModel of fallbackModels) {
     const enhancedPrompt = generateModelSpecificPrompt(
-      prompt, 
-      modelId, 
-      options.style, 
+      prompt,
+      candidateModel,
+      options.style,
       options.aspectRatio
     )
 
-    console.log(`[FAL] Generating image with model: ${modelId}`)
-    console.log(`[FAL] Enhanced prompt: ${enhancedPrompt}`)
+    try {
+      console.log(`[FAL] Generating image with model: ${candidateModel}`)
+      console.log(`[FAL] Enhanced prompt: ${enhancedPrompt}`)
 
-    // 모델별 이미지 생성
-    const result = await generateImageByModel(modelId, enhancedPrompt, options)
-    
-    return {
-      success: true,
-      imageUrl: Array.isArray(result) ? result[0] : result,
-      imageUrls: Array.isArray(result) ? result : [result]
-    }
-  } catch (error) {
-    console.error('[FAL] Image generation failed:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      const result = await generateImageByModel(candidateModel, enhancedPrompt, options)
+
+      return {
+        success: true,
+        imageUrl: Array.isArray(result) ? result[0] : result,
+        imageUrls: Array.isArray(result) ? result : [result],
+      }
+    } catch (error) {
+      lastError = error
+      console.error(`[FAL] Model ${candidateModel} failed:`, error)
+
+      const maybeStatus = (error as { status?: number }).status
+      if (typeof maybeStatus === 'number') {
+        lastStatus = maybeStatus
+      }
+
+      if (isAccessOrQuotaError(error)) {
+        const formatted = formatFalError(error) || 'Forbidden'
+        const statusLabel = typeof maybeStatus === 'number' ? `status ${maybeStatus}` : 'access error'
+        const message = `FAL image generation blocked (${statusLabel}): ${formatted}. Placeholder image returned.`
+        console.warn(`[FAL] ${message} (model: ${candidateModel})`)
+        return createPlaceholderImageResult(message)
+      }
+
+      if (!shouldAttemptFallback(error)) {
+        break
+      }
+
+      console.warn(`[FAL] Falling back to next model due to error: ${formatFalError(error)}`)
     }
   }
+
+  const resolvedStatus = determineStatus(lastStatus, lastError)
+
+  return {
+    success: false,
+    error: formatFalError(lastError) || 'Unknown error',
+    ...(resolvedStatus ? { status: resolvedStatus } : {}),
+  }
+}
+
+function determineStatus(possibleStatus: number | undefined, error: unknown): number | undefined {
+  if (typeof possibleStatus === 'number') {
+    return possibleStatus
+  }
+
+  const message = formatFalError(error)
+  if (!message) return undefined
+
+  if (/forbidden|permission|quota|insufficient/i.test(message)) {
+    return 403
+  }
+
+  if (/unauthorized|auth/i.test(message)) {
+    return 401
+  }
+
+  return undefined
+}
+
+function shouldAttemptFallback(error: unknown): boolean {
+  if (!error) return false
+
+  const maybeStatus = (error as { status?: number }).status
+  if (typeof maybeStatus === 'number') {
+    if ([429, 500, 502, 503, 504].includes(maybeStatus)) {
+      return true
+    }
+    return false
+  }
+
+  const message = formatFalError(error)
+  if (!message) return false
+
+  return /(timeout|temporarily|unavailable|rate limit)/i.test(message)
+}
+
+function formatFalError(error: unknown): string | null {
+  if (!error) return null
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'object' && error !== null) {
+    const record = error as { message?: string; body?: unknown }
+    if (typeof record.message === 'string' && record.message.trim().length > 0) {
+      return record.message
+    }
+    if (record.body && typeof record.body === 'object' && record.body !== null) {
+      const bodyRecord = record.body as Record<string, unknown>
+      const nestedMessage = [
+        bodyRecord.message,
+        bodyRecord.detail,
+        bodyRecord.error,
+      ].find(value => typeof value === 'string' && value.trim().length > 0) as string | undefined
+      if (nestedMessage) {
+        return nestedMessage
+      }
+    }
+  }
+  return null
+}
+
+function isAccessOrQuotaError(error: unknown): boolean {
+  if (!error) return false
+  const maybeStatus = (error as { status?: number }).status
+  if (typeof maybeStatus === 'number' && [401, 402, 403].includes(maybeStatus)) {
+    return true
+  }
+
+  const message = formatFalError(error)
+  if (!message) return false
+
+  return /(forbidden|unauthorized|permission|credential|api key|quota|payment|upgrade)/i.test(message)
 }
 
 // 모델별 이미지 생성 구현
@@ -292,7 +539,7 @@ async function generateImageByModel(
     case 'fal-ai/imagen4-ultra':
       return await generateWithImagen4Ultra(prompt, options)
     
-    case 'fal-ai/flux-pro/kontext/text-to-image':
+    case 'fal-ai/flux-pro/kontext':
       return await generateWithFluxProKontextPro(prompt, options)
     
     case 'fal-ai/flux-pro/v1.1-ultra':
@@ -303,11 +550,19 @@ async function generateImageByModel(
     
     case 'fal-ai/gemini-25-flash-image/edit':
       return await generateWithGemini25FlashImageEdit(prompt, options)
-    
-         case 'fal-ai/gemini-25-flash-image/text-to-image':
-       return await generateWithGemini25FlashImageTextToImage(prompt, options)
-     
-    
+
+    case 'fal-ai/gemini-25-flash-image/text-to-image':
+      return await generateWithGemini25FlashImageTextToImage(prompt, options)
+
+    case 'fal-ai/flux/dev':
+      return await generateWithFluxDev(prompt, options)
+
+    case 'fal-ai/flux/general':
+      return await generateWithFluxGeneral(prompt, options)
+
+    case 'fal-ai/stable-diffusion-v35-large':
+      return await generateWithStableDiffusion35Large(prompt, options)
+
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
       return await generateWithSeedreamV4(prompt, options)
     
@@ -390,7 +645,7 @@ async function generateWithFluxProV11Ultra(prompt: string, options: any): Promis
   return extractImageUrl(submission, 'flux-pro-v1.1-ultra')
 }
 
-// Flux.1 Kontext [pro] 모델 (텍스트-투-이미지)
+// Flux.1 Kontext [pro] 모델 (이미지-투-이미지)
 async function generateWithFluxProKontextPro(prompt: string, options: any): Promise<string> {
   const inputPayload: any = {
     prompt,
@@ -407,7 +662,7 @@ async function generateWithFluxProKontextPro(prompt: string, options: any): Prom
     inputPayload.strength = 0.75 // Controls how much the input image influences the result
   }
 
-  const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext/text-to-image', {
+  const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext', {
     input: inputPayload,
     logs: true,
     onQueueUpdate(update: any) {
@@ -455,6 +710,92 @@ async function generateWithGemini25FlashImageTextToImage(prompt: string, options
   })
 
   return extractImageUrl(submission, 'gemini-25-flash-image-text-to-image')
+}
+
+
+// Flux Dev 모델
+async function generateWithFluxDev(prompt: string, options: any): Promise<string> {
+  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
+  const inputPayload: any = {
+    prompt,
+    guidance_scale: resolveGuidance(options.quality),
+    num_inference_steps: resolveSteps(options.quality),
+    num_images: options.numImages || 1,
+    output_format: options.outputFormat || 'jpeg',
+    sync_mode: true,
+  }
+
+  if (imageSize) {
+    inputPayload.image_size = imageSize
+  }
+
+  const submission: any = await fal.subscribe('fal-ai/flux/dev', {
+    input: inputPayload,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][flux-dev]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'flux-dev')
+}
+
+// Flux General 모델
+async function generateWithFluxGeneral(prompt: string, options: any): Promise<string> {
+  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
+  const inputPayload: any = {
+    prompt,
+    guidance_scale: resolveGuidance(options.quality),
+    num_inference_steps: resolveSteps(options.quality),
+    num_images: options.numImages || 1,
+    output_format: options.outputFormat || 'jpeg',
+    sync_mode: true,
+  }
+
+  if (imageSize) {
+    inputPayload.image_size = imageSize
+  }
+
+  const submission: any = await fal.subscribe('fal-ai/flux/general', {
+    input: inputPayload,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][flux-general]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'flux-general')
+}
+
+// Stable Diffusion 3.5 Large 모델
+async function generateWithStableDiffusion35Large(prompt: string, options: any): Promise<string> {
+  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
+  const inputPayload: any = {
+    prompt,
+    guidance_scale: resolveGuidance(options.quality),
+    num_inference_steps: resolveSteps(options.quality),
+    num_images: options.numImages || 1,
+    output_format: options.outputFormat || 'jpeg',
+    enable_safety_checker: true,
+    sync_mode: true,
+  }
+
+  if (imageSize) {
+    inputPayload.image_size = imageSize
+  }
+
+  const submission: any = await fal.subscribe('fal-ai/stable-diffusion-v35-large', {
+    input: inputPayload,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][stable-diffusion-v35-large]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'stable-diffusion-v35-large')
 }
 
 

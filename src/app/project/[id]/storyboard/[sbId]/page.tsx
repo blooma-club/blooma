@@ -148,7 +148,7 @@ export default function StoryboardPage() {
   const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
 
   // View mode 상태: 'storyboard' | 'editor' | 'timeline'
-  const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'timeline'>(
+  const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'models'>(
     initialFrameMode ? 'editor' : 'storyboard'
   )
   // Frame editor 모드 상태 (backward compatibility)
@@ -473,7 +473,8 @@ export default function StoryboardPage() {
         }
 
         if (typeof errorMessage === 'string' && errorMessage.includes('Failed to fetch')) {
-          errorMessage = 'Supabase와의 통신 중 문제가 발생했습니다. 네트워크 연결을 확인한 후 다시 시도해 주세요.'
+          errorMessage =
+            'Supabase와의 통신 중 문제가 발생했습니다. 네트워크 연결을 확인한 후 다시 시도해 주세요.'
         }
 
         // Log the full error object for debugging
@@ -634,13 +635,13 @@ export default function StoryboardPage() {
   }, [projectId, index, router])
 
   const handleNavigateToTimeline = useCallback(() => {
-    setViewMode('timeline')
     // URL에서 frame 파라미터 제거
     const newUrl = `/project/${projectId}/storyboard/${projectId}?view=timeline`
     router.replace(newUrl, { scroll: false })
   }, [projectId, router])
 
   const handleNavigateToCharacters = useCallback(() => {
+    setViewMode('models')
     if (!projectId || !sbId) return
     router.push(`/project/${projectId}/storyboard/${sbId}/characters`)
   }, [projectId, router, sbId])
@@ -734,10 +735,7 @@ export default function StoryboardPage() {
       if (!user?.id || !projectId || !session) return
 
       const allCards = useStoryboardStore.getState().cards[projectId] || []
-      const targetIndex = Math.min(
-        Math.max(insertIndex ?? allCards.length, 0),
-        allCards.length
-      )
+      const targetIndex = Math.min(Math.max(insertIndex ?? allCards.length, 0), allCards.length)
 
       try {
         const inserted = await createAndLinkCard(
@@ -1069,9 +1067,7 @@ export default function StoryboardPage() {
           }),
         })
 
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as {
+        const payload = (await response.json().catch(() => ({}))) as {
           videoUrl?: string
           videoKey?: string | null
           videoPrompt?: string
@@ -1274,7 +1270,7 @@ export default function StoryboardPage() {
 
         {/* 에디터 뷰 (Frame 모드) */}
         {/* Timeline 뷰 */}
-        {viewMode === 'timeline' && (
+        {false && (
           <div className="w-full h-[calc(100vh-120px)]">
             <ProfessionalVideoTimeline
               frames={frames}

@@ -45,7 +45,14 @@ export async function POST(req: NextRequest) {
     })
 
     if (!result.success || !result.imageUrls?.length) {
-      return NextResponse.json({ error: result.error || 'No images generated' }, { status: 500 })
+      const status = typeof result.status === 'number' && result.status >= 400 ? result.status : 500
+      return NextResponse.json(
+        {
+          error: result.error || 'No images generated',
+          ...(result.warning ? { warning: result.warning } : {}),
+        },
+        { status }
+      )
     }
 
     // 생성된 이미지들 R2에 업로드
@@ -58,7 +65,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       images: uploadedUrls,
-      description: 'Images edited successfully'
+      description: 'Images edited successfully',
+      ...(result.warning ? { warning: result.warning } : {}),
     })
 
   } catch (err) {

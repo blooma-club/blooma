@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useCallback, useState, useEffect } from 'react'
+import clsx from 'clsx'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
@@ -15,6 +17,8 @@ import { getImageGenerationModels } from '@/lib/fal-ai'
 
 const CHARACTER_IMAGE_STYLE =
   'full-body portrait, white background, neutral pose facing forward, clean even lighting'
+
+const GENERATE_DESCRIPTION_PLACEHOLDER = `Please describe the model's appearance in detail, such as hairstyle, facial features, or expression. (e.g., "a young woman with short straight hair, monolid eyes, full lips, and rosy cheeks.")`
 
 const ensureCharacterStyle = (prompt: string) => {
   const trimmed = (prompt || '').trim()
@@ -65,7 +69,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
 
   // Character 모델은 지정된 3가지만 허용 (working models only)
   const allowedCharacterModelIds = [
-    'fal-ai/flux-pro/kontext/text-to-image',
+    'fal-ai/flux-pro/kontext',
     'fal-ai/flux-pro/v1.1-ultra',
     'fal-ai/bytedance/seedream/v4/text-to-image',
   ] as const
@@ -76,7 +80,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
 
   const [model, setModel] = useState<string>(() => {
     const first = allowedCharacterModels[0]
-    return first?.id || 'fal-ai/flux-pro/kontext/text-to-image'
+    return first?.id || 'fal-ai/flux-pro/kontext'
   })
 
   const [imagePrompt, setImagePrompt] = useState<string>('')
@@ -91,18 +95,61 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
 
   // Manual creation state
   const [manualName, setManualName] = useState('')
-  const [manualPrompt, setManualPrompt] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
   const [manualSaving, setManualSaving] = useState(false)
   const manualFileInputRef = React.useRef<HTMLInputElement | null>(null)
-  const [manualImageFile, setManualImageFile] = useState<File | null>(null)
-  const [manualImagePreview, setManualImagePreview] = useState<string | null>(null)
+  const [manualImageFiles, setManualImageFiles] = useState<File[]>([])
+  const [manualImagePreviews, setManualImagePreviews] = useState<string[]>([])
+  const [manualActiveImageIndex, setManualActiveImageIndex] = useState(0)
+  const generateNameInputRef = React.useRef<HTMLInputElement | null>(null)
+  const uploadPanelNameInputRef = React.useRef<HTMLInputElement | null>(null)
+  const [activeQuickAction, setActiveQuickAction] = useState<'generate' | 'upload' | null>(null)
+  const [displayedQuickAction, setDisplayedQuickAction] = useState<'generate' | 'upload' | null>(
+    null
+  )
+  const handleQuickAction = useCallback((action: 'generate' | 'upload') => {
+    setActiveQuickAction(action)
+    requestAnimationFrame(() => {
+      if (action === 'generate') {
+        generateNameInputRef.current?.focus()
+      } else {
+        uploadPanelNameInputRef.current?.focus()
+      }
+    })
+  }, [])
+
+  const manualImagePreviewsRef = React.useRef<string[]>([])
+  useEffect(() => {
+    manualImagePreviewsRef.current = manualImagePreviews
+  }, [manualImagePreviews])
 
   useEffect(() => {
     return () => {
-      if (manualImagePreview) URL.revokeObjectURL(manualImagePreview)
+      manualImagePreviewsRef.current.forEach(url => URL.revokeObjectURL(url))
     }
-  }, [manualImagePreview])
+  }, [])
+
+  useEffect(() => {
+    if (manualImagePreviews.length === 0) {
+      setManualActiveImageIndex(0)
+      return
+    }
+    if (manualActiveImageIndex > manualImagePreviews.length - 1) {
+      setManualActiveImageIndex(manualImagePreviews.length - 1)
+    }
+  }, [manualActiveImageIndex, manualImagePreviews.length])
+
+  useEffect(() => {
+    if (activeQuickAction) {
+      setDisplayedQuickAction(activeQuickAction)
+      return
+    }
+
+    if (!displayedQuickAction) return
+
+    const timeout = window.setTimeout(() => setDisplayedQuickAction(null), 500)
+    return () => window.clearTimeout(timeout)
+  }, [activeQuickAction, displayedQuickAction])
 
   // Handle character editing
   const handleEditCharacter = (character: Character) => {
@@ -146,36 +193,63 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
 
   const resetManualForm = useCallback(() => {
     setManualName('')
-    setManualPrompt('')
     setManualError(null)
     setManualSaving(false)
-    setManualImageFile(null)
-    setManualImagePreview(prev => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
+    manualImagePreviewsRef.current.forEach(url => URL.revokeObjectURL(url))
+    setManualImageFiles([])
+    setManualImagePreviews([])
+    setManualActiveImageIndex(0)
   }, [])
 
   const handleManualFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null
-    setManualImageFile(file)
+    const files = Array.from(event.target.files ?? [])
+    if (files.length === 0) {
+      event.target.value = ''
+      return
+    }
+
     setManualError(null)
-    setManualImagePreview(prev => {
-      if (prev) URL.revokeObjectURL(prev)
-      if (!file) return null
-      return URL.createObjectURL(file)
-    })
+
+    setManualImageFiles(prev => [...prev, ...files])
+
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    setManualImagePreviews(prev => [...prev, ...newPreviews])
+
     // reset input so same file can be selected again
     event.target.value = ''
   }, [])
 
-  const handleManualRemoveImage = useCallback(() => {
-    setManualImageFile(null)
-    setManualImagePreview(prev => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
-  }, [])
+  const handleManualRemoveImage = useCallback(
+    (index?: number) => {
+      const targetIndex = index ?? manualActiveImageIndex
+      const prevLength = manualImageFiles.length
+
+      setManualImageFiles(prev => prev.filter((_, idx) => idx !== targetIndex))
+      setManualImagePreviews(prev => {
+        return prev.filter((url, idx) => {
+          if (idx === targetIndex) {
+            URL.revokeObjectURL(url)
+            return false
+          }
+          return true
+        })
+      })
+      setManualActiveImageIndex(prevIndex => {
+        if (prevLength <= 1) return 0
+        if (targetIndex >= prevLength - 1) {
+          return Math.max(0, prevIndex - 1)
+        }
+        if (prevIndex > targetIndex) {
+          return prevIndex - 1
+        }
+        if (prevIndex === targetIndex) {
+          return prevIndex
+        }
+        return prevIndex
+      })
+    },
+    [manualActiveImageIndex, manualImageFiles.length]
+  )
 
   // 단일 이미지 생성 후 리스트에 추가
   const handleGenerateImage = useCallback(async () => {
@@ -282,8 +356,6 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
    */
   const handleManualCreateCharacter = useCallback(async () => {
     const trimmedName = manualName.trim()
-    const trimmedPrompt = manualPrompt.trim()
-    const styledPrompt = trimmedPrompt ? ensureCharacterStyle(trimmedPrompt) : undefined
 
     if (!trimmedName) {
       setManualError('Character name is required')
@@ -301,14 +373,16 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     let originalImageKey: string | undefined
     let originalImageSize: number | undefined
 
-    if (manualImageFile) {
+    const selectedFile = manualImageFiles[manualActiveImageIndex] ?? manualImageFiles[0]
+
+    if (selectedFile) {
       try {
         const formData = new FormData()
-        formData.append('file', manualImageFile)
+        formData.append('file', selectedFile)
         formData.append('characterId', characterId)
         formData.append('projectId', projectId || '')
         formData.append('characterName', trimmedName)
-        formData.append('editPrompt', styledPrompt || '')
+        formData.append('editPrompt', '')
         formData.append('userId', userId || '')
         formData.append('isUpdate', 'false')
 
@@ -339,7 +413,8 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
           | undefined
 
         if (remoteCharacter) {
-          finalImageUrl = remoteCharacter.image_url || remoteCharacter.original_image_url || finalImageUrl
+          finalImageUrl =
+            remoteCharacter.image_url || remoteCharacter.original_image_url || finalImageUrl
           originalImageUrl = remoteCharacter.original_image_url || finalImageUrl
           imageKey = remoteCharacter.image_key ?? imageKey
           imageSize = remoteCharacter.image_size ?? imageSize
@@ -359,7 +434,6 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
       name: trimmedName,
       ...(finalImageUrl && { imageUrl: finalImageUrl }),
       ...(originalImageUrl && { originalImageUrl }),
-      ...(styledPrompt && { editPrompt: styledPrompt }),
       ...(imageKey && { imageKey }),
       ...(imageSize && { imageSize }),
       ...(originalImageKey && { originalImageKey }),
@@ -368,7 +442,8 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
 
     setCharacters(prev => [...prev, entry])
     resetManualForm()
-  }, [manualImageFile, manualName, manualPrompt, projectId, resetManualForm, userId])
+    setActiveQuickAction(null)
+  }, [manualActiveImageIndex, manualImageFiles, manualName, projectId, resetManualForm, userId])
 
   const handleAutoDetectCharacters = useCallback(async () => {
     if (!script?.trim()) {
@@ -543,328 +618,468 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     void handleAutoDetectCharacters()
   }, [autoDetectionAttempted, characters.length, handleAutoDetectCharacters, script])
 
+  const hasManualImages = manualImagePreviews.length > 0
+  const boundedManualIndex = hasManualImages
+    ? Math.min(manualActiveImageIndex, manualImagePreviews.length - 1)
+    : 0
+  const activeManualPreview = hasManualImages ? manualImagePreviews[boundedManualIndex] : null
+  const isUploadPanel = activeQuickAction === 'upload'
+  const quickActionActive = Boolean(activeQuickAction)
+  const quickActionForRender = activeQuickAction ?? displayedQuickAction
+  const quickActionTargetWidth =
+    quickActionForRender === 'upload' ? 940 : quickActionForRender === 'generate' ? 720 : 0
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start min-w-[1200px]">
-      {/* Left: Generator panel */}
-      <div className="space-y-6">
-        <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Create New Character</h3>
-            {script?.trim() && (
-              <Button
-                onClick={handleAutoDetectCharacters}
-                disabled={detecting || autoGenerating}
-                className="text-xs px-3 py-1 h-8 bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {detecting ? 'Detecting...' : autoGenerating ? 'Generating...' : '🤖 Auto-Detect'}
-              </Button>
+    <div
+      className={clsx(
+        'flex flex-col lg:flex-row items-start min-w-[1200px]',
+        quickActionActive ? 'gap-6' : 'gap-0'
+      )}
+    >
+      <div
+        className="relative w-full lg:w-auto flex-shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          maxWidth: quickActionActive ? `${quickActionTargetWidth}px` : '0px',
+          opacity: quickActionActive ? 1 : 0,
+          transform: quickActionActive ? 'translateX(0)' : 'translateX(-32px)',
+          pointerEvents: quickActionActive ? 'auto' : 'none',
+        }}
+      >
+        {quickActionForRender && (
+          <aside
+            className={clsx(
+              'space-y-6',
+              quickActionForRender === 'upload'
+                ? 'w-full lg:max-w-[940px]'
+                : 'w-full lg:w-[420px] xl:w-[480px]'
             )}
-          </div>
-          {script?.trim() && (detecting || autoGenerating) && (
-            <div className="mb-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-              <div className="flex items-center gap-2 text-purple-300 text-sm">
-                <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
-                {detecting
-                  ? 'Analyzing script to detect characters...'
-                  : autoGenerating
-                    ? 'Generating character images...'
-                    : ''}
-              </div>
-            </div>
-          )}
-          <div className="space-y-4">
-            {/* Character Name */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Character Name *
-              </label>
-              <input
-                type="text"
-                value={characterName}
-                onChange={e => setCharacterName(e.target.value)}
-                placeholder="Enter character name"
-                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            {/* Preview Area */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Generated Preview
-              </label>
-              {loading ? (
-                <div className="aspect-[3/4] w-full rounded-md overflow-hidden bg-neutral-800 border-2 border-blue-500 border-dashed flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                    <div className="text-sm text-blue-400">Generating...</div>
+          >
+            {quickActionForRender === 'generate' ? (
+              <div className="rounded-[36px] border border-neutral-800 bg-[#111111] p-8 text-white shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-semibold leading-tight">Generate Model</h3>
+                    <p className="mt-2 max-w-[360px] text-sm text-neutral-400">
+                      Describe the model you have in mind and we will create a new portrait from your prompt.
+                    </p>
                   </div>
-                </div>
-              ) : characters.length > 0 ? (
-                <div className="aspect-[3/4] w-full rounded-md overflow-hidden bg-neutral-800">
-                  <Image
-                    src={characters[characters.length - 1].imageUrl!}
-                    alt={`Generated preview of ${characters[characters.length - 1]?.name || 'latest character'}`}
-                    width={400}
-                    height={533}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="aspect-[3/4] w-full rounded-md bg-neutral-800 border border-neutral-700 flex items-center justify-center">
-                  <div className="text-neutral-500 text-lg">No preview yet</div>
-                </div>
-              )}
-            </div>
-
-            {/* Character Description */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Character Description
-              </label>
-              <textarea
-                value={imagePrompt}
-                onChange={e => setImagePrompt(e.target.value)}
-                placeholder="Describe the character (e.g., 'young woman with curly hair, wearing a blue dress')"
-                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                rows={3}
-              />
-              <div className="text-xs text-neutral-500 mt-1">
-                Leave empty for a default character portrait
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Model</label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="w-full px-4 py-3 rounded-lg border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-200 inline-flex items-center justify-between group"
-                  >
-                    <span className="font-medium text-sm">
-                      {allowedCharacterModels.find(m => m.id === model)?.name || 'Select Model'}
-                    </span>
-                    <svg
-                      className="w-4 h-4 text-neutral-400 group-hover:text-neutral-300 transition-colors"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M6 8l4 4 4-4"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  sideOffset={4}
-                  className="w-64 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg"
-                >
-                  <DropdownMenuRadioGroup value={model} onValueChange={setModel}>
-                    {allowedCharacterModels.map(m => (
-                      <DropdownMenuRadioItem
-                        key={m.id}
-                        value={m.id}
-                        className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors"
+                  <div className="flex items-center gap-3">
+                    {script?.trim() && (
+                      <Button
+                        onClick={handleAutoDetectCharacters}
+                        disabled={detecting || autoGenerating}
+                        className="h-9 rounded-full border border-purple-400/40 bg-purple-500/20 px-4 text-xs font-medium text-purple-100 transition hover:border-purple-300/60 hover:bg-purple-500/30"
                       >
-                        {m.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <Button
-              onClick={handleGenerateImage}
-              disabled={loading || detecting || autoGenerating}
-              className="w-full h-12"
-            >
-              {loading ? 'Generating...' : 'Generate'}
-            </Button>
-            {error && (
-              <div
-                className={`text-sm ${error.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}
-              >
-                {error}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6 space-y-4">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-lg font-semibold text-white">Upload Your Own</h3>
-            <button
-              type="button"
-              onClick={resetManualForm}
-              className="text-xs text-neutral-400 underline"
-            >
-              Reset
-            </button>
-          </div>
-          <p className="text-xs text-neutral-400">
-            Add a character using your own reference photo. This skips image generation so you can keep existing looks.
-          </p>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1">Character name *</label>
-              <input
-                value={manualName}
-                onChange={event => setManualName(event.target.value)}
-                placeholder="Enter the character's name"
-                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-500 focus:border-neutral-500 focus:outline-none text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1">Prompt notes</label>
-              <textarea
-                value={manualPrompt}
-                onChange={event => setManualPrompt(event.target.value)}
-                rows={3}
-                placeholder="Optional notes to remember how to regenerate this character"
-                className="w-full p-3 border border-neutral-700 rounded-md bg-neutral-900 text-white placeholder-neutral-500 focus:border-neutral-500 focus:outline-none text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <span className="block text-xs font-medium text-neutral-300">Reference image</span>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="relative w-full sm:w-40 aspect-[3/4] rounded-lg overflow-hidden border border-neutral-800 bg-neutral-950">
-                  {manualImagePreview ? (
-                    <img
-                      src={manualImagePreview}
-                      alt="Manual character preview"
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-[11px] text-neutral-500">
-                      No image selected
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2 sm:w-44">
-                  <button
-                    type="button"
-                    onClick={() => manualFileInputRef.current?.click()}
-                    className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-100 transition-colors hover:border-neutral-500 hover:text-white"
-                  >
-                    {manualImagePreview ? 'Replace image' : 'Upload image'}
-                  </button>
-                  {manualImagePreview && (
+                        {detecting
+                        ? 'Detecting...'
+                        : autoGenerating
+                            ? 'Generating...'
+                            : 'Auto-detect from script'}
+                      </Button>
+                    )}
                     <button
                       type="button"
-                      onClick={handleManualRemoveImage}
-                      className="w-full rounded border border-neutral-800 px-3 py-2 text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200 transition-colors"
+                      onClick={() => setActiveQuickAction(null)}
+                      className="rounded-full border border-neutral-700/70 px-3 py-1 text-xs font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
                     >
-                      Remove image
+                      Close
                     </button>
+                  </div>
+                </div>
+
+                {script?.trim() && (detecting || autoGenerating) && (
+                  <div className="mt-6 flex items-center gap-3 rounded-2xl border border-purple-500/40 bg-purple-500/10 px-4 py-3 text-sm text-purple-200">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
+                    {detecting
+                      ? 'Analyzing script to detect characters...'
+                      : autoGenerating
+                        ? 'Generating character images...'
+                        : ''}
+                  </div>
+                )}
+
+                <div className="mt-8 flex flex-col gap-8 lg:flex-row">
+                  <div className="flex w-full max-w-[260px] flex-col gap-6">
+                    <label className="sr-only" htmlFor="generate-model-name">
+                      Model name
+                    </label>
+                    <input
+                      id="generate-model-name"
+                      type="text"
+                      value={characterName}
+                      onChange={e => setCharacterName(e.target.value)}
+                      placeholder="Enter model name"
+                      ref={generateNameInputRef}
+                      className="rounded-2xl border border-neutral-700/70 bg-neutral-900/70 px-4 py-3 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none"
+                    />
+
+                    <div className="relative">
+                      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[28px] border border-neutral-700/70 bg-neutral-800/70">
+                        {loading ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-neutral-200">
+                            <div className="h-10 w-10 animate-spin rounded-full border-2 border-neutral-200 border-t-transparent"></div>
+                            Generating preview...
+                          </div>
+                        ) : characters.length > 0 ? (
+                          <Image
+                            src={characters[characters.length - 1].imageUrl!}
+                            alt={`Generated preview of ${characters[characters.length - 1]?.name || 'latest character'}`}
+                            width={400}
+                            height={533}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center px-6 text-center text-sm uppercase tracking-wide text-neutral-400">
+                            model preview here
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative flex-1">
+                    <label className="sr-only" htmlFor="generate-model-description">
+                      Character description
+                    </label>
+                    <textarea
+                      id="generate-model-description"
+                      value={imagePrompt}
+                      onChange={e => setImagePrompt(e.target.value)}
+                      placeholder={GENERATE_DESCRIPTION_PLACEHOLDER}
+                      className="min-h-[280px] w-full rounded-[32px] border border-neutral-700/70 bg-neutral-800/60 px-6 py-6 pr-[190px] pb-20 text-sm text-neutral-100 placeholder:text-neutral-300 focus:border-neutral-500 focus:outline-none"
+                    />
+
+                    <div className="pointer-events-auto absolute bottom-6 right-6">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 rounded-full border border-neutral-600/70 bg-neutral-700/60 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-neutral-400 hover:bg-neutral-600/70"
+                          >
+                            <span>
+                              {allowedCharacterModels.find(m => m.id === model)?.name ||
+                                'Select model'}
+                            </span>
+                            <svg
+                              className="h-4 w-4 text-neutral-300"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M6 8l4 4 4-4"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          sideOffset={6}
+                          className="w-64 rounded-2xl border border-neutral-700 bg-neutral-900/95 p-1 shadow-xl"
+                        >
+                          <DropdownMenuRadioGroup value={model} onValueChange={setModel}>
+                            {allowedCharacterModels.map(m => (
+                              <DropdownMenuRadioItem
+                                key={m.id}
+                                value={m.id}
+                                className="cursor-pointer rounded-xl px-4 py-3 text-sm text-white transition-colors hover:bg-neutral-800/80"
+                              >
+                                {m.name}
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10 flex flex-col gap-4 text-sm">
+                  {error && (
+                    <div
+                      className={clsx(
+                        'text-left',
+                        error.startsWith('✅') ? 'text-emerald-300' : 'text-red-400'
+                      )}
+                    >
+                      {error}
+                    </div>
                   )}
-                  <span className="text-[11px] text-neutral-500">PNG or JPG up to 10MB.</span>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleGenerateImage}
+                      disabled={loading || detecting || autoGenerating}
+                      className="flex items-center gap-2 rounded-2xl border border-neutral-600/70 bg-neutral-500/60 px-6 py-3 text-base font-semibold text-white shadow-inner transition hover:border-neutral-400 hover:bg-neutral-500/80"
+                    >
+                      <span className="text-lg leading-none">*</span>
+                      {loading ? 'Generating...' : 'Generate'}
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <input
-                ref={manualFileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleManualFileChange}
-              />
-            </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex flex-col gap-6 lg:flex-row">
+                  <div className="flex-1 rounded-[36px] border border-neutral-800 bg-neutral-950/70 p-6 sm:p-8 shadow-inner">
+                    <div className="flex h-full flex-col">
+                      <div className="max-w-xs">
+                        <label className="sr-only" htmlFor="manual-name-input">
+                          Character name
+                        </label>
 
-            {manualError && (
-              <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-                {manualError}
-              </div>
-            )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveQuickAction(null)}
+                          className="fixed  right-5 rounded-full border border-neutral-700/70 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                        >
+                          Close
+                        </button>
 
-            <button
-              type="button"
-              onClick={handleManualCreateCharacter}
-              disabled={manualSaving || !manualName.trim()}
-              className="w-full h-11 rounded bg-white text-black text-sm font-semibold hover:bg-neutral-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {manualSaving ? 'Saving…' : 'Add character'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right: List panel */}
-      <div className="lg:col-span-2 min-w-[800px]">
-        <div className="rounded-xl bg-neutral-900 border border-neutral-800 shadow-lg p-6 min-h-[600px]">
-          <h4 className="text-md font-semibold text-white mb-4">
-            Character List ({characters.length})
-          </h4>
-          {characters.length === 0 ? (
-            <div className="text-neutral-400 text-sm">
-              No characters yet. Generate one on the left.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {characters.map((char, idx) => (
-                <div key={char.id} className="relative group min-w-[150px]">
-                  <div className="space-y-2">
-                    <div className="aspect-[3/4] rounded-lg overflow-hidden bg-neutral-800 min-h-[200px] relative">
-                      {char.imageUrl ? (
-                        <Image
-                          src={char.imageUrl}
-                          alt={`Character portrait of ${char.name}`}
-                          width={300}
-                          height={450}
-                          className="w-full h-full object-cover"
+                        <input
+                          id="manual-name-input"
+                          ref={uploadPanelNameInputRef}
+                          value={manualName}
+                          onChange={event => setManualName(event.target.value)}
+                          placeholder="Enter model name"
+                          className="w-full rounded-2xl border border-neutral-700/80 bg-neutral-900/80 px-4 py-3 text-sm text-white shadow-inner placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none"
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                          No Image
+                        <div className="flex items-center justify-end gap-3 text-xs text-neutral-500"></div>
+                      </div>
+
+                      <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-start">
+                        <div className="relative aspect-[3/4] w-full max-w-[220px] overflow-hidden rounded-3xl border border-neutral-700/70 bg-neutral-900">
+                          {activeManualPreview ? (
+                            <img
+                              src={activeManualPreview}
+                              alt="Manual model preview"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500">
+                              Upload a reference image
+                            </div>
+                          )}
+                          {hasManualImages && (
+                            <button
+                              type="button"
+                              onClick={() => handleManualRemoveImage()}
+                              className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-sm text-white/80 transition hover:bg-black"
+                              aria-label="Remove selected image"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+
+                        {manualImagePreviews.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                            {manualImagePreviews.map((preview, index) => {
+                              const isActive = index === boundedManualIndex
+                              return (
+                                <button
+                                  key={`${preview}-${index}`}
+                                  type="button"
+                                  onClick={() => setManualActiveImageIndex(index)}
+                                  className={`relative h-16 w-12 flex-shrink-0 overflow-hidden rounded-xl border ${isActive ? 'border-white' : 'border-neutral-700/70'} transition-colors`}
+                                >
+                                  <img
+                                    src={preview}
+                                    alt={`Manual preview ${index + 1}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  <span
+                                    className={`absolute inset-0 border-2 ${isActive ? 'border-white/70' : 'border-transparent'}`}
+                                  ></span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {manualError && (
+                        <div className="mt-4 w-full rounded-2xl border border-red-500/30 bg-red-900/20 px-4 py-3 text-xs text-red-200">
+                          {manualError}
                         </div>
                       )}
 
-                      {/* Hover overlay with action buttons */}
-                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditCharacter(char)}
-                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+                      <div className="mt-auto flex flex-col items-center gap-4 pt-10 sm:flex-row sm:justify-center">
+                        <button
+                          type="button"
+                          onClick={() => manualFileInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-neutral-700/80 bg-neutral-800/80 px-8 py-3 text-sm font-medium text-white/90 shadow-inner transition hover:border-neutral-500 hover:bg-neutral-700"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            className="h-4 w-4"
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleUseAsReference(char)}
-                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-md transition-colors"
+                            <path d="M4 7a2 2 0 012-2h2l1-2h6l1 2h2a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V7z" />
+                            <path d="M12 11v6" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          Upload images
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAction('generate')}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-neutral-700/80 bg-neutral-800/80 px-8 py-3 text-sm font-medium text-white/90 shadow-inner transition hover:border-neutral-500 hover:bg-neutral-700"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            className="h-4 w-4"
                           >
-                            Use as Ref
-                          </button>
-                        </div>
+                            <path
+                              d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3m10.3-4.3 2.1-2.1M18 12h3m-5.4 6.4 2.1 2.1M12 18v3m-6.4-5.4-2.1 2.1"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          Generate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleManualCreateCharacter}
+                          disabled={manualSaving || !manualName.trim()}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white px-8 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:border-white/20 disabled:bg-white/60"
+                        >
+                          {manualSaving ? 'Saving…' : 'Add model'}
+                        </button>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-sm font-medium text-white truncate">{char.name}</div>
-                      <div className="text-xs text-neutral-400 mt-1">
-                        {isEditModalOpen
-                          ? 'Click "Use as Ref" to set as reference'
-                          : 'Hover for options'}
-                      </div>
+
+                      <input
+                        ref={manualFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleManualFileChange}
+                      />
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemove(idx)}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  >
-                    ×
-                  </button>
                 </div>
-              ))}
+              </div>
+            )}
+          </aside>
+        )}
+      </div>
+
+      <div
+        className={clsx(
+          'relative w-full transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          quickActionActive
+            ? 'lg:flex-none lg:max-w-[320px] xl:max-w-[360px] lg:min-w-[260px]'
+            : 'lg:flex-1 lg:max-w-full lg:min-w-[800px]'
+        )}
+      >
+        <div className="relative min-h-[520px] rounded-[32px] border border-neutral-800 bg-neutral-900/90 p-8 pt-14 shadow-2xl">
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h4 className="text-xl font-semibold text-white">Model list</h4>
+              <p className="mt-1 text-xs text-neutral-500">
+                Browse existing characters or add a new one
+              </p>
             </div>
+            <span className="text-xs text-neutral-500">Total {characters.length}</span>
+          </div>
+
+          {isUploadPanel ? (
+            <div className="flex h-full min-h-[380px] items-center justify-center rounded-2xl border border-dashed border-neutral-700/60 bg-neutral-900/40 text-sm text-neutral-500">
+              Upload new references on the left to add them here.
+            </div>
+          ) : (
+            <>
+              <div
+                className={clsx(
+                  'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                  quickActionActive && 'sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1'
+                )}
+              >
+                {characters.map((char, idx) => (
+                  <div
+                    key={char.id}
+                    className="group relative rounded-2xl border border-neutral-800/80 bg-neutral-950/60 p-3 shadow-lg transition-colors hover:border-neutral-600 hover:bg-neutral-900/80"
+                  >
+                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-neutral-800/80">
+                      {char.imageUrl ? (
+                        <Image
+                          src={char.imageUrl}
+                          alt={`Model portrait of ${char.name}`}
+                          width={320}
+                          height={480}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
+                          No image
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 text-center text-sm font-medium text-white truncate">
+                      {char.name}
+                    </div>
+                    <button
+                      onClick={() => handleRemove(idx)}
+                      className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-sm text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="group flex aspect-[3/4] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700/80 bg-neutral-900/40 p-6 text-neutral-400 transition-colors hover:border-white/50 hover:bg-neutral-900 hover:text-white"
+                    >
+                      <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-neutral-700/80 bg-neutral-950/60 text-4xl font-light text-white/80 shadow-inner transition-colors group-hover:border-white/60 group-hover:bg-neutral-900/80">
+                        +
+                      </span>
+                      <span className="mt-6 text-sm font-medium text-white/80">Add model</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="center"
+                    sideOffset={8}
+                    className="w-56 rounded-xl border border-neutral-800 bg-neutral-900/95 text-white shadow-xl backdrop-blur"
+                  >
+                    <DropdownMenuItem
+                      className="px-4 py-2.5 text-sm text-white hover:bg-neutral-800/80 focus:bg-neutral-800/80"
+                      onSelect={() => handleQuickAction('upload')}
+                    >
+                      Upload your own
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="px-4 py-2.5 text-sm text-white hover:bg-neutral-800/80 focus:bg-neutral-800/80"
+                      onSelect={() => handleQuickAction('generate')}
+                    >
+                      Generate a new one
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {characters.length === 0 && (
+                <div className="mt-8 text-center text-sm text-neutral-500">
+                  No models yet. Use the add card to get started.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Character Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={handleCloseEditModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-neutral-900 border-neutral-700">
           <DialogHeader>
@@ -998,20 +1213,27 @@ function CharacterEditForm({
         image_url?: string
       } = {
         prompt: fullPrompt,
-        modelId: 'fal-ai/flux-pro/kontext/text-to-image',
+        modelId: 'fal-ai/flux-pro/kontext',
         aspectRatio: '3:4',
         quality: 'balanced',
       }
 
       // If there's an original image, include it for image-to-image generation
-      if (editedCharacter.originalImageUrl) {
-        requestBody.image_url = editedCharacter.originalImageUrl
+      const referenceImageUrl =
+        editedCharacter.originalImageUrl ||
+        character.originalImageUrl ||
+        (character as any).original_image_url ||
+        character.imageUrl ||
+        (character as any).image_url
+
+      if (referenceImageUrl) {
+        requestBody.image_url = referenceImageUrl
         console.log(
           '[CharacterWizard] Using image-to-image generation with reference:',
-          editedCharacter.originalImageUrl.substring(0, 50) + '...'
+          referenceImageUrl.substring(0, 50) + '...'
         )
       } else {
-        console.log('[CharacterWizard] Using text-to-image generation (no reference image)')
+        console.log('[CharacterWizard] Using image generation without reference image')
       }
 
       const res = await fetch('/api/generate-image', {

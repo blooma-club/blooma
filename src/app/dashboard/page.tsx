@@ -241,9 +241,6 @@ export default function DashboardPage() {
               {creatingProject ? 'Creating...' : 'New Project'}
             </Button>
           </div>
-          <p className="text-lg text-neutral-300 mb-0">
-            Manage, search and create your projects easily
-          </p>
         </div>
         {/* 메인 상단: 검색창(좌), 뷰모드 버튼(우) */}
         <div className="flex items-center gap-4 mb-8">
@@ -261,17 +258,6 @@ export default function DashboardPage() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 w-5 h-5 pointer-events-none" />
           </div>
           <div className="flex flex-row-reverse gap-4 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => fetchProjects()}
-              disabled={projectsLoading || !user?.id}
-              aria-label="Refresh projects"
-              tabIndex={0}
-              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-            >
-              <RefreshCw className={`w-5 h-5 ${projectsLoading ? 'animate-spin' : ''}`} />
-            </Button>
             <Button
               variant="outline"
               size="icon"
@@ -433,8 +419,10 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div
-            className={`grid gap-6 ${
-              viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'
+            className={`grid gap-8 ${
+              viewMode === 'grid'
+                ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 justify-items-center'
+                : 'grid-cols-1'
             }`}
           >
             {filteredProjects.map((project, idx) => (

@@ -44,7 +44,7 @@ type CharacterUiState = {
   error: string | null
 }
 
-const DEFAULT_CHARACTER_MODEL = 'fal-ai/flux-pro/kontext/text-to-image'
+const DEFAULT_CHARACTER_MODEL = 'fal-ai/flux-pro/kontext'
 
 const normalizeName = (value?: string | null) => (value || '').trim().toLowerCase()
 
@@ -637,9 +637,10 @@ Please generate a detailed storyboard script in English.`
       const characterPayload = characters.map(character => ({
         id: character.id,
         name: character.name,
-        image_url: character.image_url,
         description: character.description,
-        edit_prompt: character.edit_prompt,
+        editPrompt: character.edit_prompt ?? character.editPrompt,
+        imageUrl: character.image_url ?? character.imageUrl,
+        originalImageUrl: character.original_image_url ?? character.originalImageUrl,
       }))
 
       const storyboardResponse = await fetch('/api/storyboard/build', {
@@ -651,7 +652,7 @@ Please generate a detailed storyboard script in English.`
           ratio: '16:9',
           aspectRatio: '16:9',
           visualStyle: answers.q2,
-          aiModel: 'fal-ai/flux-1.1-pro',
+          aiModel: 'fal-ai/flux-pro/kontext',
           characters: characterPayload,
         }),
       })

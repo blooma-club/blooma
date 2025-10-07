@@ -344,17 +344,25 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
         let characterRef = `${character.name}`
         
         // Add visual description if available
-        if (character.editPrompt && character.editPrompt.trim()) {
-          characterRef += ` (${character.editPrompt.trim()})`
+        const editPrompt = character.editPrompt ?? (character as any).edit_prompt
+        if (editPrompt && editPrompt.trim()) {
+          characterRef += ` (${editPrompt.trim()})`
         }
         
         characterRefs.push(characterRef)
         
         // Collect character image URLs for visual reference
-        if (character.imageUrl) {
-          characterImageUrls.push(character.imageUrl)
-        } else if (character.originalImageUrl) {
-          characterImageUrls.push(character.originalImageUrl)
+        const imageCandidates = [
+          character.imageUrl,
+          (character as any).image_url,
+          character.originalImageUrl,
+          (character as any).original_image_url,
+        ].filter((url): url is string => typeof url === 'string' && url.length > 0)
+
+        for (const url of imageCandidates) {
+          if (!characterImageUrls.includes(url)) {
+            characterImageUrls.push(url)
+          }
         }
       }
     }

@@ -3,10 +3,9 @@ import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/fal-a
 
 export async function POST(request: NextRequest) {
   try {
-    // FAL_KEY 확인
-    if (!process.env.FAL_KEY) {
-      console.error('FAL_KEY is not configured')
-      return NextResponse.json({ error: 'FAL_KEY not configured' }, { status: 500 })
+    const falKeyConfigured = !!process.env.FAL_KEY?.trim()?.length
+    if (!falKeyConfigured) {
+      console.warn('[API] FAL_KEY is not configured. Image requests will use placeholder output.')
     }
 
     const { 
@@ -59,9 +58,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (!result.success) {
+      const status = typeof result.status === 'number' && result.status >= 400 ? result.status : 500
       return NextResponse.json(
-        { error: result.error || 'Image generation failed' },
-        { status: 500 }
+        {
+          error: result.error || 'Image generation failed',
+          ...(result.warning ? { warning: result.warning } : {}),
+        },
+        { status }
       )
     }
 
@@ -74,7 +77,8 @@ export async function POST(request: NextRequest) {
         name: modelInfo.name,
         description: modelInfo.description,
         quality: modelInfo.quality
-      }
+      },
+      ...(result.warning ? { warning: result.warning } : {}),
     })
     
   } catch (error) {

@@ -51,7 +51,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
   const [storyboardLoading, setStoryboardLoading] = useState(false)
   // Storyboard UI migrated to storyboard/[sbId] page; keep only script-related state here.
   const [genResult, setGenResult] = useState<string | null>(null)
@@ -77,7 +76,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     script: '',
     visualStyle: 'photo',
     ratio: '16:9' as '16:9' | '1:1' | '9:16',
-    selectedModel: 'fal-ai/flux-pro/kontext/text-to-image',
+    selectedModel: 'fal-ai/flux-pro/kontext',
     settings: DEFAULT_SETTINGS,
     characters: [] as any[],
   })
@@ -118,7 +117,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
 
   // 간단한 자동 저장 (debounce, UI 표시 없음)
   useEffect(() => {
-    if (!projectId || generating || storyboardLoading) return
+    if (!projectId || storyboardLoading) return
 
     const timer = setTimeout(() => {
       try {
@@ -129,7 +128,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     }, 2000)
 
     return () => clearTimeout(timer)
-  }, [projectId, draftData, generating, storyboardLoading])
+  }, [projectId, draftData, storyboardLoading])
 
   // Load saved draft on component mount
   useEffect(() => {
@@ -142,7 +141,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         script: savedDraft.script || '',
         visualStyle: savedDraft.visualStyle || 'photo',
         ratio: (savedDraft.ratio as '16:9' | '1:1' | '9:16') || '16:9',
-        selectedModel: savedDraft.selectedModel || 'fal-ai/flux-pro/kontext/text-to-image',
+        selectedModel: savedDraft.selectedModel || 'fal-ai/flux-pro/kontext',
         settings: {
           ...DEFAULT_SETTINGS,
           ...savedSettings,
@@ -165,7 +164,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       draftData.script.trim() === '' &&
       draftData.visualStyle === 'photo' &&
       draftData.ratio === '16:9' &&
-      draftData.selectedModel === 'fal-ai/flux-pro/kontext/text-to-image' &&
+      draftData.selectedModel === 'fal-ai/flux-pro/kontext' &&
       JSON.stringify(draftData.settings) === JSON.stringify(DEFAULT_SETTINGS) &&
       draftData.characters.length === 0
     )
@@ -340,112 +339,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     }
   }
 
-  const handleGenerateScript = async () => {
-    setFileError(null)
-    if (mode !== 'paste') {
-      setFileError('Please switch to Write mode to use AI generation.')
-      return
-    }
-    const hasAnySetting = Object.values(settings).some(v =>
-      typeof v === 'string' ? v.trim().length > 0 : !!v
-    )
-    if (!textValue.trim() && !hasAnySetting) {
-      setFileError('Please add script or fill optional settings.')
-      return
-    }
-
-    setGenerating(true)
-    try {
-      // 먼저 크레딧 체크 (임시 비활성화)
-      /*
-      const creditResponse = await fetch('/api/credits?action=balance', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (creditResponse.ok) {
-        const creditData = await creditResponse.json()
-        const requiredCredits = creditData.data?.tier === 'pro' ? 4 : 
-                               creditData.data?.tier === 'enterprise' ? 3 : 5
-        
-        if (creditData.data?.credits < requiredCredits) {
-          setFileError(`Insufficient credits. Required: ${requiredCredits}, Available: ${creditData.data?.credits || 0}`)
-          return
-        }
-      }
-      */
-
-      console.log('🚀 Starting script generation...', {
-        projectId,
-        userScript: textValue?.slice(0, 100),
-        settings,
-      })
-
-      const res = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          projectId,
-          userScript: textValue,
-          settings,
-          useGemini: true,
-        }),
-      })
-
-      console.log('📡 API Response status:', res.status, res.ok)
-
-      const data = await res.json()
-      console.log('📦 API Response data:', {
-        hasScript: !!data.script,
-        scriptType: typeof data.script,
-        scriptLength: data.script?.length || 0,
-        scriptPreview: data.script?.slice(0, 200),
-        error: data.error,
-        meta: data.meta,
-      })
-
-      if (!res.ok) {
-        console.error('❌ API Error:', res.status, data)
-        if (res.status === 402) {
-          setFileError(`Insufficient credits: ${data.error}`)
-        } else {
-          throw new Error(data.error || 'Failed')
-        }
-        return
-      }
-
-      if (typeof data.script === 'string' && data.script.trim()) {
-        console.log('✅ Script received, showing modal...')
-        // show preview modal so user can accept/append
-        setGenResult(data.script)
-        setShowGenModal(true)
-        setMode('paste')
-
-        // 성공 메시지 표시
-        if (data.meta?.credits_used) {
-          console.log(
-            `Script generated successfully. Credits used: ${data.meta.credits_used}, Remaining: ${data.meta.credits_remaining}`
-          )
-        }
-      } else {
-        console.error('❌ Empty or invalid script:', {
-          script: data.script,
-          type: typeof data.script,
-        })
-        setFileError('The generated script is empty.')
-      }
-    } catch (e: any) {
-      setFileError(e.message || 'Generation failed')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
   const handleGenerateStoryboard = async () => {
     setFileError(null)
     if (!textValue.trim()) {
@@ -454,6 +347,14 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     }
     setStoryboardLoading(true)
     try {
+      const normalizedCharacters = (characters || []).map(character => ({
+        id: character.id,
+        name: character.name,
+        imageUrl: character.image_url ?? character.imageUrl,
+        originalImageUrl: character.original_image_url ?? character.originalImageUrl,
+        editPrompt: character.edit_prompt ?? character.editPrompt,
+      }))
+
       const payload: BuildStoryboardOptions = {
         projectId: projectId,
         script: textValue,
@@ -463,7 +364,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         // AI Model settings
         aiModel: selectedModel,
         // Character references for image generation
-        characters: characters,
+        characters: normalizedCharacters,
       }
 
       // Get the current session for authentication
@@ -522,9 +423,9 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   // Removed polling in favor of SSE
   // Removed storyboard grid logic; handled on storyboard page.
   // Pre-built views for clarity
+  //<OptionalSettingsPanel settings={settings} onChange={handleSettingsChange} />
   const scriptView = (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <OptionalSettingsPanel settings={settings} onChange={handleSettingsChange} />
+    <div className="gap-6 items-start">
       <ScriptEditor
         mode={mode}
         setMode={setMode}
@@ -536,8 +437,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         onDrop={handleDrop}
         fileRef={fileRef}
         onSubmit={handleSubmit}
-        generating={generating}
-        onGenerateScript={handleGenerateScript}
         onNext={() => setStep(2)}
       />
     </div>

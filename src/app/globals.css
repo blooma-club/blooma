@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
-
 /* Dark mode: class-based */
 @variant dark (&:where(.dark, .dark *));
 
@@ -127,6 +126,9 @@
   }
   .font-sans {
     font-family: var(--font-hanken-sans), sans-serif;
+  }
+  .font-instrument-serif {
+    font-family: var(--font-instrument-serif), serif;
   }
 }
 

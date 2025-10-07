@@ -5,7 +5,7 @@ interface FloatingHeaderProps {
   title: string
   index: number
   total: number
-  currentView: 'storyboard' | 'editor' | 'timeline'
+  currentView: 'models' | 'storyboard' | 'editor' | 'timeline'
   onNavigateToStoryboard: () => void
   onNavigateToEditor: () => void
   onNavigateToTimeline: () => void
@@ -43,7 +43,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
                 onClick={onNavigateToCharacters}
                 className="px-3 py-1 rounded text-sm border border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
               >
-                Characters
+                Models
               </button>
             )}
             <button
@@ -66,16 +66,19 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
             >
               Editor
             </button>
-            <button
-              onClick={onNavigateToTimeline}
-              className={`px-3 py-1 rounded text-sm border transition-colors ${
-                currentView === 'timeline'
-                  ? 'bg-white text-black border-white'
-                  : 'border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:text-white'
-              }`}
-            >
-              Timeline
-            </button>
+
+            {false && (
+              <button
+                onClick={onNavigateToTimeline}
+                className={`px-3 py-1 rounded text-sm border transition-colors ${
+                  currentView === 'timeline'
+                    ? 'bg-white text-black border-white'
+                    : 'border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:text-white'
+                }`}
+              >
+                Timeline
+              </button>
+            )}
           </div>
         </div>
       </div>

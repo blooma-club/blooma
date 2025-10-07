@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     
     const body = await req.json()
     const userScript: string = body.userScript || ''
+    const messages = Array.isArray(body.messages) ? body.messages : null
     const settings: OptionalSettings = body.settings || {}
     const useGemini: boolean = body.useGemini !== false // Default to true
 
@@ -41,8 +42,20 @@ export async function POST(req: Request) {
     const briefBlock = briefLines.length ? `# Brief\n${briefLines.join('\n')}\n` : ''
     const scriptBlock = userScript?.trim() ? `\n# User Script\n${userScript}` : ''
 
-    // Build content for the model: Brief + User Script only
-    const content = `${briefBlock}${scriptBlock}`
+    let chatBlock = ''
+    if (messages && messages.length > 0) {
+      chatBlock = messages
+        .map((entry: any) => {
+          const role = entry?.role === 'assistant' ? 'Assistant' : 'User'
+          const text = typeof entry?.content === 'string' ? entry.content.trim() : ''
+          return text ? `${role}: ${text}` : ''
+        })
+        .filter(Boolean)
+        .join('\n')
+    }
+
+    // Build content for the model: Brief + Chat history or user script
+    const content = chatBlock ? `${briefBlock}${chatBlock}` : `${briefBlock}${scriptBlock}`
     
     console.log('📋 Content for LLM:', content.slice(0, 500) + '...')
 
@@ -104,4 +117,3 @@ export async function POST(req: Request) {
     }, { status: 500 })
   }
 }
-

@@ -10,7 +10,7 @@ type Props = {
 export default function WizardProgress({ currentStep, onStepClick }: Props) {
   const steps: Array<{ key: 1 | 2 | 3; label: string }> = [
     { key: 1, label: 'Script' },
-    { key: 2, label: 'Characters' },
+    { key: 2, label: 'Models' },
     { key: 3, label: 'Preview' },
   ]
 
@@ -59,5 +59,4 @@ export default function WizardProgress({ currentStep, onStepClick }: Props) {
     </nav>
   )
 }
-
 
