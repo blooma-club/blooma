@@ -104,7 +104,10 @@ export default function ProjectCharactersPage() {
     router.push(`/project/${projectId}/storyboard/${storyboardId}/characters`)
   }, [projectId, router, storyboardId])
 
-  const noop = useCallback(() => {}, [])
+  const handleNavigateToTimeline = useCallback(() => {
+    if (!projectId || !storyboardId) return
+    router.push(`/project/${projectId}/storyboard/${storyboardId}/timeline`)
+  }, [projectId, router, storyboardId])
 
   return (
     <div className="px-6 py-8">
@@ -117,7 +120,7 @@ export default function ProjectCharactersPage() {
           onNavigateToCharacters={handleNavigateToCharacters}
           onNavigateToStoryboard={handleNavigateToStoryboard}
           onNavigateToEditor={handleNavigateToEditor}
-          onNavigateToTimeline={noop}
+          onNavigateToTimeline={handleNavigateToTimeline}
         />
         {error ? (
           <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -129,12 +132,7 @@ export default function ProjectCharactersPage() {
             Loading characters...
           </div>
         ) : (
-          <CharacterWizard
-            initial={initialCharacters}
-            onChange={noop}
-            projectId={projectId}
-            userId={user?.id}
-          />
+          <CharacterWizard initial={initialCharacters} onChange={() => {}} projectId={projectId} userId={user?.id} />
         )}
       </div>
     </div>

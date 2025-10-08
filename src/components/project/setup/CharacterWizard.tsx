@@ -48,12 +48,11 @@ type Character = {
 type Props = {
   onChange: (characters: Character[]) => void
   initial?: Character[]
-  script?: string // Add script prop for auto-detection
   projectId?: string // Add project ID for R2 organization
   userId?: string // Add user ID for Supabase persistence
 }
 
-export default function CharacterWizard({ onChange, initial, script, projectId, userId }: Props) {
+export default function CharacterWizard({ onChange, initial, projectId, userId }: Props) {
   const [characters, setCharacters] = useState<Character[]>(initial || [])
   const [error, setError] = useState<string | null>(null)
 
@@ -85,11 +84,6 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
   const [imagePrompt, setImagePrompt] = useState<string>('')
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-
-  // Auto-detection state
-  const [detecting, setDetecting] = useState(false)
-  const [autoGenerating, setAutoGenerating] = useState(false)
-  const [autoDetectionAttempted, setAutoDetectionAttempted] = useState(false)
 
   // Unified creation state
   const [activeMode, setActiveMode] = useState<'generate' | 'upload' | null>(null)
@@ -348,188 +342,6 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     setCharacters(prev => prev.filter((_, i) => i !== idx))
   }
 
-  /**
-   * Auto-detect characters from script using AI and generate character images
-   * 1. Uses /api/characters/generate to extract character information from script
-   * 2. For each detected character, generates a portrait using /api/generate-image
-   * 3. Adds all generated characters to the existing character list
-   */
-
-  const handleAutoDetectCharacters = useCallback(async () => {
-    if (!script?.trim()) {
-      setError('No script available for character detection')
-      return
-    }
-
-    setAutoDetectionAttempted(true)
-
-    setDetecting(true)
-    setError(null)
-    try {
-      // Step 1: Detect characters from script
-      const detectRes = await fetch('/api/characters/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          script: script,
-          model: 'auto',
-          prompt: 'Extract main characters with detailed visual descriptions for image generation',
-        }),
-      })
-      const detectData = await detectRes.json()
-      if (!detectRes.ok || !detectData?.characters) {
-        throw new Error(detectData?.error || 'Character detection failed')
-      }
-
-      const detectedCharacters = detectData.characters
-      console.log('?�� Detected characters:', detectedCharacters)
-
-      if (detectedCharacters.length === 0) {
-        setError('No characters detected in the script')
-        return
-      }
-
-      setAutoGenerating(true)
-
-      // Step 2: Generate images for each detected character
-      const generatedCharacters: Character[] = []
-      for (const detectedChar of detectedCharacters) {
-        try {
-          // Create a comprehensive prompt for character image generation
-          const visualPrompt = ensureCharacterStyle(
-            `portrait of ${detectedChar.name}, ${detectedChar.description}, ${detectedChar.visualTraits || ''}`.trim()
-          )
-
-          console.log(
-            `?�� Generating image for ${detectedChar.name} with prompt: ${visualPrompt.substring(0, 100)}...`
-          )
-
-          const imageRes = await fetch('/api/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: visualPrompt,
-              modelId: model,
-              aspectRatio: '3:4',
-              quality: 'balanced',
-            }),
-          })
-          const imageData = await imageRes.json()
-
-          if (imageRes.ok && imageData?.imageUrl) {
-            // Generate proper UUID for character ID (ignore AI-generated slug)
-            const characterId = crypto.randomUUID()
-
-            // Upload generated image to R2
-            let finalImageUrl = imageData.imageUrl
-            let imageKey: string | undefined
-            let imageSize: number | undefined
-
-            try {
-              console.log(
-                `[CharacterWizard] Uploading auto-detected character image to R2 for: ${detectedChar.name}`
-              )
-              const uploadRes = await fetch('/api/characters/upload-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  characterId,
-                  imageUrl: imageData.imageUrl,
-                  projectId: projectId,
-                  characterName: detectedChar.name,
-                  editPrompt: visualPrompt,
-                  userId: userId,
-                  isUpdate: false,
-                }),
-              })
-
-              const uploadData = await uploadRes.json()
-              if (uploadRes.ok && uploadData?.success) {
-                finalImageUrl = uploadData.publicUrl || uploadData.signedUrl || imageData.imageUrl
-                imageKey = uploadData.key
-                imageSize = uploadData.size
-                console.log(
-                  `[CharacterWizard] Successfully uploaded auto-detected character image to R2: ${imageKey}`
-                )
-              } else {
-                console.warn(
-                  `[CharacterWizard] Failed to upload auto-detected image to R2:`,
-                  uploadData?.error
-                )
-              }
-            } catch (uploadError) {
-              console.warn(
-                `[CharacterWizard] R2 upload failed for auto-detected character:`,
-                uploadError
-              )
-            }
-
-            generatedCharacters.push({
-              id: characterId,
-              name: detectedChar.name,
-              imageUrl: finalImageUrl,
-              originalImageUrl: undefined,
-              editPrompt: visualPrompt,
-              // Add R2 metadata if available
-              ...(imageKey && { imageKey }),
-              ...(imageSize && { imageSize }),
-            })
-            console.log(`??Generated image for ${detectedChar.name}`)
-          } else {
-            console.warn(`?�️ Failed to generate image for ${detectedChar.name}:`, imageData?.error)
-            // Still add character without image
-            generatedCharacters.push({
-              id: crypto.randomUUID(),
-              name: detectedChar.name,
-              imageUrl: undefined,
-              originalImageUrl: undefined,
-              editPrompt: visualPrompt,
-            })
-          }
-        } catch (charError) {
-          console.error(`??Error generating character ${detectedChar.name}:`, charError)
-          // Add character without image as fallback
-          generatedCharacters.push({
-            id: crypto.randomUUID(),
-            name: detectedChar.name,
-            imageUrl: undefined,
-            originalImageUrl: undefined,
-            editPrompt: ensureCharacterStyle(
-              `portrait of ${detectedChar.name}, ${detectedChar.description}`
-            ),
-          })
-        }
-      }
-
-      // Add generated characters to existing ones
-      setCharacters(prev => [...prev, ...generatedCharacters])
-
-      // Show success message briefly
-      setError(
-        `??Successfully detected and generated ${generatedCharacters.length} character${generatedCharacters.length === 1 ? '' : 's'}!`
-      )
-      setTimeout(() => setError(null), 4000)
-
-      console.log(`?�� Auto-detection complete! Generated ${generatedCharacters.length} characters`)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Auto-detection failed')
-      console.error('??Auto-detection error:', e)
-    } finally {
-      setDetecting(false)
-      setAutoGenerating(false)
-    }
-  }, [script, model])
-
-  // ?�동 감�? 기능 ?�거 - ?�용?��? 명시?�으�?버튼???�릭???�만 ?�행?�도�?변�?
-  // useEffect(() => {
-  //   if (autoDetectionAttempted) return
-  //   if (!script?.trim()) return
-  //   if (characters.length > 0) return
-
-  //   void handleAutoDetectCharacters()
-  // }, [autoDetectionAttempted, characters.length, handleAutoDetectCharacters, script])
-
-  // Preview helpers
   const hasUploadPreviews = uploadPreviews.length > 0
   const boundedPreviewIndex = hasUploadPreviews
     ? Math.min(activePreviewIndex, uploadPreviews.length - 1)
@@ -553,66 +365,87 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
             </button>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
+          <div className="flex flex-col gap-6 lg:flex-row" data-testid="character-creation-layout">
             {/* Left: Preview */}
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={creationName}
-                onChange={e => setCreationName(e.target.value)}
-                placeholder="Model name"
-                ref={nameInputRef}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
-              />
+            <div
+              className="flex w-full flex-col gap-4 rounded-xl border border-neutral-800/60 bg-neutral-900/70 p-4"
+              data-testid="character-creation-left"
+            >
+              <div className="space-y-3">
+                <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+                  Model name
+                </label>
+                <input
+                  type="text"
+                  value={creationName}
+                  onChange={e => setCreationName(e.target.value)}
+                  placeholder="Model name"
+                  ref={nameInputRef}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                />
+              </div>
 
-              <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
-                {activeMode === 'generate' && (isSaving || (characters.length > 0 && characters[characters.length - 1].imageUrl)) ? (
-                  isSaving ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-neutral-300">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent"></div>
-                      Generating...
-                    </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-neutral-500">
+                  <span>Preview</span>
+                  {activeMode === 'upload' && hasUploadPreviews ? (
+                    <span className="text-[10px] text-neutral-400">
+                      {boundedPreviewIndex + 1}/{uploadPreviews.length}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="relative mx-auto aspect-[3/4] w-full max-w-[320px] overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
+                  {activeMode === 'generate' &&
+                  (isSaving || (characters.length > 0 && characters[characters.length - 1].imageUrl)) ? (
+                    isSaving ? (
+                      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-neutral-300">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent" />
+                        Generating...
+                      </div>
+                    ) : (
+                      <Image
+                        src={characters[characters.length - 1].imageUrl!}
+                        alt="Generated preview"
+                        width={280}
+                        height={373}
+                        className="h-full w-full object-cover"
+                      />
+                    )
+                  ) : activeMode === 'upload' && activePreview ? (
+                    <>
+                      <img
+                        src={activePreview}
+                        alt="Upload preview"
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        onClick={() => handleRemoveImage()}
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
+                        aria-label="Remove selected preview"
+                      >
+                        ×
+                      </button>
+                    </>
                   ) : (
-                    <Image
-                      src={characters[characters.length - 1].imageUrl!}
-                      alt="Preview"
-                      width={280}
-                      height={373}
-                      className="h-full w-full object-cover"
-                    />
-                  )
-                ) : activeMode === 'upload' && activePreview ? (
-                  <>
-                    <img
-                      src={activePreview}
-                      alt="Upload preview"
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      onClick={() => handleRemoveImage()}
-                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
-                    >
-                      ×
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs uppercase tracking-wide text-neutral-500">
-                    Preview
-                  </div>
-                )}
+                    <div className="flex h-full items-center justify-center text-xs uppercase tracking-wide text-neutral-500">
+                      No preview yet
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Upload thumbnails */}
               {activeMode === 'upload' && uploadPreviews.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto">
+                <div className="flex items-center justify-center gap-2 overflow-x-auto">
                   {uploadPreviews.map((preview, index) => (
                     <button
                       key={`${preview}-${index}`}
                       onClick={() => setActivePreviewIndex(index)}
                       className={clsx(
-                        'h-12 w-9 flex-shrink-0 overflow-hidden rounded border transition',
+                        'h-12 w-9 flex-shrink-0 overflow-hidden rounded border transition focus:outline-none focus:ring-2 focus:ring-white/40',
                         index === boundedPreviewIndex ? 'border-white' : 'border-neutral-700'
                       )}
+                      aria-label={`Select upload preview ${index + 1}`}
                     >
                       <img src={preview} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
@@ -622,15 +455,21 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
             </div>
 
             {/* Right: Input Area */}
-            <div className="space-y-4">
+            <div
+              className="flex w-full flex-1 flex-col gap-4 rounded-xl border border-neutral-800/60 bg-neutral-900/70 p-4"
+              data-testid="character-creation-right"
+            >
               {activeMode === 'generate' ? (
-                <>
-                  <div className="relative">
+                <div className="flex flex-1 flex-col gap-4">
+                  <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+                    Description
+                  </label>
+                  <div className="relative flex-1">
                     <textarea
                       value={imagePrompt}
                       onChange={e => setImagePrompt(e.target.value)}
                       placeholder={GENERATE_DESCRIPTION_PLACEHOLDER}
-                      className="min-h-[320px] w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-3 pb-16 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                      className="h-full min-h-[260px] w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-3 pr-28 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
                     />
 
                     <div className="absolute bottom-3 right-3">
@@ -639,11 +478,12 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                           <button
                             type="button"
                             className="flex items-center gap-2 rounded-lg border border-neutral-600 bg-neutral-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-neutral-600"
+                            aria-label="Select AI model"
                           >
                             <span>
                               {allowedCharacterModels.find(m => m.id === model)?.name || 'Model'}
                             </span>
-                            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none">
+                            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                               <path
                                 d="M6 8l4 4 4-4"
                                 stroke="currentColor"
@@ -670,16 +510,27 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                       </DropdownMenu>
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <>
+                <div className="flex flex-1 flex-col gap-4">
+                  <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+                    Upload images
+                  </label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex min-h-[320px] cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-neutral-700 bg-neutral-800/50 transition hover:border-neutral-600"
+                    className="flex flex-1 min-h-[260px] cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-neutral-700 bg-neutral-800/50 transition hover:border-neutral-600"
+                    tabIndex={0}
+                    aria-label="Upload character images"
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        fileInputRef.current?.click()
+                      }
+                    }}
                   >
                     <div className="text-center">
                       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-neutral-600 bg-neutral-700 text-white">
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -688,7 +539,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                           />
                         </svg>
                       </div>
-                      <p className="text-sm font-medium text-white">Click to upload</p>
+                      <p className="text-sm font-medium text-white">Click or press enter to upload</p>
                       <p className="mt-1 text-xs text-neutral-400">PNG, JPG (max 10MB)</p>
                     </div>
                   </div>
@@ -701,7 +552,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                     className="hidden"
                     onChange={handleFileChange}
                   />
-                </>
+                </div>
               )}
 
               {creationError && (
@@ -710,7 +561,7 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
                 </div>
               )}
 
-              <div className="flex justify-end">
+              <div className="flex justify-end border-t border-neutral-800 pt-4">
                 <Button
                   onClick={handleCreateCharacter}
                   disabled={isSaving || !creationName.trim()}

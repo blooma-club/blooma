@@ -127,24 +127,32 @@ export default function ScriptEditor({
                   </div>
                 ) : (
                   // 입력창
-                  <div className="rounded-[20px] border border-white/10 bg-black/50 px-3 py-3 shadow-[0_40px_100px_-70px_rgba(0,0,0,0.85)]">
-                    <textarea
-                      ref={textareaRef}
-                      value={textValue}
-                      onChange={event => setTextValue(event.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Describe your storyboard idea..."
-                      className="h-16 w-full resize-none rounded-[12px] border border-white/8 bg-black/40 px-3 py-2 text-md text-white/85 placeholder:text-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-                    />
-                    <div className="mt-2 flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={handleStartChat}
-                        disabled={!textValue.trim()}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:bg-white/60"
-                      >
-                        <Send className="h-3 w-3" />
-                      </button>
+                  <div
+                    data-testid="script-input-shell"
+                    className="group relative rounded-[26px] bg-gradient-to-r from-white/15 via-indigo-400/30 to-white/15 p-[2px] shadow-[0_0_45px_rgba(99,102,241,0.18)] transition-all duration-500 hover:from-white/25 hover:via-indigo-300/40 hover:to-white/25"
+                  >
+                    {/* Soft glow wrapper keeps the requested beam effect without overpowering the dark theme */}
+                    <div className="rounded-[22px] border border-white/12 bg-black/60 px-4 py-4 backdrop-blur-sm transition-colors duration-300 group-hover:border-white/20">
+                      <textarea
+                        ref={textareaRef}
+                        value={textValue}
+                        onChange={event => setTextValue(event.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Describe your idea..."
+                        aria-label="Storyboard idea input"
+                        className="h-16 w-full resize-none rounded-[14px] border border-white/10 bg-black/50 px-4 py-3 text-md text-white/85 placeholder:text-white/45 transition focus-visible:outline-none focus-visible:border-blue-200/40 focus-visible:ring-2 focus-visible:ring-blue-300/40"
+                      />
+                      <div className="mt-3 flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={handleStartChat}
+                          disabled={!textValue.trim()}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:bg-white/60"
+                          aria-label="Send script idea"
+                        >
+                          <Send className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
