@@ -16,6 +16,16 @@ type OptionalSettings = {
   constraints?: string
 }
 
+const TOTAL_QUESTIONS = 5
+
+const QUESTION_TOPICS = [
+  "What they're creating (project type)",
+  "Target audience demographics and psychographics",
+  "Core message, emotion, or story to convey",
+  "Visual style, mood, and aesthetic preferences",
+  "Video length, format, and platform"
+]
+
 export async function POST(req: Request) {
   try {
     console.log('🎬 Script generation API called')
@@ -25,12 +35,14 @@ export async function POST(req: Request) {
     const messages = Array.isArray(body.messages) ? body.messages : null
     const settings: OptionalSettings = body.settings || {}
     const selectedModel: string = body.model || 'google/gemini-flash-1.5' // Default to Gemini Flash 1.5
+    const questionMode: boolean = body.questionMode !== false // Default to true
 
     console.log('📝 Input data:', {
       userScriptLength: userScript.length,
       settings,
       model: selectedModel,
-      messageCount: messages?.length || 0
+      messageCount: messages?.length || 0,
+      questionMode
     })
 
     const lang = settings.language || 'English'
@@ -77,7 +89,83 @@ export async function POST(req: Request) {
       )
     }
 
-    console.log('🤖 Generating script with OpenRouter (ChatGPT-5)...')
+    // Question-based mode: Ask questions before generating script
+    if (questionMode && messages) {
+      // Count how many user answers we have received
+      const userMessages = messages.filter((m: any) => m.role === 'user')
+      const answersCount = userMessages.length
+      
+      console.log(`🎯 Question mode - User has provided ${answersCount} answers`)
+      
+      // If we still need to ask questions (less than 5 total)
+      if (answersCount > 0 && answersCount < TOTAL_QUESTIONS) {
+        const nextQuestionNumber = answersCount + 1
+        const nextTopic = QUESTION_TOPICS[answersCount]
+        
+        console.log(`🤖 Generating dynamic question ${nextQuestionNumber}/${TOTAL_QUESTIONS} about: ${nextTopic}`)
+        
+        // Build context for LLM to generate next question
+        const conversationContext = messages
+          .map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n')
+        
+        const questionPrompt = `You are an expert creative consultant helping a user plan their storyboard project.
+
+Conversation so far:
+${conversationContext}
+
+Based on the user's answers, generate the next question (Question ${nextQuestionNumber}/${TOTAL_QUESTIONS}) about: ${nextTopic}
+
+Your response should:
+1. Provide a brief, relevant insight or recommendation (1-2 sentences) - keep it concise and actionable
+2. Ask a clear, specific question that builds on their previous answers
+3. Include helpful examples in parentheses
+
+Format your response EXACTLY like this:
+
+💡 [Your brief insight or recommendation based on their answer - 1-2 sentences max]
+
+**Question:** [Your clear, direct question]
+(Examples: [relevant examples separated by commas])
+
+Keep the insight brief and the question crystal clear. Be conversational but structured.`
+
+        const questionCompletion = await openrouter.chat.completions.create({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: 'You are a creative consultant helping plan video storyboard projects. Be insightful, conversational, and helpful.' },
+            { role: 'user', content: questionPrompt }
+          ],
+          temperature: 0.8,
+          max_tokens: 300,
+        })
+
+        const generatedQuestion = questionCompletion.choices?.[0]?.message?.content || ''
+        
+        if (!generatedQuestion || generatedQuestion.trim().length === 0) {
+          throw new Error('Failed to generate next question')
+        }
+
+        console.log(`✅ Generated dynamic question: ${generatedQuestion.slice(0, 100)}...`)
+        
+        return NextResponse.json({
+          script: generatedQuestion.trim(),
+          isQuestion: true,
+          questionNumber: nextQuestionNumber,
+          totalQuestions: TOTAL_QUESTIONS,
+          meta: {
+            provider: 'openrouter',
+            model: selectedModel,
+            type: 'dynamic-question',
+          },
+        })
+      }
+      
+      // All questions answered - generate final script
+      console.log('✅ All questions answered - generating final script...')
+    }
+
+    console.log('🤖 Generating script with OpenRouter...')
     const systemPrompt = `You are an award-winning creative director and senior storyboard writer specialized in creating production-ready scripts.
 
 Your task: Generate or improve a storyboard script by combining the Brief (optional settings) and the User Script (if provided). Always output in ${lang}.
@@ -106,11 +194,10 @@ Required Output Format (Markdown):
 
 # Storyboard
 
-## Summary
+## Title
 - 1-2 sentences capturing the story premise and goal (include target audience & tone)
 
-## Shot
-Shot #: <number>
+Shot: <number>
 Shot Description: <concise action/visual summary optimized for AI image generation>
 Camera Shot: <size/type>
 Angle: <camera angle or movement>
@@ -119,7 +206,7 @@ Mood/Lighting: <tone, lighting, color cues>
 Dialogue / VO: <dialogue or narration; omit if none>
 Sound: <SFX/music; omit if none>
 
-[Repeat Shot block for each scene]
+[Repeat Shot block for each scene with Shot 2, Shot 3, etc.]
 
 Quality Standards:
 - Each shot description should be vivid, specific, and optimized for AI image generation
@@ -175,6 +262,8 @@ Quality Standards:
     console.log(`✅ Script generated successfully with OpenRouter (${selectedModel})`)
     return NextResponse.json({
       script: script.trim(),
+      isQuestion: false,
+      isFinalScript: questionMode && messages ? true : false,
       meta: {
         provider: 'openrouter',
         model: selectedModel,

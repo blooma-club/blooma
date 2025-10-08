@@ -67,7 +67,7 @@ export default function PreviewPanel({
     <div className="space-y-6 text-white">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="space-y-6">
-          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-neutral-500">
@@ -106,7 +106,7 @@ export default function PreviewPanel({
             </div>
           </div>
 
-          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
             <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Models</p>
@@ -126,7 +126,7 @@ export default function PreviewPanel({
                 characters.map((character, index) => (
                   <div
                     key={character.id || index}
-                    className="overflow-hidden rounded-2xl border border-neutral-800/80 bg-neutral-950"
+                    className="overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-950"
                   >
                     <div className="relative w-full pb-[150%]">
                       {character.imageUrl ? (
@@ -154,7 +154,7 @@ export default function PreviewPanel({
         </section>
 
         <aside className="space-y-6">
-          <div className="rounded-3xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">Visual settings</h3>
             </div>
