@@ -25,10 +25,10 @@ export default function Home() {
             className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
           >
             <img
-              src="/blooma.svg"
+              src="/blooma_logo.svg"
               alt="Blooma Logo"
               aria-label="Blooma Logo"
-              className="w-14 h-14 object-contain"
+              className="w-9 h-9 object-contain"
               draggable={false}
             />
             <span className="text-2xl font-bold text-white select-none ml-3">Blooma</span>

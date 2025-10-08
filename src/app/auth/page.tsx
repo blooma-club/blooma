@@ -42,10 +42,10 @@ export default function AuthPage() {
         aria-label="Go to homepage"
       >
         <Image
-          src="/blooma_logo.png"
+          src="/blooma_logo.svg"
           alt="Blooma Logo"
-          width={32}
-          height={32}
+          width={24}
+          height={24}
           className="h-6 w-6"
         />
       </button>

@@ -204,7 +204,7 @@ export default function DashboardPage() {
           className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
         >
           <Image
-            src="/blooma.svg"
+            src="/blooma_logo.svg"
             alt="Blooma Logo"
             width={40}
             height={40}

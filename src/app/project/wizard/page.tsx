@@ -708,7 +708,7 @@ Please generate a detailed storyboard script in English.`
               Back to Questions
             </Button>
             <div className="flex items-center gap-2">
-              <img src="/blooma.svg" alt="Blooma Logo" className="w-8 h-8 object-contain" />
+              <img src="/blooma_logo.svg" alt="Blooma Logo" className="w-7 h-7 object-contain" />
               <span className="text-xl font-bold">Generated Script Preview</span>
             </div>
           </div>
@@ -786,7 +786,7 @@ Please generate a detailed storyboard script in English.`
               Back to Script
             </Button>
             <div className="flex items-center gap-2">
-              <img src="/blooma.svg" alt="Blooma Logo" className="w-8 h-8 object-contain" />
+              <img src="/blooma_logo.svg" alt="Blooma Logo" className="w-7 h-7 object-contain" />
               <span className="text-xl font-bold">Character Setup</span>
             </div>
           </div>
@@ -1041,7 +1041,7 @@ Please generate a detailed storyboard script in English.`
             Back
           </Button>
           <div className="flex items-center gap-2">
-            <img src="/blooma.svg" alt="Blooma Logo" className="w-8 h-8 object-contain" />
+            <img src="/blooma_logo.svg" alt="Blooma Logo" className="w-7 h-7 object-contain" />
             <span className="text-xl font-bold">Storyboard Wizard</span>
           </div>
         </div>

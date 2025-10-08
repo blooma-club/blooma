@@ -610,13 +610,14 @@ export default function CharacterWizard({ onChange, initial, script, projectId, 
     }
   }, [script, model])
 
-  useEffect(() => {
-    if (autoDetectionAttempted) return
-    if (!script?.trim()) return
-    if (characters.length > 0) return
+  // 자동 감지 기능 제거 - 사용자가 명시적으로 버튼을 클릭할 때만 실행하도록 변경
+  // useEffect(() => {
+  //   if (autoDetectionAttempted) return
+  //   if (!script?.trim()) return
+  //   if (characters.length > 0) return
 
-    void handleAutoDetectCharacters()
-  }, [autoDetectionAttempted, characters.length, handleAutoDetectCharacters, script])
+  //   void handleAutoDetectCharacters()
+  // }, [autoDetectionAttempted, characters.length, handleAutoDetectCharacters, script])
 
   const hasManualImages = manualImagePreviews.length > 0
   const boundedManualIndex = hasManualImages
