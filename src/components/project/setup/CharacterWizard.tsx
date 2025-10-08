@@ -13,7 +13,7 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { getImageGenerationModels } from '@/lib/fal-ai'
+import { getImageGenerationModels, DEFAULT_MODEL } from '@/lib/fal-ai'
 
 const CHARACTER_IMAGE_STYLE =
   'full-body portrait, white background, neutral pose facing forward, clean even lighting'
@@ -67,9 +67,9 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
 
   // Character 모델?� 지?�된 3가지�??�용 (working models only)
   const allowedCharacterModelIds = [
-    'fal-ai/flux-pro/kontext',
     'fal-ai/flux-pro/v1.1-ultra',
     'fal-ai/bytedance/seedream/v4/text-to-image',
+    'fal-ai/flux-pro/kontext',
   ] as const
 
   const allowedCharacterModels = getImageGenerationModels().filter(m =>
@@ -78,7 +78,7 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
 
   const [model, setModel] = useState<string>(() => {
     const first = allowedCharacterModels[0]
-    return first?.id || 'fal-ai/flux-pro/kontext'
+    return first?.id || DEFAULT_MODEL
   })
 
   const [imagePrompt, setImagePrompt] = useState<string>('')
@@ -797,7 +797,7 @@ function CharacterEditForm({
         image_url?: string
       } = {
         prompt: fullPrompt,
-        modelId: 'fal-ai/flux-pro/kontext',
+        modelId: DEFAULT_MODEL,
         aspectRatio: '3:4',
         quality: 'balanced',
       }
@@ -812,6 +812,7 @@ function CharacterEditForm({
 
       if (referenceImageUrl) {
         requestBody.image_url = referenceImageUrl
+        requestBody.modelId = 'fal-ai/flux-pro/kontext'
         console.log(
           '[CharacterWizard] Using image-to-image generation with reference:',
           referenceImageUrl.substring(0, 50) + '...'

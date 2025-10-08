@@ -27,16 +27,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 모델 정보 확인
-    const modelInfo = getModelInfo(modelId)
-    if (!modelInfo) {
+    if (!getModelInfo(modelId)) {
       return NextResponse.json(
         { error: `Unsupported model: ${modelId}` },
         { status: 400 }
       )
     }
 
-    console.log(`[API] Generating image with model: ${modelId}`)
+    console.log(`[API] Requested model: ${modelId}`)
     console.log(`[API] Options:`, { style, aspectRatio, quality, width, height, image_url, imageUrls })
 
     // Prepare image URLs for the generation
@@ -47,8 +45,34 @@ export async function POST(request: NextRequest) {
       inputImageUrls = imageUrls
     }
 
+    let effectiveModelId = modelId
+    let modelOverrideWarning: string | undefined
+
+    if (modelId === 'fal-ai/flux-pro/kontext' && inputImageUrls.length === 0) {
+      effectiveModelId = DEFAULT_MODEL
+      modelOverrideWarning =
+        `Model fal-ai/flux-pro/kontext requires a reference image. Using ${DEFAULT_MODEL} instead.`
+    }
+
+    if (effectiveModelId !== modelId) {
+      console.log('[API] Overriding requested model due to missing reference image', {
+        requestedModel: modelId,
+        effectiveModel: effectiveModelId,
+      })
+    }
+
+    const modelInfo = getModelInfo(effectiveModelId)
+    if (!modelInfo) {
+      return NextResponse.json(
+        { error: `Unsupported model: ${effectiveModelId}` },
+        { status: 400 }
+      )
+    }
+
+    console.log(`[API] Generating image with model: ${effectiveModelId}`)
+
     // 통합된 이미지 생성 함수 사용
-    const result = await generateImageWithModel(prompt, modelId, {
+    const result = await generateImageWithModel(prompt, effectiveModelId, {
       style,
       aspectRatio,
       width,
@@ -68,17 +92,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const warnings = [result.warning, modelOverrideWarning].filter(
+      (value): value is string => Boolean(value)
+    )
+
     return NextResponse.json({
       success: true,
       imageUrl: result.imageUrl,
       prompt,
-      modelUsed: modelId,
+      modelUsed: effectiveModelId,
       modelInfo: {
         name: modelInfo.name,
         description: modelInfo.description,
         quality: modelInfo.quality
       },
-      ...(result.warning ? { warning: result.warning } : {}),
+      ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
     })
     
   } catch (error) {

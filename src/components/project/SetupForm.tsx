@@ -12,7 +12,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
-import { getImageGenerationModels, getModelInfo, type FalAIModel } from '@/lib/fal-ai'
+import { getImageGenerationModels, getModelInfo, DEFAULT_MODEL, type FalAIModel } from '@/lib/fal-ai'
 import { saveDraftToLocal, loadDraftFromLocal, clearDraftFromLocal } from '@/lib/localStorage'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
@@ -76,7 +76,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     script: '',
     visualStyle: 'photo',
     ratio: '16:9' as '16:9' | '1:1' | '9:16',
-    selectedModel: 'fal-ai/flux-pro/kontext',
+    selectedModel: DEFAULT_MODEL,
     settings: DEFAULT_SETTINGS,
     characters: [] as any[],
   })
@@ -141,7 +141,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         script: savedDraft.script || '',
         visualStyle: savedDraft.visualStyle || 'photo',
         ratio: (savedDraft.ratio as '16:9' | '1:1' | '9:16') || '16:9',
-        selectedModel: savedDraft.selectedModel || 'fal-ai/flux-pro/kontext',
+        selectedModel: savedDraft.selectedModel || DEFAULT_MODEL,
         settings: {
           ...DEFAULT_SETTINGS,
           ...savedSettings,
@@ -164,7 +164,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       draftData.script.trim() === '' &&
       draftData.visualStyle === 'photo' &&
       draftData.ratio === '16:9' &&
-      draftData.selectedModel === 'fal-ai/flux-pro/kontext' &&
+      draftData.selectedModel === DEFAULT_MODEL &&
       JSON.stringify(draftData.settings) === JSON.stringify(DEFAULT_SETTINGS) &&
       draftData.characters.length === 0
     )
