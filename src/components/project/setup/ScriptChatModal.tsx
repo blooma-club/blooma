@@ -47,6 +47,18 @@ const parseImprovedPrompt = (raw: string) => {
 }
 
 const DEFAULT_MODEL_FALLBACK: ModelKey = 'google/gemini-2.5-flash'
+const STORAGE_KEY = 'blooma_script_conversation'
+
+type StoredConversation = {
+  messages: ChatMessage[]
+  currentQuestionNumber: number
+  isScriptReady: boolean
+  generatedScript: string
+  currentTab: 'conversation' | 'script'
+  selectedModel?: ModelKey
+  inputValue?: string
+  timestamp?: number
+}
 
 export default function ScriptChatModal({
   open,
@@ -92,8 +104,6 @@ export default function ScriptChatModal({
     }
 
     let isInitialized = false
-    const STORAGE_KEY = 'blooma_script_conversation'
-    
     const initializeConversation = async () => {
       if (isInitialized) return
       isInitialized = true
@@ -107,7 +117,7 @@ export default function ScriptChatModal({
       const savedData = localStorage.getItem(STORAGE_KEY)
       if (savedData) {
         try {
-          const parsed = JSON.parse(savedData)
+          const parsed = JSON.parse(savedData) as StoredConversation
           if (parsed.messages && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
             // Validate and reconstruct messages safely
             const validMessages = parsed.messages.filter((msg: any) =>
@@ -124,7 +134,16 @@ export default function ScriptChatModal({
               setCurrentQuestionNumber(parsed.currentQuestionNumber || 1)
               setIsScriptReady(parsed.isScriptReady || false)
               setGeneratedScript(parsed.generatedScript || '')
-              setCurrentTab(parsed.currentTab || 'conversation')
+              // Default back to the script tab when a completed script exists
+              setCurrentTab(parsed.isScriptReady ? 'script' : (parsed.currentTab || 'conversation'))
+              if (typeof parsed.inputValue === 'string') {
+                setInputValue(parsed.inputValue)
+              }
+              const savedModel = parsed.selectedModel
+              if (savedModel && AVAILABLE_MODELS[savedModel]) {
+                setSelectedModel(savedModel)
+                modelRef.current = savedModel
+              }
               console.log('✅ Loaded conversation from localStorage')
               return
             }
@@ -234,8 +253,6 @@ export default function ScriptChatModal({
   useEffect(() => {
     if (!open || messages.length === 0) return
 
-    const STORAGE_KEY = 'blooma_script_conversation'
-    
     // Debounce the save to avoid excessive writes
     const timeoutId = setTimeout(() => {
       const dataToSave = {
@@ -244,6 +261,8 @@ export default function ScriptChatModal({
         isScriptReady,
         generatedScript,
         currentTab,
+        selectedModel,
+        inputValue,
         timestamp: Date.now(),
       }
 
@@ -284,7 +303,7 @@ export default function ScriptChatModal({
     }, 500) // Debounce 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [open, messages, currentQuestionNumber, isScriptReady, generatedScript, currentTab])
+  }, [open, messages, currentQuestionNumber, isScriptReady, generatedScript, currentTab, selectedModel, inputValue])
 
   useEffect(() => {
     if (open) {
@@ -403,14 +422,12 @@ export default function ScriptChatModal({
       return
     }
 
-    // Clear localStorage when completing
-    localStorage.removeItem('blooma_script_conversation')
     onComplete(generatedScript)
   }
 
   const handleClearConversation = () => {
     if (confirm('Are you sure you want to start over? This will clear your current conversation.')) {
-      localStorage.removeItem('blooma_script_conversation')
+      localStorage.removeItem(STORAGE_KEY)
       setMessages([])
       setCurrentQuestionNumber(0)
       setIsScriptReady(false)
@@ -702,5 +719,3 @@ export default function ScriptChatModal({
     </div>
   )
 }
-
-

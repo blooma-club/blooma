@@ -20,6 +20,8 @@ type Props = {
   onNext: () => void
 }
 
+const STORAGE_KEY = 'blooma_script_conversation'
+
 export default function ScriptEditor({
   mode,
   setMode,
@@ -51,6 +53,23 @@ export default function ScriptEditor({
     }
   }, [mode, setMode])
 
+  useEffect(() => {
+    if (completedScript) return
+    try {
+      const saved = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
+      if (!saved) return
+      const parsed = JSON.parse(saved) as {
+        generatedScript?: string
+        isScriptReady?: boolean
+      }
+      if (parsed?.isScriptReady && typeof parsed.generatedScript === 'string' && parsed.generatedScript.trim()) {
+        setCompletedScript(parsed.generatedScript)
+        setTextValue(parsed.generatedScript)
+      }
+    } catch (error) {
+      console.error('Failed to restore saved script:', error)
+    }
+  }, [completedScript, setTextValue])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -73,6 +92,7 @@ export default function ScriptEditor({
 
   const handleCompleteScript = (script: string) => {
     setCompletedScript(script)
+    setTextValue(script)
     setIsChatModalOpen(false)
   }
 

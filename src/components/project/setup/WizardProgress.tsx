@@ -4,10 +4,9 @@ import React from 'react'
 
 type Props = {
   currentStep: 1 | 2 | 3
-  onStepClick?: (step: 1 | 2 | 3) => void
 }
 
-export default function WizardProgress({ currentStep, onStepClick }: Props) {
+export default function WizardProgress({ currentStep }: Props) {
   const steps: Array<{ key: 1 | 2 | 3; label: string }> = [
     { key: 1, label: 'Script' },
     { key: 2, label: 'Models' },
@@ -22,16 +21,14 @@ export default function WizardProgress({ currentStep, onStepClick }: Props) {
           const isCompleted = (currentStep as number) > (s.key as number)
           return (
             <li key={s.key} className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onStepClick?.(s.key)}
+              <div
                 aria-current={isActive ? 'step' : undefined}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition text-sm focus:outline-none ${
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition text-sm cursor-default ${
                   isActive
                     ? 'border-white text-white bg-neutral-900'
                     : isCompleted
-                    ? 'border-neutral-500 text-neutral-200 bg-neutral-800 hover:bg-neutral-700'
-                    : 'border-neutral-700 text-neutral-300 bg-neutral-900 hover:bg-neutral-800'
+                    ? 'border-neutral-500 text-neutral-200 bg-neutral-800'
+                    : 'border-neutral-700 text-neutral-300 bg-neutral-900'
                 }`}
               >
                 <span
@@ -43,7 +40,7 @@ export default function WizardProgress({ currentStep, onStepClick }: Props) {
                   {s.key}
                 </span>
                 <span className="font-medium">{s.label}</span>
-              </button>
+              </div>
               {idx < steps.length - 1 && (
                 <span
                   aria-hidden="true"
@@ -59,4 +56,3 @@ export default function WizardProgress({ currentStep, onStepClick }: Props) {
     </nav>
   )
 }
-
