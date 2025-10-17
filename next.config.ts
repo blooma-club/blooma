@@ -1,4 +1,7 @@
 import type { NextConfig } from 'next'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
 
 // Dynamically allow R2 public base URL if provided
 const remotePatterns: Array<{
@@ -91,6 +94,14 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns,
+  },
+  webpack: (config) => {
+    config.resolve = config.resolve || {}
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      punycode: require.resolve('punycode/'),
+    }
+    return config
   },
 }
 

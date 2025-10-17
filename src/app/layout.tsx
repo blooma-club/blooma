@@ -6,6 +6,8 @@ import { Instrument_Serif, Inter } from 'next/font/google';
 import './globals.css';
 import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect';
 
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 const inter = Inter({
   variable: "--font-hanken-sans",
   subsets: ["latin"],
@@ -36,13 +38,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider appearance={{ variables: { colorPrimary: '#000000' } }}>
+    <PublishableClerkProvider>
       <html lang="en">
         <body
           className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
         >
           <SupabaseProvider>
-            <ClerkSyncEffect />
+            {clerkPublishableKey ? <ClerkSyncEffect /> : null}
             <ToasterProvider>
               <div id="root" className="relative flex min-h-screen flex-col">
                 <main className="flex-1">{children}</main>
@@ -51,6 +53,21 @@ export default function RootLayout({
           </SupabaseProvider>
         </body>
       </html>
+    </PublishableClerkProvider>
+  );
+}
+
+function PublishableClerkProvider({ children }: { children: React.ReactNode }) {
+  if (!clerkPublishableKey) {
+    return <>{children}</>;
+  }
+
+  return (
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      appearance={{ variables: { colorPrimary: '#000000' } }}
+    >
+      {children}
     </ClerkProvider>
   );
 }
