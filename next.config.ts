@@ -51,6 +51,11 @@ remotePatterns.push(
     hostname: 'lh6.googleusercontent.com',
     pathname: '/**'
   },
+  {
+    protocol: 'https',
+    hostname: 'img.clerk.com',
+    pathname: '/**'
+  },
   // FAL AI 이미지 도메인
   {
     protocol: 'https',
@@ -60,6 +65,11 @@ remotePatterns.push(
   {
     protocol: 'https',
     hostname: 'v3.fal.media',
+    pathname: '/**'
+  },
+  {
+    protocol: 'https',
+    hostname: 'v3b.fal.media',
     pathname: '/**'
   },
   // 기타 AI 서비스 도메인들

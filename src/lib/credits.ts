@@ -1,5 +1,38 @@
-import { supabase } from './supabase'
-import type { User, AiUsage, CreditTransaction, SubscriptionPlan } from '@/types'
+import { randomUUID } from 'crypto'
+import { queryD1, queryD1Single } from './db/d1'
+import type { AiUsage, SubscriptionPlan } from '@/types'
+
+type UserCreditsRow = {
+  credits?: number | string | null
+  subscription_tier?: string | null
+}
+
+type UsageInsertOptions = {
+  userId: string
+  usageId: string
+  operationType: AiUsage['operation_type']
+  provider: AiUsage['provider']
+  credits: number
+  createdAt: string
+  modelName?: string
+  inputTokens?: number
+  outputTokens?: number
+  imageCount?: number
+  success?: boolean
+  errorMessage?: string
+  metadata?: Record<string, unknown>
+}
+
+function coerceNumber(value: unknown, defaultValue = 0): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : defaultValue
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : defaultValue
+  }
+  return defaultValue
+}
 
 // 구독 플랜별 설정
 export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
@@ -46,20 +79,21 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
  */
 export async function getUserCredits(userId: string): Promise<{ credits: number; tier: string } | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('credits, subscription_tier')
-      .eq('id', userId)
-      .single()
-    
-    if (error) {
-      console.error('Error fetching user credits:', error)
+    const row = await queryD1Single<UserCreditsRow>(
+      `SELECT credits, subscription_tier
+       FROM users
+       WHERE id = ?1
+       LIMIT 1`,
+      [userId],
+    )
+
+    if (!row) {
       return null
     }
-    
+
     return {
-      credits: data.credits || 0,
-      tier: data.subscription_tier || 'basic'
+      credits: coerceNumber(row.credits),
+      tier: row.subscription_tier || 'basic',
     }
   } catch (error) {
     console.error('Error in getUserCredits:', error)
@@ -146,63 +180,75 @@ export async function consumeCredits(
     }
     
     const creditsToConsume = creditCheck.required
-    
-    // 트랜잭션으로 크레딧 차감 및 사용량 기록
-    const { data: usageData, error: usageError } = await supabase
-      .from('ai_usage')
-      .insert({
-        user_id: userId,
-        operation_type: operationType,
-        provider,
-        model_name: modelName,
-        credits_consumed: creditsToConsume,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        image_count: imageCount,
-        success,
-        error_message: errorMessage,
-        metadata
-      })
-      .select('id')
-      .single()
-    
-    if (usageError) {
-      console.error('Error recording AI usage:', usageError)
-      return { success: false }
+    const nowIso = new Date().toISOString()
+
+    const updateRows = await queryD1<{ credits?: number | string }>(
+      `UPDATE users
+       SET credits = COALESCE(credits, 0) - ?1,
+           credits_used = COALESCE(credits_used, 0) + ?1,
+           updated_at = ?2
+       WHERE id = ?3
+         AND COALESCE(credits, 0) >= ?1
+       RETURNING credits`,
+      [creditsToConsume, nowIso, userId],
+    )
+
+    const updatedRow = updateRows.at(0)
+    if (!updatedRow) {
+      console.warn('consumeCredits: concurrent update prevented deduction', { userId })
+      return {
+        success: false,
+        usageId: undefined,
+        newBalance: creditCheck.current,
+      }
     }
-    
-    // 크레딧 차감
-    const newCredits = creditCheck.current - creditsToConsume
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .update({
-        credits: newCredits,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select('credits')
-      .single()
-    
-    if (userError) {
-      console.error('Error updating user credits:', userError)
-      return { success: false }
-    }
-    
-    // 크레딧 거래 내역 기록
-    await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'usage',
-        amount: -creditsToConsume,
-        description: `${operationType} (${provider})`,
-        ai_usage_id: usageData.id
-      })
+
+    const usageId = randomUUID()
+    await insertUsageRecord({
+      userId,
+      usageId,
+      operationType,
+      provider,
+      credits: creditsToConsume,
+      createdAt: nowIso,
+      modelName,
+      inputTokens,
+      outputTokens,
+      imageCount,
+      success,
+      errorMessage,
+      metadata,
+    })
+
+    const transactionId = randomUUID()
+    await queryD1(
+      `INSERT INTO credit_transactions (
+         id,
+         user_id,
+         type,
+         amount,
+         description,
+         ai_usage_id,
+         created_at
+       )
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+      [
+        transactionId,
+        userId,
+        'usage',
+        -creditsToConsume,
+        `${operationType} (${provider})`,
+        usageId,
+        nowIso,
+      ],
+    )
+
+    const newBalance = coerceNumber(updatedRow.credits)
     
     return {
       success: true,
-      usageId: usageData.id,
-      newBalance: userData.credits
+      usageId,
+      newBalance,
     }
     
   } catch (error) {
@@ -218,26 +264,26 @@ export async function resetMonthlyCredits(userId?: string): Promise<void> {
   try {
     const now = new Date()
     const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1) // 다음 달 1일
-    
-    let query = supabase
-      .from('users')
-      .update({
-        credits_used: 0,
-        credits_reset_date: resetDate.toISOString(),
-        updated_at: now.toISOString()
-      })
-    
+
     if (userId) {
-      query = query.eq('id', userId)
+      await queryD1(
+        `UPDATE users
+         SET credits_used = 0,
+             credits_reset_date = ?1,
+             updated_at = ?2
+         WHERE id = ?3`,
+        [resetDate.toISOString(), now.toISOString(), userId],
+      )
     } else {
-      // 모든 사용자 리셋 (월말 배치)
-      query = query.lt('credits_reset_date', now.toISOString())
-    }
-    
-    const { error } = await query
-    
-    if (error) {
-      console.error('Error resetting monthly credits:', error)
+      await queryD1(
+        `UPDATE users
+         SET credits_used = 0,
+             credits_reset_date = ?1,
+             updated_at = ?2
+         WHERE credits_reset_date IS NULL
+            OR credits_reset_date < ?3`,
+        [resetDate.toISOString(), now.toISOString(), now.toISOString()],
+      )
     }
   } catch (error) {
     console.error('Error in resetMonthlyCredits:', error)
@@ -260,36 +306,40 @@ export async function addCredits(
     }
     
     const newBalance = currentCredits.credits + amount
+    const nowIso = new Date().toISOString()
     
-    // 크레딧 업데이트
-    const { data, error } = await supabase
-      .from('users')
-      .update({
-        credits: newBalance,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select('credits')
-      .single()
-    
-    if (error) {
-      console.error('Error adding credits:', error)
+    const updateRows = await queryD1<{ credits?: number | string }>(
+      `UPDATE users
+       SET credits = COALESCE(credits, 0) + ?1,
+           updated_at = ?2
+       WHERE id = ?3
+       RETURNING credits`,
+      [amount, nowIso, userId],
+    )
+
+    const updatedRow = updateRows.at(0)
+    if (!updatedRow) {
+      console.error('addCredits: user update failed', { userId })
       return { success: false }
     }
-    
-    // 거래 내역 기록
-    await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'purchase',
-        amount,
-        description
-      })
-    
+
+    const transactionId = randomUUID()
+    await queryD1(
+      `INSERT INTO credit_transactions (
+         id,
+         user_id,
+         type,
+         amount,
+         description,
+         created_at
+       )
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      [transactionId, userId, 'purchase', amount, description, nowIso],
+    )
+
     return {
       success: true,
-      newBalance: data.credits
+      newBalance: coerceNumber(updatedRow.credits, newBalance),
     }
     
   } catch (error) {
@@ -325,27 +375,32 @@ export async function getUserUsageStats(
         break
     }
     
-    const { data, error } = await supabase
-      .from('ai_usage')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString())
-      .eq('success', true)
-    
-    if (error) {
-      console.error('Error fetching usage stats:', error)
-      return null
-    }
-    
-    const totalCreditsUsed = data.reduce((sum, usage) => sum + usage.credits_consumed, 0)
-    
-    const operationCounts = data.reduce((acc, usage) => {
-      acc[usage.operation_type] = (acc[usage.operation_type] || 0) + 1
+    const rows = await queryD1<{
+      credits_consumed?: number | string | null
+      operation_type: string
+      provider: string
+    }>(
+      `SELECT credits_consumed, operation_type, provider
+       FROM ai_usage
+       WHERE user_id = ?1
+         AND created_at >= ?2
+         AND success = 1`,
+      [userId, startDate.toISOString()],
+    )
+
+    const totalCreditsUsed = rows.reduce((sum, usage) => {
+      return sum + coerceNumber(usage.credits_consumed)
+    }, 0)
+
+    const operationCounts = rows.reduce((acc, usage) => {
+      const key = usage.operation_type ?? 'unknown'
+      acc[key] = (acc[key] || 0) + 1
       return acc
     }, {} as Record<string, number>)
-    
-    const providerStats = data.reduce((acc, usage) => {
-      acc[usage.provider] = (acc[usage.provider] || 0) + usage.credits_consumed
+
+    const providerStats = rows.reduce((acc, usage) => {
+      const key = usage.provider ?? 'unknown'
+      acc[key] = (acc[key] || 0) + coerceNumber(usage.credits_consumed)
       return acc
     }, {} as Record<string, number>)
     
@@ -359,4 +414,54 @@ export async function getUserUsageStats(
     console.error('Error in getUserUsageStats:', error)
     return null
   }
+}
+
+async function insertUsageRecord({
+  userId,
+  usageId,
+  operationType,
+  provider,
+  credits,
+  createdAt,
+  modelName,
+  inputTokens,
+  outputTokens,
+  imageCount,
+  success = true,
+  errorMessage,
+  metadata,
+}: UsageInsertOptions) {
+  await queryD1(
+    `INSERT INTO ai_usage (
+       id,
+       user_id,
+       operation_type,
+       provider,
+       model_name,
+       credits_consumed,
+       input_tokens,
+       output_tokens,
+       image_count,
+       success,
+       error_message,
+       metadata,
+       created_at
+     )
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+    [
+      usageId,
+      userId,
+      operationType,
+      provider,
+      modelName ?? null,
+      credits,
+      inputTokens ?? null,
+      outputTokens ?? null,
+      imageCount ?? null,
+      success ? 1 : 0,
+      errorMessage ?? null,
+      metadata ? JSON.stringify(metadata) : null,
+      createdAt,
+    ],
+  )
 }

@@ -1,8 +1,10 @@
+import { ClerkProvider } from '@clerk/nextjs';
 import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
 import ToasterProvider from '@/components/ui/toast';
-import type { Metadata } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Instrument_Serif, Inter } from 'next/font/google';
+import './globals.css';
+import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect';
 
 const inter = Inter({
   variable: "--font-hanken-sans",
@@ -34,20 +36,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
-      >
-        <SupabaseProvider>
-          <ToasterProvider>
-            <div id="root" className="relative flex min-h-screen flex-col">
-              <main className="flex-1">
-                {children}
-              </main>
-            </div>
-          </ToasterProvider>
-        </SupabaseProvider>
-      </body>
-    </html>
+    <ClerkProvider appearance={{ variables: { colorPrimary: '#000000' } }}>
+      <html lang="en">
+        <body
+          className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
+        >
+          <SupabaseProvider>
+            <ClerkSyncEffect />
+            <ToasterProvider>
+              <div id="root" className="relative flex min-h-screen flex-col">
+                <main className="flex-1">{children}</main>
+              </div>
+            </ToasterProvider>
+          </SupabaseProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

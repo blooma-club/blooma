@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import Image from 'next/image'
 
 export default function Home() {
   const router = useRouter()
@@ -24,12 +25,14 @@ export default function Home() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
           >
-            <img
+            <Image
               src="/blooma_logo.svg"
               alt="Blooma Logo"
               aria-label="Blooma Logo"
+              width={36}
+              height={36}
               className="w-9 h-9 object-contain"
-              draggable={false}
+              priority
             />
             <span className="text-2xl font-bold text-white select-none ml-3">Blooma</span>
           </button>
@@ -90,10 +93,13 @@ export default function Home() {
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center hover:opacity-80 transition-opacity cursor-pointer">
                     {user.user_metadata?.avatar_url ? (
-                      <img
+                      <Image
                         src={user.user_metadata.avatar_url}
                         alt="User Avatar"
+                        width={32}
+                        height={32}
                         className="w-8 h-8 rounded-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center">
@@ -123,12 +129,17 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative isolate min-h-screen overflow-hidden">
         {/* 배경 이미지 (목업) */}
-        <img
-          src="/hero-background.png"
-          alt="hero background"
-          className="absolute inset-0 w-[90%] h-full object-cover left-1/2 transform -translate-x-1/2 rounded-4xl"
-          draggable={false}
-        />
+        <div className="absolute inset-0 flex justify-center">
+          <div className="relative h-full w-[90%]">
+            <Image
+              src="/hero-background.png"
+              alt="hero background"
+              fill
+              className="rounded-4xl object-cover"
+              priority
+            />
+          </div>
+        </div>
         {/* 오버레이 */}
 
         <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-70 pb-24 flex flex-col items-center text-center">

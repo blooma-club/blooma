@@ -46,8 +46,9 @@ Rules:
 
     const characters = Array.isArray(parsed?.characters) ? parsed.characters : []
     return NextResponse.json({ characters })
-  } catch (e: any) {
-    console.error('/api/characters/generate error:', e)
-    return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 })
+  } catch (error: unknown) {
+    console.error('/api/characters/generate error:', error)
+    const message = error instanceof Error ? error.message : 'Server error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

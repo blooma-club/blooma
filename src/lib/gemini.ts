@@ -68,7 +68,18 @@ export async function generateScriptWithGemini(
     maxTokens?: number
     systemInstruction?: string
   } = {}
-): Promise<{ success: boolean; script?: string; error?: string; meta?: any }> {
+): Promise<{
+  success: boolean
+  script?: string
+  error?: string
+  meta?: {
+    model: GeminiModelId
+    elapsedTime: number
+    tokens: number
+    provider: 'gemini'
+    originalError?: string
+  }
+}> {
   try {
     const client = getGeminiAI()
     if (!client) {
@@ -113,21 +124,21 @@ export async function generateScriptWithGemini(
         provider: 'gemini'
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[GEMINI] Script generation failed:', error)
     
     // Handle specific Gemini API errors
     let errorMessage = 'Script generation failed'
     
-    if (error?.message?.includes('API_KEY_INVALID')) {
+    if (error instanceof Error && error.message.includes('API_KEY_INVALID')) {
       errorMessage = 'Invalid Gemini API key. Please check your configuration.'
-    } else if (error?.message?.includes('QUOTA_EXCEEDED')) {
+    } else if (error instanceof Error && error.message.includes('QUOTA_EXCEEDED')) {
       errorMessage = 'Gemini API quota exceeded. Please try again later.'
-    } else if (error?.message?.includes('SAFETY')) {
+    } else if (error instanceof Error && error.message.includes('SAFETY')) {
       errorMessage = 'Content was blocked by safety filters. Please modify your input.'
-    } else if (error?.message?.includes('RECITATION')) {
+    } else if (error instanceof Error && error.message.includes('RECITATION')) {
       errorMessage = 'Content may contain copyrighted material. Please try a different approach.'
-    } else if (error?.message) {
+    } else if (error instanceof Error && error.message) {
       errorMessage = error.message
     }
 
@@ -136,7 +147,10 @@ export async function generateScriptWithGemini(
       error: errorMessage,
       meta: {
         provider: 'gemini',
-        originalError: error?.message
+        model: modelId,
+        elapsedTime: 0,
+        tokens: 0,
+        originalError: error instanceof Error ? error.message : undefined
       }
     }
   }

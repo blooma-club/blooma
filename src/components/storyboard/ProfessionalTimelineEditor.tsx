@@ -1,4 +1,6 @@
 'use client'
+
+/* eslint-disable @next/next/no-img-element -- Timeline previews rely on blob URLs that Next.js Image cannot optimize */
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { StoryboardFrame } from '@/types/storyboard'
 import {
@@ -9,7 +11,7 @@ import {
   Mic,
   Clock,
   X,
-  Image,
+  Image as ImageIcon,
   Settings,
   Film,
   Square,
@@ -384,7 +386,7 @@ export const ProfessionalTimelineEditor: React.FC<ProfessionalTimelineEditorProp
               <div className="flex">
                 <div className="w-32 pr-4 space-y-6 py-2">
                   <div className="flex items-center gap-2 text-sm font-medium text-neutral-300 h-20">
-                    <Image className="w-4 h-4" />
+                    <ImageIcon className="w-4 h-4" />
                     Video
                   </div>
                   <div className="flex items-center gap-2 text-sm font-medium text-neutral-300 h-16">
@@ -560,7 +562,7 @@ export const ProfessionalTimelineEditor: React.FC<ProfessionalTimelineEditorProp
                     ) : (
                       <div className="mb-4 w-full h-32 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center justify-center">
                         <div className="text-center text-neutral-500">
-                          <Image className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                           <div className="text-xs">No Image</div>
                         </div>
                       </div>

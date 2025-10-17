@@ -1,5 +1,11 @@
 import type { SupabaseCharacter } from '@/lib/supabase'
 
+type CharacterCamelCaseExtras = {
+  editPrompt?: string | null
+  imageUrl?: string | null
+  originalImageUrl?: string | null
+}
+
 export interface CharacterMention {
   character: SupabaseCharacter
   slug: string
@@ -18,10 +24,11 @@ export function getCharacterMentionSlug(name: string): string {
 }
 
 export function buildCharacterSnippet(character: SupabaseCharacter): string {
+  const extras = character as CharacterCamelCaseExtras
   const parts: string[] = []
   if (character.name?.trim()) parts.push(character.name.trim())
   if (character.description?.trim()) parts.push(character.description.trim())
-  const editPrompt = character.edit_prompt ?? (character as any).editPrompt
+  const editPrompt = extras.editPrompt ?? character.edit_prompt
   if (typeof editPrompt === 'string' && editPrompt.trim()) {
     parts.push(editPrompt.trim())
   }
@@ -57,10 +64,11 @@ export function resolveCharacterMentions(
     if (!character) continue
 
     const snippet = buildCharacterSnippet(character)
+    const extras = character as CharacterCamelCaseExtras
     const imageUrls = [
-      (character as any).imageUrl,
+      extras.imageUrl,
       character.image_url,
-      (character as any).originalImageUrl,
+      extras.originalImageUrl,
       character.original_image_url,
     ]
       .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))

@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 
 /**
  * Debug endpoint to check Supabase character table status
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase environment variables are not configured',
+        hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      }, { status: 500 })
+    }
+
+    const supabase = getSupabaseClient()
+
     console.log('[Debug] Checking Supabase characters table...')
 
     // Test basic table access
@@ -46,6 +57,15 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase environment variables are not configured',
+      }, { status: 500 })
+    }
+
+    const supabase = getSupabaseClient()
+
     const { user_id, project_id, name } = await request.json()
 
     if (!user_id || !name) {

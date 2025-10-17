@@ -1,32 +1,13 @@
 'use client'
+
+/* eslint-disable @next/next/no-img-element -- Timeline previews rely on blob URLs that Next.js Image cannot optimize */
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { StoryboardFrame } from '@/types/storyboard'
-import {
-  Play,
-  Pause,
-  Volume2,
-  Mic,
-  Clock,
-  Plus,
-  X,
-  Image,
-  Settings,
-  Film,
-  Square,
-  SkipBack,
-  SkipForward,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
-  Upload,
-} from 'lucide-react'
+import { Play, Pause, Volume2, Plus, Film, Square, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 
 interface VideoTimelineEditorProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
-  onSave?: () => void
   onAddFrame?: (insertIndex?: number) => void
 }
 
@@ -41,7 +22,6 @@ interface TimelineClip {
 export const VideoTimelineEditor: React.FC<VideoTimelineEditorProps> = ({
   frames,
   onUpdateFrame,
-  onSave,
   onAddFrame,
 }) => {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null)
@@ -59,7 +39,6 @@ export const VideoTimelineEditor: React.FC<VideoTimelineEditorProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const timelineRef = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const voiceInputRef = useRef<HTMLInputElement>(null)
 
@@ -133,13 +112,6 @@ export const VideoTimelineEditor: React.FC<VideoTimelineEditorProps> = ({
       const url = URL.createObjectURL(file)
       const updateKey = type === 'audio' ? 'audioUrl' : 'voiceOverUrl'
       onUpdateFrame(frameId, { [updateKey]: url })
-    },
-    [onUpdateFrame]
-  )
-
-  const handleVoiceOverTextChange = useCallback(
-    (frameId: string, text: string) => {
-      onUpdateFrame(frameId, { voiceOverText: text })
     },
     [onUpdateFrame]
   )

@@ -1,35 +1,12 @@
 'use client'
 import React, { useState, useCallback, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { StoryboardFrame } from '@/types/storyboard'
-import {
-  Play,
-  Pause,
-  Volume2,
-  Mic,
-  Clock,
-  Plus,
-  X,
-  Image,
-  Settings,
-  Film,
-  Square,
-  SkipBack,
-  SkipForward,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
-  Upload,
-  Video,
-  Music,
-  Type,
-} from 'lucide-react'
+import { Play, Pause, Volume2, Mic, Plus, Film, Square, Maximize2, ZoomIn, ZoomOut, Video, Type } from 'lucide-react'
 
 interface MultiTrackTimelineEditorProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
-  onSave?: () => void
   onAddFrame?: (insertIndex?: number) => void
 }
 
@@ -53,7 +30,6 @@ interface Track {
 export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> = ({
   frames,
   onUpdateFrame,
-  onSave,
   onAddFrame,
 }) => {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null)
@@ -72,7 +48,6 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
   const [selectedTrack, setSelectedTrack] = useState<string>('video')
 
   const timelineRef = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const voiceInputRef = useRef<HTMLInputElement>(null)
 
@@ -186,13 +161,6 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
     [onUpdateFrame]
   )
 
-  const handleVoiceOverTextChange = useCallback(
-    (frameId: string, text: string) => {
-      onUpdateFrame(frameId, { voiceOverText: text })
-    },
-    [onUpdateFrame]
-  )
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -255,11 +223,14 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
             <div className="h-full flex shadow-lg">
               {/* Thumbnail */}
               {clip.frame.imageUrl ? (
-                <div className="flex-shrink-0 w-16 h-full bg-black rounded-sm overflow-hidden border-r border-neutral-600">
-                  <img
+                <div className="relative flex-shrink-0 w-16 h-full bg-black rounded-sm overflow-hidden border-r border-neutral-600">
+                  <Image
                     src={clip.frame.imageUrl}
                     alt={`Scene ${clip.frame.scene}`}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="64px"
+                    unoptimized
                   />
                 </div>
               ) : (
@@ -349,12 +320,17 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
       {/* Video Player Section */}
       <div className="flex-1 bg-black relative overflow-hidden">
         {selectedFrame?.imageUrl ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <img
-              src={selectedFrame.imageUrl}
-              alt={`Scene ${selectedFrame.scene}`}
-              className="max-w-full max-h-full object-contain"
-            />
+          <div className="relative w-full h-full flex items-center justify-center">
+            <div className="relative h-full w-full max-w-full max-h-full">
+              <Image
+                src={selectedFrame.imageUrl}
+                alt={`Scene ${selectedFrame.scene}`}
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                unoptimized
+              />
+            </div>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-neutral-900">
@@ -571,10 +547,13 @@ export const MultiTrackTimelineEditor: React.FC<MultiTrackTimelineEditorProps> =
           }}
         >
           <div className="bg-neutral-800 border border-neutral-600 rounded-lg shadow-xl p-2 max-w-xs">
-            <img
+            <Image
               src={hoveredFrame.imageUrl}
               alt={`Scene ${hoveredFrame.scene} preview tooltip`}
+              width={192}
+              height={128}
               className="w-48 h-32 object-cover rounded mb-2"
+              unoptimized
             />
             <div className="text-xs text-white">
               <div className="font-medium mb-1">Scene {hoveredFrame.scene}</div>

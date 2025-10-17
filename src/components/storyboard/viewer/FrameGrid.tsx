@@ -91,7 +91,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
             <StoryboardCard
               sceneNumber={i + 1}
               imageUrl={frame.imageUrl}
-              status={frame.status as any}
+              status={frame.status}
               imageFit="cover"
               deleting={deletingFrameId === frame.id}
               onOpen={() => onFrameOpen(i)}

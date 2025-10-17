@@ -49,6 +49,19 @@ const parseImprovedPrompt = (raw: string) => {
 const DEFAULT_MODEL_FALLBACK: ModelKey = 'google/gemini-2.5-flash'
 const STORAGE_KEY = 'blooma_script_conversation'
 
+const isChatMessage = (value: unknown): value is ChatMessage => {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const candidate = value as Partial<ChatMessage>
+  return (
+    typeof candidate.id === 'string' &&
+    (candidate.role === 'user' || candidate.role === 'assistant') &&
+    typeof candidate.content === 'string' &&
+    typeof candidate.createdAt === 'number'
+  )
+}
+
 type StoredConversation = {
   messages: ChatMessage[]
   currentQuestionNumber: number
@@ -120,13 +133,7 @@ export default function ScriptChatModal({
           const parsed = JSON.parse(savedData) as StoredConversation
           if (parsed.messages && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
             // Validate and reconstruct messages safely
-            const validMessages = parsed.messages.filter((msg: any) =>
-              typeof msg === 'object' &&
-              typeof msg.id === 'string' &&
-              typeof msg.role === 'string' &&
-              typeof msg.content === 'string' &&
-              typeof msg.createdAt === 'number'
-            )
+            const validMessages = parsed.messages.filter(isChatMessage)
 
             if (validMessages.length > 0) {
               setMessages(validMessages)
@@ -296,8 +303,8 @@ export default function ScriptChatModal({
         // Clear corrupted data if needed
         try {
           localStorage.removeItem(STORAGE_KEY)
-        } catch (e) {
-          // Ignore cleanup errors
+        } catch (cleanupError) {
+          console.warn('Failed to remove stale conversation from storage:', cleanupError)
         }
       }
     }, 500) // Debounce 500ms

@@ -41,6 +41,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   onPlayVideo,
   isGeneratingVideo = false,
 }) => {
+  void description
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
   const statusDotClass =
     status === 'ready' ? 'bg-green-500' :
@@ -92,7 +93,15 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       {/* Image area */}
   <div className="relative w-full h-96 bg-neutral-900">
   {imageUrl ? (
-          <Image src={imageUrl} alt={title || 'card image'} fill className="object-cover" draggable={false} />
+          <Image
+            src={imageUrl}
+            alt={title || 'card image'}
+            fill
+            className={objectFitClass}
+            draggable={false}
+            sizes="(max-width: 768px) 100vw, 50vw"
+            unoptimized
+          />
         ) : status !== 'ready' && status !== 'error' ? (
           <div className="absolute inset-0 flex items-center justify-center select-none">
             <div className="w-full h-full bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
@@ -167,4 +176,3 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
 }
 
 export default StoryboardCard
-

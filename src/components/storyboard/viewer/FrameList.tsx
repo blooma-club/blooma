@@ -70,7 +70,7 @@ export const FrameList: React.FC<FrameListProps> = ({
                 <StoryboardCard
                   sceneNumber={i + 1}
                   imageUrl={frame.imageUrl}
-                  status={frame.status as any}
+                  status={frame.status}
                   imageFit="cover"
                   deleting={deletingFrameId === frame.id}
                   onOpen={() => onFrameEdit(i)}

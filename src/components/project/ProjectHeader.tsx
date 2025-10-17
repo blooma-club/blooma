@@ -4,11 +4,12 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useUserStore } from '@/store/user'
 import { Edit3, Check, X, ArrowLeft } from 'lucide-react'
+import type { Project } from '@/types'
 
 export default function ProjectHeader() {
-  const params = useParams()
+  const params = useParams<{ id: string }>()
   const router = useRouter()
-  const id = (params as any)?.id
+  const id = params.id
   const { userId, isLoaded } = useUserStore()
   const [title, setTitle] = useState<string>('New Project')
   const [isEditing, setIsEditing] = useState(false)
@@ -21,16 +22,19 @@ export default function ProjectHeader() {
       try {
         const res = await fetch(`/api/projects?user_id=${userId}`)
         if (!res.ok) return
-        const result = await res.json()
-        if (result.success && result.data) {
-          const existing = result.data.find((p: any) => p.id === id)
+        const result = (await res.json().catch(() => ({}))) as {
+          success?: boolean
+          data?: Project[]
+        }
+        if (result.success && Array.isArray(result.data)) {
+          const existing = result.data.find(project => project.id === id)
           if (existing && existing.title) {
             setTitle(existing.title)
             setEditValue(existing.title)
           }
         }
-      } catch (e) {
-        // ignore
+      } catch (error) {
+        console.error('Failed to fetch project title:', error)
       }
     }
 
@@ -39,9 +43,7 @@ export default function ProjectHeader() {
 
   useEffect(() => {
     if (title) {
-      try {
-        document.title = title
-      } catch (e) {}
+      document.title = title
     }
   }, [title])
 

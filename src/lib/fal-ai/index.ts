@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Fal client responses are highly dynamic and currently lack stable typings */
+
 import { fal } from '@fal-ai/client'
 
 const FALLBACK_PLACEHOLDER_IMAGE =
@@ -527,11 +529,10 @@ function isAccessOrQuotaError(error: unknown): boolean {
 
 // 모델별 이미지 생성 구현
 async function generateImageByModel(
-  modelId: string, 
-  prompt: string, 
+  modelId: string,
+  prompt: string,
   options: any
 ): Promise<string | string[]> {
-  const startTime = Date.now()
 
   switch (modelId) {
     case 'fal-ai/imagen4':

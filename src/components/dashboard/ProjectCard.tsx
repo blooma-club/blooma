@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Project } from '@/types'
+import { Project, type ProjectInput } from '@/types'
 import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProjectModal } from './ProjectModal'
@@ -12,8 +12,7 @@ interface ProjectCardProps {
   project: Project
   viewMode: 'grid' | 'list'
   onDelete: (projectId: string) => void
-  onUpdate: (projectId: string, projectData: any) => Promise<void>
-  reverse?: boolean
+  onUpdate: (projectId: string, projectData: ProjectInput) => Promise<void>
   isDeleting?: boolean
 }
 
@@ -22,7 +21,6 @@ export const ProjectCard = ({
   viewMode,
   onDelete,
   onUpdate,
-  reverse = false,
   isDeleting = false,
 }: ProjectCardProps) => {
   const router = useRouter()

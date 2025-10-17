@@ -1,37 +1,49 @@
 'use client'
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
-import type { BuildStoryboardOptions, StoryboardBuildResponse } from '@/types/storyboard'
+import type {
+  BuildStoryboardOptions,
+  StoryboardBuildResponse,
+} from '@/types/storyboard'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { DEFAULT_MODEL } from '@/lib/fal-ai'
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from '@/components/ui/dropdown-menu'
-import { getImageGenerationModels, getModelInfo, DEFAULT_MODEL, type FalAIModel } from '@/lib/fal-ai'
-import { saveDraftToLocal, loadDraftFromLocal, clearDraftFromLocal } from '@/lib/localStorage'
-import { supabase } from '@/lib/supabase'
+  saveDraftToLocal,
+  loadDraftFromLocal,
+  clearDraftFromLocal,
+} from '@/lib/localStorage'
 import Image from 'next/image'
 import ScriptEditor from '@/components/project/setup/ScriptEditor'
 import WizardProgress from '@/components/project/setup/WizardProgress'
 import CharacterWizard from '@/components/project/setup/CharacterWizard'
 import PreviewPanel from './setup/PreviewPanel'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
-import OptionalSettingsPanel, {
-  type OptionalSettings,
-} from '@/components/project/setup/OptionalSettingsPanel'
+import { useAuth } from '@clerk/nextjs'
+import type { OptionalSettings } from '@/components/project/setup/OptionalSettingsPanel'
 
-// Debounce utility function
-function debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
-  let timeoutId: ReturnType<typeof setTimeout>
-  return ((...args: any[]) => {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => func(...args), delay)
-  }) as T
+type CharacterWizardCharacter = NonNullable<
+  NonNullable<React.ComponentProps<typeof CharacterWizard>['initial']>
+>[number]
+
+type SetupDraftData = {
+  script: string
+  visualStyle: string
+  ratio: '16:9' | '1:1' | '9:16'
+  selectedModel: string
+  settings: OptionalSettings
+  characters: CharacterWizardCharacter[]
+}
+
+const DEFAULT_SETTINGS: OptionalSettings = {
+  intent: '',
+  genre: '',
+  tone: '',
+  audience: '',
+  objective: '',
+  keyMessage: '',
+  language: 'English',
+  constraints: '',
+  aiModel: 'gemini-2.0-flash-exp',
 }
 
 type SetupFormProps = {
@@ -43,14 +55,12 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   const params = useParams() as { id: string }
   const projectId = id || params.id
   const router = useRouter()
-  const { session } = useSupabase()
+  const { isSignedIn, userId } = useAuth()
 
   const [isInitialized, setIsInitialized] = useState(false)
   const [mode, setMode] = useState<'paste' | 'upload'>('paste')
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
   const [storyboardLoading, setStoryboardLoading] = useState(false)
   // Storyboard UI migrated to storyboard/[sbId] page; keep only script-related state here.
   const [genResult, setGenResult] = useState<string | null>(null)
@@ -59,26 +69,14 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
 
   // Optional Settings (left brief panel)
-  const DEFAULT_SETTINGS: OptionalSettings = {
-    intent: '',
-    genre: '',
-    tone: '',
-    audience: '',
-    objective: '',
-    keyMessage: '',
-    language: 'English',
-    constraints: '',
-    aiModel: 'gemini-2.0-flash-exp',
-  }
-
   // 간단한 상태 관리 - 모든 드래프트 데이터를 하나의 객체로 관리
-  const [draftData, setDraftData] = useState({
+  const [draftData, setDraftData] = useState<SetupDraftData>({
     script: '',
     visualStyle: 'photo',
-    ratio: '16:9' as '16:9' | '1:1' | '9:16',
+    ratio: '16:9',
     selectedModel: DEFAULT_MODEL,
-    settings: DEFAULT_SETTINGS,
-    characters: [] as any[],
+    settings: { ...DEFAULT_SETTINGS },
+    characters: [],
   })
 
   // 개별 상태는 draftData에서 파생
@@ -86,7 +84,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   const visualStyle = draftData.visualStyle
   const ratio = draftData.ratio
   const selectedModel = draftData.selectedModel
-  const settings = draftData.settings
   const characters = draftData.characters
 
   // 상태 업데이트 함수들
@@ -106,14 +103,9 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     (value: string) => setDraftData(prev => ({ ...prev, selectedModel: value })),
     []
   )
-  const setSettings = useCallback(
-    (value: OptionalSettings) => setDraftData(prev => ({ ...prev, settings: value })),
-    []
-  )
-  const setCharacters = useCallback(
-    (value: any[]) => setDraftData(prev => ({ ...prev, characters: value })),
-    []
-  )
+  const setCharacters = useCallback((value: CharacterWizardCharacter[]) => {
+    setDraftData(prev => ({ ...prev, characters: value }))
+  }, [])
 
   // 간단한 자동 저장 (debounce, UI 표시 없음)
   useEffect(() => {
@@ -136,18 +128,37 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
 
     const savedDraft = loadDraftFromLocal(projectId)
     if (savedDraft) {
-      const savedSettings = ((savedDraft as any).settings || {}) as OptionalSettings
+      const savedSettings = savedDraft.settings ?? {}
+      const savedCharacters: CharacterWizardCharacter[] = Array.isArray(savedDraft.characters)
+        ? savedDraft.characters.map(character => {
+            const fromStorage = character as Partial<CharacterWizardCharacter> & { id: string }
+            return {
+              id: fromStorage.id,
+              name: typeof fromStorage.name === 'string' ? fromStorage.name : '',
+              imageUrl: fromStorage.imageUrl,
+              originalImageUrl: fromStorage.originalImageUrl,
+              editPrompt: fromStorage.editPrompt,
+              image_url: fromStorage.image_url,
+              original_image_url: fromStorage.original_image_url,
+              edit_prompt: fromStorage.edit_prompt,
+              imageKey: fromStorage.imageKey,
+              imageSize: fromStorage.imageSize,
+              originalImageKey: fromStorage.originalImageKey,
+              originalImageSize: fromStorage.originalImageSize,
+              image_key: fromStorage.image_key,
+              image_size: fromStorage.image_size,
+              original_image_key: fromStorage.original_image_key,
+              original_image_size: fromStorage.original_image_size,
+            }
+          })
+        : []
       setDraftData({
         script: savedDraft.script || '',
         visualStyle: savedDraft.visualStyle || 'photo',
         ratio: (savedDraft.ratio as '16:9' | '1:1' | '9:16') || '16:9',
         selectedModel: savedDraft.selectedModel || DEFAULT_MODEL,
-        settings: {
-          ...DEFAULT_SETTINGS,
-          ...savedSettings,
-          aiModel: 'gemini-2.0-flash-exp',
-        },
-        characters: (savedDraft as any).characters || [],
+        settings: { ...DEFAULT_SETTINGS, ...savedSettings, aiModel: 'gemini-2.0-flash-exp' },
+        characters: savedCharacters,
       })
       console.log('Draft restored from localStorage:', savedDraft)
     }
@@ -177,10 +188,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [draftData])
-
-  const handleSettingsChange = (next: Partial<OptionalSettings>) => {
-    setSettings({ ...settings, ...next })
-  }
 
   // Clear saved draft when storyboard generation is successful
   const clearSavedDraft = useCallback(() => {
@@ -219,17 +226,8 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     { id: 'pixel', label: 'Pixel', img: '/styles/pixel.jpg', desc: 'Retro low-res charm' },
   ]
 
-  // Carousel & modal state (may have been removed earlier)
-  const carouselRef = useRef<HTMLDivElement | null>(null)
   const [showGalleryModal, setShowGalleryModal] = useState(false)
   const [gallerySearch, setGallerySearch] = useState('')
-
-  const scrollByPage = (dir: number) => {
-    const el = carouselRef.current
-    if (!el) return
-    const step = Math.max(160, Math.floor(el.clientWidth * 0.6))
-    el.scrollBy({ left: dir * step, behavior: 'smooth' })
-  }
 
   const fileRef = useRef<HTMLInputElement | null>(null)
 
@@ -240,15 +238,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ]
   const MAX_MB = 10
-
-  const resetAll = () => {
-    setMode('paste')
-    setTextValue('')
-    setFile(null)
-    setFileError(null)
-    setSuccess(null)
-    if (fileRef.current) fileRef.current.value = ''
-  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
@@ -322,7 +311,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       return
     }
 
-    setSubmitting(true)
     try {
       const payload: { mode: 'write' | 'upload'; text?: string; file?: File | null } = {
         mode: mode === 'paste' ? 'write' : 'upload',
@@ -330,12 +318,8 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         file,
       }
       onSubmit?.(payload)
-      setSuccess('Saved successfully.')
-      setTimeout(() => setSuccess(null), 4000)
     } catch {
       setFileError('Submission failed. Please try again.')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -347,12 +331,12 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     }
     setStoryboardLoading(true)
     try {
-      const normalizedCharacters = (characters || []).map(character => ({
+      const normalizedCharacters = characters.map(character => ({
         id: character.id,
         name: character.name,
-        imageUrl: character.image_url ?? character.imageUrl,
-        originalImageUrl: character.original_image_url ?? character.originalImageUrl,
-        editPrompt: character.edit_prompt ?? character.editPrompt,
+        imageUrl: character.imageUrl ?? character.image_url,
+        originalImageUrl: character.originalImageUrl ?? character.original_image_url,
+        editPrompt: character.editPrompt ?? character.edit_prompt,
       }))
 
       const payload: BuildStoryboardOptions = {
@@ -367,11 +351,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         characters: normalizedCharacters,
       }
 
-      // Get the current session for authentication
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
+      if (!isSignedIn) {
         throw new Error('Authentication required. Please log in again.')
       }
 
@@ -379,21 +359,21 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
 
       const res = await fetch('/api/storyboard/build', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(payload),
       })
       let data: StoryboardBuildResponse | null = null
       try {
         data = await res.json()
-      } catch (jsonErr) {
+      } catch {
         const txt = await res.text().catch(() => '')
         console.error('Non-JSON response from /api/storyboard/build', res.status, txt)
         throw new Error(`Server returned ${res.status}: ${txt || 'Non-JSON response'}`)
       }
-      if (!res.ok) throw new Error((data && (data as any).error) || 'Failed to build storyboard')
+      if (!res.ok) throw new Error(data?.error || 'Failed to build storyboard')
       if (!data) throw new Error('Invalid server response')
       const newProjectId = data.projectId
       console.log('[SETUP] Storyboard generation result:', {
@@ -410,11 +390,10 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard/${encodeURIComponent(newProjectId)}?view=editor`
         console.log('[SETUP] Navigating directly to editor:', newUrl)
 
-        // Replace current location with editor view (same position, different content)
         router.replace(newUrl)
       } else throw new Error('No project ID returned.')
-    } catch (e: any) {
-      setFileError(e.message || 'Storyboard generation failed')
+    } catch (error: unknown) {
+      setFileError(error instanceof Error ? error.message : 'Storyboard generation failed')
     } finally {
       setStoryboardLoading(false)
     }
@@ -447,9 +426,9 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       <CharacterWizard
         onChange={setCharacters}
         initial={characters}
-        script={textValue}
+        // script={textValue} // Removed as 'script' is not part of CharacterWizard's Props
         projectId={projectId}
-        userId={session?.user?.id}
+        userId={userId ?? undefined}
       />
       <div className="flex justify-between">
         <Button
@@ -462,7 +441,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         <Button
           type="button"
           onClick={() => setStep(3)}
-          disabled={!textValue.trim() || characters.length === 0}
           className="h-12 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white min-w-[160px]"
         >
           Next: Preview
@@ -525,7 +503,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
   return (
     <div className="mx-auto p-6 max-w-7xl">
       <header className="mb-6 flex items-center justify-center">
-        <WizardProgress currentStep={step} onStepClick={s => setStep(s)} />
+        <WizardProgress currentStep={step} />
       </header>
       {step === 1 ? scriptView : step === 2 ? charactersView : previewView}
       {showGalleryModal && (

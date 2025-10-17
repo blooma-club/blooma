@@ -1,6 +1,13 @@
 // Create a custom fetch-based client for OpenRouter to avoid OpenAI SDK issues
 type Message = { role: 'system' | 'user' | 'assistant'; content: string }
-type ChatRequest = { model: string; messages: Message[]; temperature?: number; max_tokens?: number }
+type ResponseFormat = { type: 'json_object' | 'text' }
+type ChatRequest = {
+  model: string
+  messages: Message[]
+  temperature?: number
+  max_tokens?: number
+  response_format?: ResponseFormat
+}
 
 async function requestChat(params: ChatRequest) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -16,6 +23,7 @@ async function requestChat(params: ChatRequest) {
       messages: params.messages,
       temperature: params.temperature ?? 0.7,
       max_tokens: params.max_tokens ?? 1200,
+      ...(params.response_format ? { response_format: params.response_format } : {}),
     }),
   })
 
@@ -62,3 +70,4 @@ export const AVAILABLE_MODELS = {
 
 export type ModelKey = keyof typeof AVAILABLE_MODELS;
 
+export const DEFAULT_LLM_MODEL: ModelKey = 'google/gemini-2.5-flash'

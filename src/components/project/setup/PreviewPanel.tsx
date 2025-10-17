@@ -27,7 +27,6 @@ type Props = {
   onEditCharacters?: () => void
   onGenerateStoryboard?: () => void
   generating?: boolean
-  onRegenerateScript?: () => void
   selectedModel: string
   setSelectedModel: (s: string) => void
   ratio: '16:9' | '1:1' | '9:16'
@@ -44,7 +43,6 @@ export default function PreviewPanel({
   onEditCharacters,
   onGenerateStoryboard,
   generating,
-  onRegenerateScript,
   selectedModel,
   setSelectedModel,
   ratio,

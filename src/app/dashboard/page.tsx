@@ -1,22 +1,20 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
-import { useEffect } from 'react'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import CreditStatus from '@/components/ui/CreditStatus'
 // import CreditDisplay from '@/components/ui/CreditDisplay'
+import { useUserStore } from '@/store/user'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading, session } = useSupabase()
+  const { userId, isLoaded } = useUserStore()
   const [projects, setProjects] = useState<Project[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -26,8 +24,8 @@ export default function DashboardPage() {
   const [projectsError, setProjectsError] = useState<string | null>(null)
   const lastFetchedUserIdRef = useRef<string | null>(null)
 
-  const fetchProjects = async () => {
-    if (!user?.id) {
+  const fetchProjects = useCallback(async () => {
+    if (!userId) {
       return
     }
 
@@ -35,12 +33,9 @@ export default function DashboardPage() {
     setProjectsError(null)
 
     try {
-      if (!session) {
-        throw new Error('No active session found')
-      }
-
-      // Use the API endpoint that includes has_cards information
-      const response = await fetch(`/api/projects?user_id=${user.id}`)
+      const response = await fetch('/api/projects', {
+        credentials: 'include',
+      })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -58,12 +53,11 @@ export default function DashboardPage() {
     } finally {
       setProjectsLoading(false)
     }
-  }
+  }, [userId])
 
   useEffect(() => {
-    if (loading) return
+    if (!isLoaded) return
 
-    const userId = user?.id ?? null
     if (!userId) {
       setProjects([])
       setProjectsError(null)
@@ -75,10 +69,10 @@ export default function DashboardPage() {
     if (lastFetchedUserIdRef.current === userId) return
     lastFetchedUserIdRef.current = userId
     fetchProjects()
-  }, [loading, user?.id])
+  }, [isLoaded, userId, fetchProjects])
 
   const handleCreateProject = async () => {
-    if (!user?.id || !session?.access_token) {
+    if (!userId) {
       alert('Please sign in to create a project')
       return
     }
@@ -89,11 +83,10 @@ export default function DashboardPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           title: 'New Project',
-          user_id: user.id,
           is_public: false,
         }),
       })
@@ -128,6 +121,7 @@ export default function DashboardPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           id: projectId,
           title: projectData.title,
@@ -160,11 +154,10 @@ export default function DashboardPage() {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           id: projectId,
-          user_id: user?.id,
         }),
       })
 
@@ -232,7 +225,7 @@ export default function DashboardPage() {
             <Button
               variant="default"
               onClick={handleCreateProject}
-              disabled={creatingProject || !user?.id}
+              disabled={creatingProject || !userId}
               className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
               aria-label="New project"
               tabIndex={0}
@@ -250,7 +243,7 @@ export default function DashboardPage() {
               placeholder="Search projects..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              disabled={!user?.id}
+              disabled={!userId}
               className="w-full border border-neutral-700 bg-neutral-900 text-white rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-white pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed placeholder-neutral-400"
               aria-label="Search projects"
               tabIndex={0}
@@ -262,7 +255,7 @@ export default function DashboardPage() {
               variant="outline"
               size="icon"
               onClick={() => setViewMode('grid')}
-              disabled={!user?.id}
+              disabled={!userId}
               aria-label="Grid view"
               tabIndex={0}
               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
@@ -273,7 +266,7 @@ export default function DashboardPage() {
               variant="outline"
               size="icon"
               onClick={() => setViewMode('list')}
-              disabled={!user?.id}
+              disabled={!userId}
               aria-label="List view"
               tabIndex={0}
               className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
@@ -284,7 +277,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Loading states and error handling */}
-        {loading ? (
+        {!isLoaded ? (
           <div className="text-center py-12">
             <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
               <div className="text-neutral-400 mb-4">
@@ -354,7 +347,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        ) : !user?.id ? (
+        ) : !userId ? (
           <div className="text-center py-12">
             <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
               <div className="text-neutral-400 mb-4">
@@ -425,14 +418,13 @@ export default function DashboardPage() {
                 : 'grid-cols-1'
             }`}
           >
-            {filteredProjects.map((project, idx) => (
+            {filteredProjects.map(project => (
               <ProjectCard
                 key={project.id}
                 project={project}
                 viewMode={viewMode}
                 onDelete={handleDeleteProject}
                 onUpdate={handleUpdateProject}
-                reverse={idx === 0}
                 isDeleting={deletingProjects.has(project.id)}
               />
             ))}

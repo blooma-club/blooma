@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -7,9 +7,14 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     // Exchange the code for a session
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      console.error('Error exchanging code for session:', error);
+    if (!isSupabaseConfigured()) {
+      console.error('Supabase environment variables are missing; cannot exchange auth code for session.');
+    } else {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error('Error exchanging code for session:', error);
+      }
     }
   }
 

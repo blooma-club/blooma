@@ -146,7 +146,7 @@ export async function uploadImageToR2(projectId: string, frameId: string, src: s
       try {
         const getCmd = new GetObjectCommand({ Bucket: bucket, Key: key })
         signedUrl = await getSignedUrl(r2Client, getCmd, { expiresIn: 60 * 60 }) // 1 hour
-      } catch (err) {
+      } catch {
         // ignore presign errors
         signedUrl = null
       }
@@ -297,7 +297,7 @@ export async function uploadCharacterImageToR2(
       try {
         const getCmd = new GetObjectCommand({ Bucket: bucket, Key: key })
         signedUrl = await getSignedUrl(r2Client, getCmd, { expiresIn: 60 * 60 }) // 1 hour
-      } catch (err) {
+      } catch {
         signedUrl = null
       }
 

@@ -1,13 +1,25 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase 환경 변수가 누락되었습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 를 설정하세요.')
-}
+let cachedClient: SupabaseClient<Database> | null = null
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+export const isSupabaseConfigured = () => Boolean(supabaseUrl && supabaseAnonKey)
+
+export const getSupabaseClient = (): SupabaseClient<Database> => {
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Supabase 환경 변수가 누락되었습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 를 설정하세요.'
+    )
+  }
+
+  if (!cachedClient) {
+    cachedClient = createClient<Database>(supabaseUrl!, supabaseAnonKey!)
+  }
+
+  return cachedClient
+}
 
 // 현재 시스템에 맞는 Database 타입 정의
 export type Database = {
@@ -19,6 +31,7 @@ export type Database = {
           email: string
           name?: string
           avatar_url?: string
+          clerk_user_id?: string | null
           credits: number
           credits_used: number
           credits_reset_date: string
@@ -31,6 +44,7 @@ export type Database = {
           email: string
           name?: string
           avatar_url?: string
+          clerk_user_id?: string | null
           credits?: number
           credits_used?: number
           credits_reset_date?: string
@@ -43,6 +57,7 @@ export type Database = {
           email?: string
           name?: string
           avatar_url?: string
+          clerk_user_id?: string | null
           credits?: number
           credits_used?: number
           credits_reset_date?: string
@@ -64,7 +79,7 @@ export type Database = {
           image_count?: number
           success: boolean
           error_message?: string
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
           created_at: string
         }
         Insert: {
@@ -79,7 +94,7 @@ export type Database = {
           image_count?: number
           success?: boolean
           error_message?: string
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
           created_at?: string
         }
         Update: {
@@ -94,7 +109,7 @@ export type Database = {
           image_count?: number
           success?: boolean
           error_message?: string
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
           created_at?: string
         }
       }
@@ -212,7 +227,7 @@ export type Database = {
           storyboard_status?: string
 
           // 확장성을 위한 메타데이터
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
 
           // Timeline 관련 필드
           duration?: number
@@ -250,7 +265,7 @@ export type Database = {
           storyboard_status?: string
 
           // 확장성을 위한 메타데이터
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
 
           // Timeline 관련 필드
           duration?: number
@@ -291,7 +306,7 @@ export type Database = {
           storyboard_status?: string
 
           // 확장성을 위한 메타데이터
-          metadata?: Record<string, any>
+          metadata?: Record<string, unknown>
 
           // Timeline 관련 필드
           duration?: number

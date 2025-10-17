@@ -2,33 +2,36 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Film, Plus, Sparkles, FileText } from 'lucide-react'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { supabase } from '@/lib/supabase'
+import { Film, Sparkles, FileText } from 'lucide-react'
+import { useUserStore } from '@/store/user'
 import { verifyProjectOwnership } from '@/lib/utils'
-import type { Card } from '@/types'
 
 export default function StoryboardPage() {
-  const params = useParams() as any
-  const projectId = params.id
+  const params = useParams()
+  const projectParam = params?.id
+  const projectId = Array.isArray(projectParam) ? projectParam[0] : projectParam
   const router = useRouter()
-  const { user, session } = useSupabase()
+  const { userId, isLoaded } = useUserStore()
 
-  const [creating, setCreating] = useState(false)
+  const [creating] = useState(false)
   const [checkingStoryboard, setCheckingStoryboard] = useState(true)
   const [accessError, setAccessError] = useState<string | null>(null)
 
   useEffect(() => {
     const checkStoryboard = async () => {
-      if (!user?.id || !projectId || !session) {
+      if (!isLoaded) {
+        return
+      }
+
+      if (!projectId || !userId) {
         setCheckingStoryboard(false)
         return
       }
 
       try {
         // First verify that the user owns this project
-        console.log('[STORYBOARD] Verifying project ownership:', projectId, 'for user:', user.id)
-        const ownershipResult = await verifyProjectOwnership(projectId, user.id)
+        console.log('[STORYBOARD] Verifying project ownership:', projectId, 'for user:', userId)
+        const ownershipResult = await verifyProjectOwnership(projectId, userId)
 
         if (!ownershipResult.isOwner) {
           console.error(
@@ -44,24 +47,27 @@ export default function StoryboardPage() {
 
         // Check if there are any cards in this project
         // This indicates that there are storyboards for this project
-        const { data: cardsData, error: cardsError } = await supabase
-          .from('cards')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('project_id', projectId)
+        const cardsResponse = await fetch(
+          `/api/projects/${encodeURIComponent(projectId)}/cards`,
+          {
+            credentials: 'include',
+          }
+        )
 
-        if (cardsError) {
-          console.error(
-            'Failed to check cards:',
-            cardsError?.message || cardsError || 'Unknown error'
-          )
+        if (!cardsResponse.ok) {
+          console.error('[STORYBOARD CHECK] Failed to check cards', cardsResponse.status)
           throw new Error('Failed to check existing storyboards')
         }
 
-        console.log('[STORYBOARD CHECK] Found cards:', cardsData?.length || 0)
+        const cardsPayload: { hasCards?: boolean; count?: number } =
+          await cardsResponse.json().catch(() => ({}))
 
-        // If we have cards, navigate to the project's storyboard view
-        if (cardsData && cardsData.length > 0) {
+        console.log(
+          '[STORYBOARD CHECK] Found cards:',
+          typeof cardsPayload.count === 'number' ? cardsPayload.count : 0
+        )
+
+        if (cardsPayload.hasCards) {
           console.log('[STORYBOARD CHECK] Navigating to project storyboard view')
           router.replace(`/project/${projectId}/storyboard/${projectId}`)
           // 리디렉션 중이므로 checkingStoryboard를 false로 설정하지 않음
@@ -85,7 +91,7 @@ export default function StoryboardPage() {
     }
 
     checkStoryboard()
-  }, [projectId, user?.id, session, router])
+  }, [projectId, userId, router, isLoaded])
 
   const navigateToSetup = () => {
     router.push(`/project/${projectId}/setup`)
@@ -288,7 +294,7 @@ export default function StoryboardPage() {
 
         {/* 하단 도움말 */}
         <div className="text-neutral-500 text-sm">
-          <p>Your content will be created and you'll be taken to the editor automatically</p>
+          <p>Your content will be created and you&apos;ll be taken to the editor automatically</p>
         </div>
       </div>
     </div>

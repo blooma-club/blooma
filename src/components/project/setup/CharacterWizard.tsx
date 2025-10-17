@@ -48,6 +48,14 @@ type Character = {
   imageSize?: number // Size of the main character image
   originalImageKey?: string // R2 key for the original reference image
   originalImageSize?: number // Size of the original reference image
+  // Snake_case variations from persisted data
+  image_url?: string
+  original_image_url?: string
+  image_key?: string
+  image_size?: number
+  original_image_key?: string
+  original_image_size?: number
+  edit_prompt?: string
 }
 
 type Props = {
@@ -59,7 +67,6 @@ type Props = {
 
 export default function CharacterWizard({ onChange, initial, projectId, userId }: Props) {
   const [characters, setCharacters] = useState<Character[]>(initial || [])
-  const [error, setError] = useState<string | null>(null)
 
   // characters ?�태가 변경될 ?�마??부모에�??�림 (onChange ref�?고정)
   const onChangeRef = React.useRef(onChange)
@@ -418,10 +425,13 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
                     )
                   ) : activeMode === 'upload' && activePreview ? (
                     <>
-                      <img
+                      <Image
                         src={activePreview}
                         alt="Upload preview"
+                        width={280}
+                        height={373}
                         className="h-full w-full object-cover"
+                        unoptimized
                       />
                       <button
                         onClick={() => handleRemoveImage()}
@@ -452,7 +462,14 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
                       )}
                       aria-label={`Select upload preview ${index + 1}`}
                     >
-                      <img src={preview} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
+                      <Image
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        width={36}
+                        height={48}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
                     </button>
                   ))}
                 </div>
@@ -632,6 +649,24 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
                 <div className="mt-2 truncate text-center text-sm font-medium text-white">
                   {char.name}
                 </div>
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleEditCharacter(char)}
+                    className="rounded-md border border-neutral-700 px-3 py-1 text-xs font-medium text-neutral-200 transition hover:border-neutral-500 hover:text-white"
+                  >
+                    Edit
+                  </button>
+                  {char.imageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => handleUseAsReference(char)}
+                      className="rounded-md border border-transparent px-3 py-1 text-xs font-medium text-blue-300 transition hover:text-blue-100"
+                    >
+                      Use as Ref
+                    </button>
+                  ) : null}
+                </div>
                 <button
                   onClick={() => handleRemove(idx)}
                   className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-sm text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
@@ -681,7 +716,6 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
               character={editingCharacter}
               onSave={handleSaveCharacterEdit}
               onCancel={handleCloseEditModal}
-              onUseAsReference={handleUseAsReference}
               projectId={projectId}
               userId={userId}
             />
@@ -697,14 +731,12 @@ type CharacterEditFormProps = {
   character: Character
   onSave: (character: Character) => void
   onCancel: () => void
-  onUseAsReference: (character: Character) => void
 }
 
 function CharacterEditForm({
   character,
   onSave,
   onCancel,
-  onUseAsReference,
   projectId,
   userId,
 }: CharacterEditFormProps & { projectId?: string; userId?: string }) {
@@ -811,9 +843,9 @@ function CharacterEditForm({
       const referenceImageUrl =
         editedCharacter.originalImageUrl ||
         character.originalImageUrl ||
-        (character as any).original_image_url ||
+        character.original_image_url ||
         character.imageUrl ||
-        (character as any).image_url
+        character.image_url
 
       if (referenceImageUrl) {
         requestBody.image_url = referenceImageUrl
@@ -922,7 +954,7 @@ function CharacterEditForm({
             Original Reference Image
           </label>
           <div className="text-xs text-blue-400 mb-2">
-            ?�� Tip: Click "Use as Ref" on any character in the list below, or upload from desktop
+            Tip: Click &quot;Use as Ref&quot; on any character in the list below, or upload from desktop.
           </div>
           {editedCharacter.originalImageUrl ? (
             <div className="relative">

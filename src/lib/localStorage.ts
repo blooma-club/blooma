@@ -2,6 +2,8 @@
  * LocalStorage utilities for auto-saving storyboard data
  */
 
+import type { StoryboardFrame } from '@/types/storyboard'
+
 export interface OptionalSettingsDraft {
   intent?: string
   genre?: string
@@ -11,6 +13,7 @@ export interface OptionalSettingsDraft {
   keyMessage?: string
   language?: string
   constraints?: string
+  aiModel?: string
 }
 
 export interface StoryboardDraft {
@@ -29,8 +32,8 @@ export interface StoryboardDraft {
 export interface StoryboardPageData {
   storyboardId: string
   title: string
-  frames: any[]
-  status: any
+  frames: StoryboardFrame[]
+  status: string
   lastSaved: number
 }
 
@@ -160,7 +163,7 @@ export const getStorageUsage = () => {
       usedMB: (total / 1024 / 1024).toFixed(2),
       available: '~5MB' // 브라우저마다 다름
     }
-  } catch (error) {
+  } catch {
     return { used: 0, usedMB: '0', available: 'Unknown' }
   }
 }

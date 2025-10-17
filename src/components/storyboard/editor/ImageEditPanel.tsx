@@ -106,9 +106,10 @@ const ImageEditPanel: React.FC<Props> = ({
       })
       // 로컬 blob URL 정리
       URL.revokeObjectURL(previewUrl)
-    } catch (e: any) {
-      console.error('[ImageEditPanel] Upload error:', e)
-      setError(e?.message || 'Upload failed')
+    } catch (error: unknown) {
+      console.error('[ImageEditPanel] Upload error:', error)
+      const message = error instanceof Error ? error.message : 'Upload failed'
+      setError(message)
       // 업로드 실패 시 로컬 URL 유지 (사용자가 이미지를 볼 수 있도록)
       console.log('[ImageEditPanel] Keeping local preview URL due to upload failure')
     } finally {
@@ -165,9 +166,10 @@ const ImageEditPanel: React.FC<Props> = ({
       handleChangeReference(idx, url)
       // 로컬 blob URL 정리
       URL.revokeObjectURL(previewUrl)
-    } catch (e: any) {
-      console.error('[ImageEditPanel] Reference upload error:', e)
-      setError(e?.message || 'Reference upload failed')
+    } catch (error: unknown) {
+      console.error('[ImageEditPanel] Reference upload error:', error)
+      const message = error instanceof Error ? error.message : 'Reference upload failed'
+      setError(message)
     }
   }
 
@@ -205,8 +207,9 @@ const ImageEditPanel: React.FC<Props> = ({
         throw new Error(data?.error || 'Image edit failed')
       }
       onImageUpdated?.(data.images[0])
-    } catch (e: any) {
-      setError(e?.message || 'Failed to generate')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to generate'
+      setError(message)
     } finally {
       setGenerating(false)
     }

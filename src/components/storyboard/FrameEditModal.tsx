@@ -1,10 +1,11 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
+import type { Card } from '@/types'
 import { useStoryboardStore } from '@/store/storyboard'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Image from 'next/image'
-import { supabase, type SupabaseCharacter } from '@/lib/supabase'
+import { getSupabaseClient, isSupabaseConfigured, type SupabaseCharacter } from '@/lib/supabase'
 import { buildCharacterSnippet, getCharacterMentionSlug } from '@/lib/characterMentions'
 export interface FrameEditModalProps {
   frame: StoryboardFrame
@@ -26,6 +27,18 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     let isMounted = true
     const fetchCharacters = async () => {
       setIsLoadingCharacters(true)
+
+      if (!isSupabaseConfigured()) {
+        console.warn('[FrameEditModal] Supabase environment variables are not configured.')
+        if (isMounted) {
+          setCharacters([])
+          setIsLoadingCharacters(false)
+        }
+        return
+      }
+
+      const supabase = getSupabaseClient()
+
       const { data, error } = await supabase
         .from('characters')
         .select('*')
@@ -76,7 +89,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     e.preventDefault()
     const state = useStoryboardStore.getState()
     const currentCards = state.cards[projectId] || []
-    const updatedCards = currentCards.map((card: any) =>
+    const updatedCards = currentCards.map((card: Card) =>
       card.id === draft.id
         ? {
             ...card,
@@ -90,7 +103,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
         : card
     )
     setCards(projectId, updatedCards)
-    const cardToPersist = updatedCards.find((c: any) => c.id === draft.id)
+    const cardToPersist = updatedCards.find((c: Card) => c.id === draft.id)
     if (cardToPersist) {
       try {
         const res = await fetch('/api/cards', {

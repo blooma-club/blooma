@@ -1,7 +1,8 @@
 'use client'
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import NextImage from 'next/image'
 import { StoryboardFrame } from '@/types/storyboard'
-import { Play, Pause, Upload, Volume2, Mic, Clock, Plus, X, Image } from 'lucide-react'
+import { Play, Pause, Upload, Volume2, Mic, Clock, X, Image as ImageIcon } from 'lucide-react'
 
 interface TimelineEditorProps {
   frames: StoryboardFrame[]
@@ -38,16 +39,20 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const totalDuration = frames.reduce((acc, frame) => acc + (frame.duration || 3), 0)
 
   // Calculate frame positions and start times
-  const framesWithPositions = frames.map((frame, index) => {
-    const startTime = frames.slice(0, index).reduce((acc, f) => acc + (f.duration || 3), 0)
-    const duration = frame.duration || 3
-    return {
-      ...frame,
-      startTime,
-      duration,
-      widthPercent: (duration / Math.max(totalDuration, 1)) * 100,
-    }
-  })
+  const framesWithPositions = useMemo(
+    () =>
+      frames.map((frame, index) => {
+        const startTime = frames.slice(0, index).reduce((acc, f) => acc + (f.duration || 3), 0)
+        const duration = frame.duration || 3
+        return {
+          ...frame,
+          startTime,
+          duration,
+          widthPercent: (duration / Math.max(totalDuration, 1)) * 100,
+        }
+      }),
+    [frames, totalDuration]
+  )
 
   const selectedFrame = frames.find(f => f.id === selectedFrameId)
 
@@ -164,6 +169,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     ? voiceOptions.find(voice => voice.id === defaultVoiceId)
     : undefined
 
+  useEffect(() => {
+    const activeFrame = framesWithPositions.find(frame => frame.id === selectedFrameId)
+    if (activeFrame) {
+      setCurrentTime(activeFrame.startTime)
+    }
+  }, [framesWithPositions, selectedFrameId])
+
   return (
     <div className="h-full bg-neutral-950 text-white flex flex-col">
       {/* Timeline Header */}
@@ -236,7 +248,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             {/* Frame Track */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-neutral-200">
-                <Image className="w-4 h-4" />
+                <ImageIcon className="w-4 h-4" />
                 Video Track 1
               </div>
               <div className="relative h-24 bg-neutral-800 rounded-lg border border-neutral-600 shadow-inner">
@@ -260,21 +272,20 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                     <div className="h-full flex shadow-lg">
                       {/* Image thumbnail */}
                       {frame.imageUrl ? (
-                        <div className="flex-shrink-0 w-20 h-full bg-black rounded-sm overflow-hidden border-r border-neutral-600">
-                          <img
+                        <div className="relative flex-shrink-0 w-20 h-full bg-black rounded-sm overflow-hidden border-r border-neutral-600">
+                          <NextImage
                             src={frame.imageUrl}
                             alt={`Scene ${frame.scene}`}
-                            className="w-full h-full object-cover"
-                            onError={e => {
-                              // Fallback if image fails to load
-                              ;(e.target as HTMLImageElement).style.display = 'none'
-                            }}
+                            fill
+                            className="object-cover"
+                            sizes="80px"
+                            unoptimized
                           />
                         </div>
                       ) : (
                         <div className="flex-shrink-0 w-20 h-full bg-neutral-900 rounded-sm flex items-center justify-center border-r border-neutral-600">
                           <div className="text-center text-neutral-500">
-                            <Image className="w-4 h-4 mx-auto mb-1" />
+                            <ImageIcon className="w-4 h-4 mx-auto mb-1" />
                             <div className="text-xs">No Image</div>
                           </div>
                         </div>
@@ -364,16 +375,19 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 {/* Frame Preview */}
                 {selectedFrame.imageUrl ? (
                   <div className="mb-4">
-                    <img
+                    <NextImage
                       src={selectedFrame.imageUrl}
                       alt={`Scene ${selectedFrame.scene}`}
+                      width={288}
+                      height={128}
                       className="w-full h-32 object-cover rounded-lg border border-neutral-700"
+                      unoptimized
                     />
                   </div>
                 ) : (
                   <div className="mb-4 w-full h-32 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center justify-center">
                     <div className="text-center text-neutral-500">
-                      <Image className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <div className="text-xs">No Image</div>
                     </div>
                   </div>
@@ -567,11 +581,16 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           }}
         >
           <div className="bg-neutral-800 border border-neutral-600 rounded-lg shadow-xl p-2 max-w-xs">
-            <img
-              src={hoveredFrame.imageUrl}
-              alt={`Scene ${hoveredFrame.scene} Preview`}
-              className="w-48 h-32 object-cover rounded mb-2"
-            />
+            <div className="relative w-48 h-32 rounded mb-2 overflow-hidden">
+              <NextImage
+                src={hoveredFrame.imageUrl}
+                alt={`Scene ${hoveredFrame.scene} Preview`}
+                fill
+                className="object-cover"
+                sizes="192px"
+                unoptimized
+              />
+            </div>
             <div className="text-xs text-white">
               <div className="font-medium mb-1">Scene {hoveredFrame.scene}</div>
               <div className="text-neutral-300 truncate">{hoveredFrame.shotDescription}</div>

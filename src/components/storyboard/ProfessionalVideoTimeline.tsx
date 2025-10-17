@@ -1,4 +1,6 @@
 'use client'
+
+/* eslint-disable @next/next/no-img-element -- Timeline previews rely on blob URLs that Next.js Image cannot optimize */
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { StoryboardFrame } from '@/types/storyboard'
 import {
@@ -6,7 +8,6 @@ import {
   Pause,
   Volume2,
   Mic,
-  Clock,
   Plus,
   Settings,
   Film,
@@ -26,8 +27,8 @@ import {
 interface ProfessionalVideoTimelineProps {
   frames: StoryboardFrame[]
   onUpdateFrame: (frameId: string, updates: Partial<StoryboardFrame>) => void
-  onSave?: () => void
   onAddFrame?: (insertIndex?: number) => void
+  onSave?: () => void | Promise<void>
   projectId?: string
   onGenerateScene?: (prompt: string) => Promise<void>
 }
@@ -51,8 +52,8 @@ interface ElevenLabsVoiceOption {
 export const ProfessionalVideoTimeline: React.FC<ProfessionalVideoTimelineProps> = ({
   frames,
   onUpdateFrame,
-  onSave,
   onAddFrame,
+  onSave,
   projectId,
   onGenerateScene,
 }) => {
@@ -550,7 +551,7 @@ export const ProfessionalVideoTimeline: React.FC<ProfessionalVideoTimelineProps>
         onUpdateFrame(frame.id, { duration: newDuration })
       }
     },
-    [isDragging, scaledDuration, frames, onUpdateFrame]
+    [isDragging, scaledDuration, frames, onUpdateFrame, totalDuration]
   )
 
   const handleMouseUp = useCallback(() => {
@@ -795,6 +796,12 @@ export const ProfessionalVideoTimeline: React.FC<ProfessionalVideoTimelineProps>
     setHoveredFrame(null)
   }, [])
 
+  const handleSaveClick = useCallback(() => {
+    if (!onSave) return
+    Promise.resolve(onSave()).catch(error => {
+      console.error('[Timeline] Failed to save timeline:', error)
+    })
+  }, [onSave])
   const handleSelectClip = useCallback(
     (clip: TimelineClip) => {
       setSelectedFrameId(clip.frame.id)
@@ -899,6 +906,16 @@ export const ProfessionalVideoTimeline: React.FC<ProfessionalVideoTimelineProps>
               >
                 <Plus className="w-4 h-4 text-black" />
               </button>
+              {onSave && (
+                <button
+                  type="button"
+                  onClick={handleSaveClick}
+                  className="flex items-center justify-center w-9 h-9 bg-blue-500 rounded-full hover:bg-blue-400 transition-colors"
+                  aria-label="Save timeline changes"
+                >
+                  <Upload className="w-4 h-4 text-white" />
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-4">

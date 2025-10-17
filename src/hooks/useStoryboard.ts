@@ -72,9 +72,10 @@ export function useStoryboard(opts: UseStoryboardOpts = {}) {
       if (Array.isArray(data.frames)) setFrames(data.frames)
       startStream(data.storyboardId)
       return data.storyboardId
-    } catch (e: any) {
-      opts.onError?.(e.message || 'Storyboard build failed')
-      throw e
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Storyboard build failed'
+      opts.onError?.(message)
+      throw error
     } finally {
       setLoading(false)
     }

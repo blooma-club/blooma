@@ -16,6 +16,11 @@ type OptionalSettings = {
   constraints?: string
 }
 
+type ChatHistoryEntry = {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
 const TOTAL_QUESTIONS = 5
 
 const QUESTION_TOPICS = [
@@ -32,7 +37,24 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const userScript: string = body.userScript || ''
-    const messages = Array.isArray(body.messages) ? body.messages : null
+
+    const incomingMessages: unknown[] = Array.isArray(body.messages) ? body.messages : []
+    const parsedMessages = incomingMessages
+      .map((entry: unknown) => {
+        if (!entry || typeof entry !== 'object') return null
+        const role = (entry as { role?: unknown }).role
+        const content = (entry as { content?: unknown }).content
+        if (
+          (role === 'system' || role === 'user' || role === 'assistant') &&
+          typeof content === 'string'
+        ) {
+          return { role, content } as ChatHistoryEntry
+        }
+        return null
+      })
+      .filter((entry): entry is ChatHistoryEntry => entry !== null)
+    const messages = parsedMessages.length > 0 ? parsedMessages : null
+
     const settings: OptionalSettings = body.settings || {}
     const selectedModel: string = body.model || 'google/gemini-flash-1.5' // Default to Gemini Flash 1.5
     const questionMode: boolean = body.questionMode !== false // Default to true
@@ -62,9 +84,9 @@ export async function POST(req: Request) {
     let chatBlock = ''
     if (messages && messages.length > 0) {
       chatBlock = messages
-        .map((entry: any) => {
-          const role = entry?.role === 'assistant' ? 'Assistant' : 'User'
-          const text = typeof entry?.content === 'string' ? entry.content.trim() : ''
+        .map((entry) => {
+          const role = entry.role === 'assistant' ? 'Assistant' : entry.role === 'system' ? 'System' : 'User'
+          const text = entry.content.trim()
           return text ? `${role}: ${text}` : ''
         })
         .filter(Boolean)
@@ -92,7 +114,7 @@ export async function POST(req: Request) {
     // Question-based mode: Ask questions before generating script
     if (questionMode && messages) {
       // Count how many user answers we have received
-      const userMessages = messages.filter((m: any) => m.role === 'user')
+      const userMessages = messages.filter((m) => m.role === 'user')
       const answersCount = userMessages.length
       
       console.log(`🎯 Question mode - User has provided ${answersCount} answers`)
@@ -106,7 +128,7 @@ export async function POST(req: Request) {
         
         // Build context for LLM to generate next question
         const conversationContext = messages
-          .map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .map((m) => `${m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System'}: ${m.content}`)
           .join('\n')
         
         const questionPrompt = `You are an expert creative consultant helping a user plan their storyboard project.
@@ -222,9 +244,9 @@ Quality Standards:
     // 메시지 히스토리가 있으면 추가
     if (messages && messages.length > 0) {
       for (const entry of messages) {
-        if (entry?.role && entry?.content) {
+        if (entry.role && entry.content) {
           openRouterMessages.push({
-            role: entry.role as 'system' | 'user' | 'assistant',
+            role: entry.role,
             content: entry.content
           })
         }
@@ -270,17 +292,19 @@ Quality Standards:
         tokens: script.length, // Approximate token count
       },
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('/api/script/generate error:', {
-      message: err?.message,
-      status: err?.status,
-      code: err?.code,
-      type: err?.type,
-      stack: err?.stack
+      message: err instanceof Error ? err.message : undefined,
+      status: err && typeof err === 'object' ? (err as { status?: unknown }).status : undefined,
+      code: err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined,
+      type: err && typeof err === 'object' ? (err as { type?: unknown }).type : undefined,
+      stack: err instanceof Error ? err.stack : undefined
     })
     return NextResponse.json({
-      error: err?.message || 'Generation failed',
-      details: err?.status ? `API Error ${err.status}` : 'Unknown error'
+      error: err instanceof Error ? err.message : 'Generation failed',
+      details: err && typeof err === 'object' && 'status' in err && typeof (err as { status?: unknown }).status === 'number'
+        ? `API Error ${(err as { status: number }).status}`
+        : 'Unknown error'
     }, { status: 500 })
   }
 }

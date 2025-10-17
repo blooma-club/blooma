@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Save, X, ArrowLeft } from 'lucide-react'
+import { Save, X } from 'lucide-react'
 
 interface SaveConfirmationDialogProps {
   isOpen: boolean

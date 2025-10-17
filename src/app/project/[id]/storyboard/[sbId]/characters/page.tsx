@@ -5,21 +5,33 @@ import { useParams, useRouter } from 'next/navigation'
 import CharacterWizard from '@/components/project/setup/CharacterWizard'
 import { FloatingHeader } from '@/components/storyboard/FloatingHeader'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { supabase, type SupabaseCharacter } from '@/lib/supabase'
 
 type CharacterWizardProps = ComponentProps<typeof CharacterWizard>
 type CharacterWizardCharacter = NonNullable<CharacterWizardProps['initial']>[number]
 
-const mapSupabaseCharacter = (character: SupabaseCharacter): CharacterWizardCharacter => ({
+type ApiCharacter = {
+  id: string
+  name: string
+  edit_prompt?: string | null
+  image_url?: string | null
+  image_key?: string | null
+  image_size?: number | null
+  original_image_url?: string | null
+  original_image_key?: string | null
+  original_image_size?: number | null
+}
+
+const mapApiCharacter = (character: ApiCharacter): CharacterWizardCharacter => ({
   id: character.id,
   name: character.name,
-  imageUrl: character.image_url ?? undefined,
-  originalImageUrl: character.original_image_url ?? undefined,
   editPrompt: character.edit_prompt ?? undefined,
   imageKey: character.image_key ?? undefined,
-  imageSize: character.image_size ?? undefined,
+  imageSize: typeof character.image_size === 'number' ? character.image_size : undefined,
+  imageUrl: character.image_url ?? undefined,
   originalImageKey: character.original_image_key ?? undefined,
-  originalImageSize: character.original_image_size ?? undefined,
+  originalImageSize:
+    typeof character.original_image_size === 'number' ? character.original_image_size : undefined,
+  originalImageUrl: character.original_image_url ?? undefined,
 })
 
 export default function ProjectCharactersPage() {
@@ -49,26 +61,33 @@ export default function ProjectCharactersPage() {
       setError(null)
 
       try {
-        const { data, error: queryError } = await supabase
-          .from('characters')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('project_id', projectId)
-          .order('created_at', { ascending: false })
+        const response = await fetch(
+          `/api/characters?project_id=${encodeURIComponent(projectId)}`,
+          {
+            credentials: 'include',
+          },
+        )
 
         if (isCancelled) {
           return
         }
 
-        if (queryError) {
-          console.error('[ProjectCharactersPage] Failed to load characters:', queryError)
-          setError('Unable to load existing characters. You can still create new ones below.')
-          setInitialCharacters([])
-          setLoading(false)
-          return
+        if (!response.ok) {
+          if (response.status === 401) {
+            setInitialCharacters([])
+            setError('You need to be signed in to view your models.')
+            setLoading(false)
+            return
+          }
+          throw new Error(`Request failed with status ${response.status}`)
         }
 
-        const mapped = (data ?? []).map(mapSupabaseCharacter)
+        const payload = (await response.json().catch(() => ({}))) as {
+          characters?: ApiCharacter[]
+        }
+        const characters: unknown = payload?.characters
+        const list = Array.isArray(characters) ? (characters as ApiCharacter[]) : []
+        const mapped = list.map(mapApiCharacter)
         setInitialCharacters(mapped)
         setLoading(false)
       } catch (err) {

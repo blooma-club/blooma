@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase'
+
+type CardUpdate = {
+  duration?: number | null
+  audio_url?: string | null
+  voice_over_url?: string | null
+  voice_over_text?: string | null
+  start_time?: number | null
+  video_url?: string | null
+}
+
+type TimelineUpdatePayload = {
+  id: string
+  duration?: number | null
+  audioUrl?: string | null
+  voiceOverUrl?: string | null
+  voiceOverText?: string | null
+  startTime?: number | null
+  videoUrl?: string | null
+}
+
+type FrameUpdateResult =
+  | { id: string; data: unknown; error?: undefined }
+  | { id: string; data?: undefined; error: string }
+  | null
 
 export async function PUT(req: NextRequest) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 })
+    }
+
+    const supabase = getSupabaseClient()
+
     const body = await req.json()
     const { frameId, duration, audioUrl, voiceOverUrl, voiceOverText, startTime, videoUrl } = body
 
@@ -11,7 +41,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Update the cards table with timeline data (using snake_case column names)
-    const updateData: any = {}
+    const updateData: CardUpdate = {}
     
     if (duration !== undefined) updateData.duration = duration
     if (audioUrl !== undefined) updateData.audio_url = audioUrl
@@ -41,6 +71,12 @@ export async function PUT(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 })
+    }
+
+    const supabase = getSupabaseClient()
+
     const { searchParams } = new URL(req.url)
     const projectId = searchParams.get('project_id')
 
@@ -70,6 +106,12 @@ export async function GET(req: NextRequest) {
 // Batch update multiple frames at once
 export async function POST(req: NextRequest) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 })
+    }
+
+    const supabase = getSupabaseClient()
+
     const body = await req.json()
     const { frames } = body
 
@@ -77,13 +119,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Frames array is required' }, { status: 400 })
     }
 
+    const framesArray: unknown[] = frames
+
     // Perform batch updates
-    const updates = frames.map(async (frame: any) => {
-      const { id, duration, audioUrl, voiceOverUrl, voiceOverText, startTime, videoUrl } = frame
+    const updates: Array<Promise<FrameUpdateResult>> = framesArray.map(async (frameItem: unknown) => {
+      if (!frameItem || typeof frameItem !== 'object') {
+        return null
+      }
+
+      const { id, duration, audioUrl, voiceOverUrl, voiceOverText, startTime, videoUrl } = frameItem as Partial<TimelineUpdatePayload> & { id?: string }
       
       if (!id) return null
 
-      const updateData: any = {}
+      const updateData: CardUpdate = {}
       if (duration !== undefined) updateData.duration = duration
       if (audioUrl !== undefined) updateData.audio_url = audioUrl
       if (voiceOverUrl !== undefined) updateData.voice_over_url = voiceOverUrl
@@ -107,8 +155,8 @@ export async function POST(req: NextRequest) {
     })
 
     const results = await Promise.all(updates)
-    const successful = results.filter(r => r && !r.error)
-    const failed = results.filter(r => r && r.error)
+    const successful = results.filter((r): r is { id: string; data: unknown } => !!r && !r.error)
+    const failed = results.filter((r): r is { id: string; error: string } => !!r && !!r.error)
 
     return NextResponse.json({ 
       successful: successful.length,

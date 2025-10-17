@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
-import type { Card } from '@/types'
+import type { Card, Storyboard } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase, type SupabaseCharacter } from '@/lib/supabase'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
+import type { SupabaseCharacter } from '@/lib/supabase'
 import { useStoryboardStore } from '@/store/storyboard'
 import { useHydratedUIStore } from '@/store/ui'
+import { useUserStore } from '@/store/user'
 import FrameEditModal from '@/components/storyboard/FrameEditModal'
 import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
 import FrameList from '@/components/storyboard/viewer/FrameList'
@@ -62,7 +62,7 @@ const EmptyStoryboardState = ({
 
         <h3 className="text-xl font-semibold text-white">No scenes yet</h3>
         <p className="text-neutral-400 leading-relaxed">
-          This project doesn't have any storyboard scenes yet. Create your first scene to get
+          This project doesn&apos;t have any storyboard scenes yet. Create your first scene to get
           started with your storyboard.
         </p>
 
@@ -116,13 +116,40 @@ const EmptyStoryboardState = ({
 
 // Stable empty array to avoid creating new [] in selectors (prevents getSnapshot loop warnings)
 const EMPTY_CARDS: Card[] = []
+type StoryboardStatusState = { status: string; readyCount?: number; total?: number } | null
+type CardImageUpdate = Partial<
+  Pick<
+    Card,
+    'image_url' | 'image_urls' | 'selected_image_url' | 'image_key' | 'image_size' | 'image_type'
+  >
+>
+
+const isProcessingStatus = (status: StoryboardFrame['status']) =>
+  status !== 'ready' && status !== 'error'
+
+type StreamInitPayload = {
+  status?: string
+  title?: string
+  frames?: StoryboardFrame[]
+}
+
+type StreamFramePayload = {
+  storyboardId?: string
+  status?: string
+  frame?: StoryboardFrame
+}
+
+type StreamCompletePayload = {
+  status?: string
+  title?: string
+}
 
 export default function StoryboardPage() {
-  const params = useParams() as any
+  const params = useParams<{ id: string; sbId: string }>()
   const router = useRouter()
   const projectId = params.id
   const sbId = params.sbId
-  const { user, session } = useSupabase()
+  const { userId, isLoaded } = useUserStore()
 
   // URL에서 frame 파라미터 및 view 파라미터 확인 (Editor 모드 진입 여부)
   const searchParams = new URLSearchParams(
@@ -137,7 +164,7 @@ export default function StoryboardPage() {
   const [index, setIndex] = useState(initialIndex) // current frame in single view mode
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState<any>(null)
+  const [, setStatus] = useState<StoryboardStatusState>(null)
   const [sbTitle, setSbTitle] = useState<string>('Storyboard')
   const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
   const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
@@ -157,13 +184,12 @@ export default function StoryboardPage() {
   const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
 
   // Zustand store 연결
-  const storyboard = useStoryboardStore(s => s.storyboard)
   const setStoryboard = useStoryboardStore(s => s.setStoryboard)
   const cards = useStoryboardStore(s => s.cards[projectId] || EMPTY_CARDS)
   const setCards = useStoryboardStore(s => s.setCards)
   const deleteCard = useStoryboardStore(s => s.deleteCard)
-  const selectCard = useStoryboardStore(s => s.selectCard)
   const sseRef = React.useRef<EventSource | null>(null)
+  const framesRef = useRef<StoryboardFrame[]>([])
 
   // 안정적인 이미지 업데이트 콜백
   const handleImageUpdated = useCallback(
@@ -185,10 +211,10 @@ export default function StoryboardPage() {
       // 데이터베이스에 저장
       try {
         const card = cards.find(c => c.id === frameId)
-        if (!card || !session) return
+        if (!card) return
 
         // 단일 이미지 URL 방식으로 저장
-        const updateData: any = {
+        const updateData: CardImageUpdate = {
           image_url: newUrl,
           image_urls: [newUrl], // 하위 호환성을 위해 배열도 유지
           selected_image_url: 0, // 첫 번째 이미지 선택
@@ -205,7 +231,6 @@ export default function StoryboardPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             cards: [
@@ -224,51 +249,66 @@ export default function StoryboardPage() {
         console.error('Failed to save image URL to database:', error)
       }
     },
-    [cards, session]
+    [cards]
   )
 
-  // 현재 프레임 안정적 참조
+  useEffect(() => {
+    framesRef.current = frames
+  }, [frames])
 
   // 근본적 해결: 실제 데이터 변경 시그니처 기반 동기화
   const lastSyncSignatureRef = useRef<string>('')
 
   useEffect(() => {
-    if (!projectId || !user?.id) {
+    if (!projectId) {
       setProjectCharacters([])
       return
     }
 
-    let isMounted = true
+    if (!isLoaded) {
+      return
+    }
+
+    if (!userId) {
+      setProjectCharacters([])
+      return
+    }
+
+    let cancelled = false
 
     const loadCharacters = async () => {
-      const { data, error } = await supabase
-        .from('characters')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
+      try {
+        const response = await fetch(
+          `/api/characters?project_id=${encodeURIComponent(projectId)}`,
+          {
+            credentials: 'include',
+          }
+        )
 
-      if (!isMounted) return
+        if (!response.ok) {
+          throw new Error(`Failed to load characters: ${response.status}`)
+        }
 
-      if (error) {
-        console.warn('[StoryboardPage] Failed to load project characters:', error)
-        setProjectCharacters([])
-        return
+        const payload = await response.json().catch(() => ({}))
+        const characters = Array.isArray(payload?.characters) ? payload.characters : []
+
+        if (!cancelled) {
+          setProjectCharacters(characters)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[StoryboardPage] Failed to load project characters:', error)
+          setProjectCharacters([])
+        }
       }
-
-      setProjectCharacters(data ?? [])
     }
 
-    loadCharacters().catch(err => {
-      if (!isMounted) return
-      console.warn('[StoryboardPage] Unexpected error loading characters:', err)
-      setProjectCharacters([])
-    })
+    loadCharacters()
 
     return () => {
-      isMounted = false
+      cancelled = true
     }
-  }, [projectId, user?.id])
+  }, [projectId, userId, isLoaded])
 
   useEffect(() => {
     if (!projectId) return
@@ -296,25 +336,27 @@ export default function StoryboardPage() {
 
   // viewportWidth 제거에 따라 resize 리스너도 제거
 
-  // Initial data load from Supabase (immediate, no SSE waiting)
+  // Initial data load from Cloudflare D1 (immediate, no SSE waiting)
   useEffect(() => {
     if (!sbId || !projectId) {
       console.log('[STORYBOARD] No sbId or projectId provided', { sbId, projectId })
       return
     }
-    if (!user) {
-      console.log('[STORYBOARD] User not authenticated yet, waiting...')
+
+    if (!isLoaded) {
+      console.log('[STORYBOARD] Waiting for user store hydration...')
       return
     }
 
-    console.log(
-      '[STORYBOARD] Starting data load for sbId:',
-      sbId,
-      'projectId:',
-      projectId,
-      'user:',
-      user.id
-    )
+    if (!userId) {
+      setFrames([])
+      setStatus({ status: 'empty', readyCount: 0, total: 0 })
+      setError('로그인이 필요합니다. 다시 로그인해 주세요.')
+      setLoading(false)
+      return
+    }
+
+    console.log('[STORYBOARD] Starting data load', { sbId, projectId, userId })
 
     // Verify that sbId matches projectId in the new architecture
     if (sbId !== projectId) {
@@ -326,12 +368,8 @@ export default function StoryboardPage() {
       setError(null) // Clear any previous errors
 
       try {
-        console.log('[STORYBOARD] Loading storyboard data for sbId:', sbId, 'projectId:', projectId)
-        console.log('[STORYBOARD] Current user:', { id: user?.id, email: user?.email })
-
-        // First verify that the user owns this project
-        console.log('[STORYBOARD] Verifying project ownership:', projectId, 'for user:', user.id)
-        const ownershipResult = await verifyProjectOwnership(projectId, user.id)
+        console.log('[STORYBOARD] Verifying project ownership', { projectId, userId })
+        const ownershipResult = await verifyProjectOwnership(projectId, userId)
 
         if (!ownershipResult.isOwner) {
           console.error(
@@ -341,83 +379,69 @@ export default function StoryboardPage() {
           throw new Error(ownershipResult.error || 'You do not have access to this project')
         }
 
-        console.log('[STORYBOARD] Project ownership verified successfully')
+        console.log('[STORYBOARD] Loading cards for project', { projectId })
 
-        // Since we're not using storyboards table, we'll load data based on cards
-        // and derive storyboard info from the cards themselves
-        console.log('[STORYBOARD] Loading cards directly (no storyboards table):', projectId)
-
-        console.log('[STORYBOARD] Loading cards for project:', projectId)
-
-        // Load cards data from Supabase and set to Zustand store
-        // Note: sbId is now the same as projectId in the new architecture
-        const { data: cardsData, error: cardsError } = await supabase
-          .from('cards')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('project_id', projectId)
-          .order('order_index', { ascending: true })
-
-        console.log('[STORYBOARD] Cards query result:', {
-          cardsCount: cardsData?.length,
-          cardsError,
-        })
-
-        if (cardsError) {
-          console.error('[STORYBOARD] Error loading cards:', cardsError)
-          // Check if it's a "not found" error which means the storyboard doesn't exist
-          const isNotFound =
-            cardsError.code === 'PGRST116' || !cardsData || (cardsData as any[])?.length === 0
-          if (isNotFound) {
-            throw new Error(
-              `Project '${projectId}' not found. It may have been deleted or you don't have access to it.`
-            )
-          } else {
-            console.warn('[STORYBOARD] Cards loading failed, continuing with empty frames')
+        const cardsResponse = await fetch(
+          `/api/cards?project_id=${encodeURIComponent(projectId)}`,
+          {
+            credentials: 'include',
           }
+        )
+
+        const cardsResult = (await cardsResponse.json().catch(() => ({}))) as {
+          data?: Card[]
+          error?: string
         }
 
-        if (cardsData && cardsData.length > 0) {
-          // Zustand store에 카드 데이터 설정
+        if (!cardsResponse.ok) {
+          const message =
+            typeof cardsResult?.error === 'string'
+              ? cardsResult.error
+              : 'Failed to fetch cards for project'
+          throw new Error(message)
+        }
+
+        const cardsData = Array.isArray(cardsResult?.data) ? (cardsResult.data as Card[]) : []
+
+        console.log('[STORYBOARD] Cards fetch result', { count: cardsData.length })
+
+        if (cardsData.length > 0) {
           setCards(projectId, cardsData)
 
-          // frames 상태도 카드 데이터 기반으로 초기화
           const initialFrames = cardsData.map((card, index) => cardToFrame(card, index))
           setFrames(initialFrames)
-          console.log('[STORYBOARD] Loaded', initialFrames.length, 'frames from cards')
+          console.log('[STORYBOARD] Loaded frames from cards', { frameCount: initialFrames.length })
 
-          // Derive storyboard title from first card or use default
           const derivedTitle = cardsData[0]?.title
             ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}`
             : 'Storyboard'
           setSbTitle(derivedTitle)
 
-          // Set status based on cards
           const readyCount = cardsData.filter(card => card.storyboard_status === 'ready').length
           setStatus({
             status: readyCount === cardsData.length ? 'completed' : 'processing',
-            readyCount: readyCount,
+            readyCount,
             total: cardsData.length,
           })
 
-          // Create a minimal storyboard object for Zustand store
           try {
-            setStoryboard({
+            const storyboardPayload: Storyboard = {
               id: sbId,
-              user_id: user?.id || '',
+              user_id: userId,
               project_id: projectId,
               title: derivedTitle,
               description: undefined,
               is_public: false,
               created_at: cardsData[0]?.created_at || new Date().toISOString(),
               updated_at: cardsData[0]?.updated_at || new Date().toISOString(),
-            } as any)
+            }
+            setStoryboard(storyboardPayload)
           } catch (storeError) {
             console.warn('[STORYBOARD] Failed to update storyboard store:', storeError)
           }
         } else {
-          // No cards found - initialize empty project state
           console.log('[STORYBOARD] Project has no cards yet, showing empty state')
+          setCards(projectId, [])
           setFrames([])
           setSbTitle('New Storyboard')
           setStatus({
@@ -426,18 +450,18 @@ export default function StoryboardPage() {
             total: 0,
           })
 
-          // Create a minimal storyboard object for empty project
           try {
-            setStoryboard({
+            const storyboardPayload: Storyboard = {
               id: sbId,
-              user_id: user?.id || '',
+              user_id: userId,
               project_id: projectId,
               title: 'New Storyboard',
               description: undefined,
               is_public: false,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            } as any)
+            }
+            setStoryboard(storyboardPayload)
           } catch (storeError) {
             console.warn('[STORYBOARD] Failed to update storyboard store:', storeError)
           }
@@ -448,7 +472,6 @@ export default function StoryboardPage() {
       } catch (error) {
         console.error('[STORYBOARD] Failed to load storyboard:', error)
 
-        // Provide more detailed error information
         let errorMessage = '스토리보드를 불러올 수 없습니다.'
 
         if (error && typeof error === 'object') {
@@ -458,7 +481,6 @@ export default function StoryboardPage() {
           if ('code' in error && error.code) {
             errorMessage += ` [코드: ${error.code}]`
           }
-          // Also check for additional Supabase error properties
           if ('details' in error && error.details) {
             errorMessage += ` [세부사항: ${error.details}]`
           }
@@ -467,17 +489,11 @@ export default function StoryboardPage() {
           }
         }
 
-        // Check if it's an authentication issue
-        if (!user) {
-          errorMessage = '로그인이 필요합니다. 다시 로그인해 주세요.'
-        }
-
         if (typeof errorMessage === 'string' && errorMessage.includes('Failed to fetch')) {
           errorMessage =
-            'Supabase와의 통신 중 문제가 발생했습니다. 네트워크 연결을 확인한 후 다시 시도해 주세요.'
+            '스토리보드 데이터를 불러오는 동안 네트워크 오류가 발생했습니다. 연결을 확인한 후 다시 시도해 주세요.'
         }
 
-        // Log the full error object for debugging
         const serialisedError =
           error instanceof Error
             ? { message: error.message, name: error.name, stack: error.stack }
@@ -490,44 +506,10 @@ export default function StoryboardPage() {
     }
 
     loadStoryboardData()
-  }, [projectId, user, setStoryboard, setCards])
-
-  // SSE stream: 이미지 생성 중인 프레임이 있을 때만 연결
-  useEffect(() => {
-    if (!projectId) return
-
-    // 진행 중인 프레임이 있는지 확인
-    const hasProcessingFrames = frames.some(f => !['ready', 'error'].includes(f.status as any))
-
-    if (hasProcessingFrames) {
-      console.log('[SSE] Starting stream - processing frames detected')
-      startStream()
-    } else {
-      // 모든 프레임이 완료 상태면 SSE 연결 해제
-      if (sseRef.current) {
-        console.log('[SSE] Closing stream - all frames completed')
-        sseRef.current.close()
-        sseRef.current = null
-      }
-    }
-  }, [projectId, frames])
-
-  // 프레임 상태 변경 시 SSE 연결 상태 재확인
-  useEffect(() => {
-    if (!projectId || frames.length === 0) return
-
-    const processingFrames = frames.filter(f => !['ready', 'error'].includes(f.status as any))
-
-    // 모든 프레임이 완료되었는데 SSE가 여전히 연결되어 있다면 해제
-    if (processingFrames.length === 0 && sseRef.current) {
-      console.log('[SSE] Force closing stream - no processing frames')
-      sseRef.current.close()
-      sseRef.current = null
-    }
-  }, [frames, projectId])
+  }, [sbId, projectId, userId, isLoaded, setStoryboard, setCards])
 
   // SSE stream for progressive updates
-  const startStream = () => {
+  const startStream = useCallback(() => {
     if (!projectId) return
     if (sseRef.current) {
       sseRef.current.close()
@@ -537,38 +519,38 @@ export default function StoryboardPage() {
       try {
         const es = new EventSource(`/api/storyboard/stream?id=${encodeURIComponent(projectId)}`)
         sseRef.current = es
-        es.addEventListener('init', (e: any) => {
+
+        const handleInit = (event: MessageEvent<string>) => {
           try {
-            const data = JSON.parse(e.data)
-            setStatus({ status: data.status })
+            const data = JSON.parse(event.data) as StreamInitPayload
+            setStatus(data.status ? { status: data.status } : null)
             if (data.title) setSbTitle(data.title)
-            // Only set frames if we don't have any frames yet (initial load)
-            if (frames.length === 0) {
-              setFrames(data.frames || [])
+            if (Array.isArray(data.frames) && framesRef.current.length === 0) {
+              setFrames(data.frames)
+              framesRef.current = data.frames
               setIndex(0)
             }
             setLoading(false)
-          } catch {}
-        })
-        es.addEventListener('frame', (e: any) => {
+          } catch (error) {
+            console.warn('[SSE] Failed to process init event:', error)
+          }
+        }
+
+        const handleFrame = (event: MessageEvent<string>) => {
           try {
-            const data = JSON.parse(e.data)
+            const data = JSON.parse(event.data) as StreamFramePayload
             if (data?.frame?.id) {
               setFrames(prev => {
-                const idx = prev.findIndex(f => f.id === data.frame.id)
-                if (idx === -1) {
-                  // Only add new frame if it doesn't exist
+                const idx = prev.findIndex(f => f.id === data.frame?.id)
+                if (idx === -1 && data.frame) {
                   return [...prev, data.frame]
-                } else {
-                  // Update existing frame but preserve local changes
+                } else if (idx !== -1 && data.frame) {
                   const existingFrame = prev[idx]
-                  const updatedFrame = {
+                  const updatedFrame: StoryboardFrame = {
                     ...existingFrame,
                     ...data.frame,
-                    // Preserve local imageUrl to prevent SSE from overwriting uploaded images
                     imageUrl: existingFrame.imageUrl || data.frame.imageUrl,
                   }
-                  // Preserve local scene number if it was manually changed
                   if (existingFrame.scene !== data.frame.scene && existingFrame.scene !== idx + 1) {
                     updatedFrame.scene = existingFrame.scene
                   }
@@ -576,19 +558,29 @@ export default function StoryboardPage() {
                   copy[idx] = updatedFrame
                   return copy
                 }
+                return prev
               })
             }
-          } catch {}
-        })
-        es.addEventListener('complete', (e: any) => {
+          } catch (error) {
+            console.warn('[SSE] Failed to process frame event:', error)
+          }
+        }
+
+        const handleComplete = (event: MessageEvent<string>) => {
           try {
-            const data = JSON.parse(e.data)
-            setStatus({ status: data.status })
+            const data = JSON.parse(event.data) as StreamCompletePayload
+            if (data.status) {
+              setStatus({ status: data.status })
+            }
             if (data.title) setSbTitle(data.title)
-            // Don't overwrite local frames with server data
-            // Only update status and title
-          } catch {}
-        })
+          } catch (error) {
+            console.warn('[SSE] Failed to process complete event:', error)
+          }
+        }
+
+        es.addEventListener('init', handleInit as EventListener)
+        es.addEventListener('frame', handleFrame as EventListener)
+        es.addEventListener('complete', handleComplete as EventListener)
         es.addEventListener('end', () => {
           if (sseRef.current) {
             sseRef.current.close()
@@ -601,17 +593,51 @@ export default function StoryboardPage() {
             const delay = Math.min(1000 * Math.pow(2, attempt), 8000)
             setTimeout(() => connect(attempt + 1), delay)
           } else {
-            // In case server returned 404 (completed elsewhere), avoid loud error
             setError(null)
             setLoading(false)
           }
         }
-      } catch (err) {
+      } catch (error) {
+        console.error('Failed to connect to storyboard stream:', error)
         if (attempt < 5) setTimeout(() => connect(attempt + 1), 1000 * (attempt + 1))
       }
     }
     connect()
-  }
+  }, [projectId, setError, setFrames, setIndex, setLoading, setSbTitle, setStatus])
+
+  // SSE stream: 이미지 생성 중인 프레임이 있을 때만 연결
+  useEffect(() => {
+    if (!projectId) return
+
+    // 진행 중인 프레임이 있는지 확인
+    const hasProcessingFrames = frames.some(frame => isProcessingStatus(frame.status))
+
+    if (hasProcessingFrames) {
+      console.log('[SSE] Starting stream - processing frames detected')
+      startStream()
+    } else {
+      // 모든 프레임이 완료 상태면 SSE 연결 해제
+      if (sseRef.current) {
+        console.log('[SSE] Closing stream - all frames completed')
+        sseRef.current.close()
+        sseRef.current = null
+      }
+    }
+  }, [projectId, frames, startStream])
+
+  // 프레임 상태 변경 시 SSE 연결 상태 재확인
+  useEffect(() => {
+    if (!projectId || frames.length === 0) return
+
+    const processingFrames = frames.filter(frame => isProcessingStatus(frame.status))
+
+    // 모든 프레임이 완료되었는데 SSE가 여전히 연결되어 있다면 해제
+    if (processingFrames.length === 0 && sseRef.current) {
+      console.log('[SSE] Force closing stream - no processing frames')
+      sseRef.current.close()
+      sseRef.current = null
+    }
+  }, [frames, projectId])
   React.useEffect(
     () => () => {
       if (sseRef.current) sseRef.current.close()
@@ -732,7 +758,7 @@ export default function StoryboardPage() {
   // Add / Delete frame handlers
   const handleAddFrame = useCallback(
     async (insertIndex?: number) => {
-      if (!user?.id || !projectId || !session) return
+      if (!userId || !projectId) return
 
       const allCards = useStoryboardStore.getState().cards[projectId] || []
       const targetIndex = Math.min(Math.max(insertIndex ?? allCards.length, 0), allCards.length)
@@ -740,13 +766,12 @@ export default function StoryboardPage() {
       try {
         const inserted = await createAndLinkCard(
           {
-            userId: user.id,
+            userId: userId,
             projectId: projectId,
             currentCards: allCards,
             insertIndex: targetIndex,
           },
-          'STORYBOARD',
-          session.access_token
+          'STORYBOARD'
         )
 
         const mergedCards = [...allCards]
@@ -768,7 +793,6 @@ export default function StoryboardPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             cards: reindexedCards.map(card => ({
@@ -786,12 +810,12 @@ export default function StoryboardPage() {
         alert(`카드 생성에 실패했습니다: ${msg}`)
       }
     },
-    [user?.id, projectId, session, setCards, setFrames, setIndex]
+    [userId, projectId, setCards, setFrames, setIndex]
   )
 
   const handleGenerateSceneFromPrompt = useCallback(
     async (promptText: string) => {
-      if (!user?.id || !projectId || !session) {
+      if (!userId || !projectId) {
         throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.')
       }
 
@@ -810,12 +834,11 @@ export default function StoryboardPage() {
       try {
         inserted = await createAndLinkCard(
           {
-            userId: user.id,
+            userId,
             projectId: projectId,
             currentCards: currentCardsSnapshot,
           },
-          'TIMELINE_GENERATE',
-          session.access_token
+          'TIMELINE_GENERATE'
         )
       } catch (error) {
         throw error instanceof Error
@@ -868,7 +891,6 @@ export default function StoryboardPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             cards: [
@@ -943,26 +965,12 @@ export default function StoryboardPage() {
           : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
       }
     },
-    [user?.id, projectId, session, setCards, ratio, projectCharacters]
-  )
-
-  const handleOpenStoryboardEdit = useCallback(
-    (cardId: string) => {
-      // 실제 카드 데이터에서 메타데이터 가져오기
-      const actualCard = cards.find(card => card.id === cardId)
-      if (!actualCard) return
-
-      // StoryboardFrame 형태로 변환
-      const frameData: StoryboardFrame = cardToFrame(actualCard)
-
-      setEditingFrame(frameData)
-    },
-    [setEditingFrame, cards]
+    [userId, projectId, setCards, ratio, projectCharacters]
   )
 
   const handleDeleteFrame = useCallback(
     async (frameId: string) => {
-      if (!user?.id || !projectId || deletingFrameId || !session) return
+      if (!userId || !projectId || deletingFrameId) return
 
       console.log('🗑️ [DELETE FRAME] Deleting card via Zustand:', frameId)
 
@@ -975,7 +983,6 @@ export default function StoryboardPage() {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ cardIds: [frameId] }),
         })
@@ -1000,7 +1007,6 @@ export default function StoryboardPage() {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
               cards: reindexedCards.map(c => ({
@@ -1028,7 +1034,7 @@ export default function StoryboardPage() {
         setDeletingFrameId(null)
       }
     },
-    [user?.id, projectId, session, deletingFrameId, deleteCard, setFrames, setIndex]
+    [userId, projectId, deletingFrameId, deleteCard, setFrames, setIndex]
   )
 
   const handleGenerateVideo = useCallback(
@@ -1042,7 +1048,7 @@ export default function StoryboardPage() {
         return
       }
 
-      if (!user || !session?.access_token) {
+      if (!userId) {
         setError('You must be signed in to generate videos.')
         return
       }
@@ -1057,7 +1063,6 @@ export default function StoryboardPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             frameId,
@@ -1118,7 +1123,7 @@ export default function StoryboardPage() {
         setGeneratingVideoId(null)
       }
     },
-    [frames, projectId, session, setCards, setFrames, user]
+    [frames, projectId, setCards, setFrames, userId]
   )
 
   const handlePlayVideo = useCallback(
@@ -1307,9 +1312,10 @@ export default function StoryboardPage() {
               }}
               onAddFrame={async () => {
                 try {
+                  if (!userId) return
                   const newCard = await createAndLinkCard(
                     {
-                      userId: user?.id || '',
+                      userId,
                       projectId: projectId,
                       currentCards: cards,
                     },

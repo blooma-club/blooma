@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getStoryboardRecord, getStoryboardEmitter } from '@/lib/storyboardEngine'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 
@@ -17,6 +17,13 @@ export async function GET(req: NextRequest) {
     // Fallback: serve a one-shot snapshot from DB so clients don't see 404
     console.log(`[SSE] Storyboard not found in memory: ${id}. Attempting DB snapshot fallback.`)
     try {
+      if (!isSupabaseConfigured()) {
+        console.log(`[SSE] Supabase is not configured; fallback snapshot unavailable for ${id}`)
+        return new Response('Not found', { status: 404 })
+      }
+
+      const supabase = getSupabaseClient()
+
       const { data: cardsData, error } = await supabase
         .from('cards')
         .select('*')
@@ -29,10 +36,10 @@ export async function GET(req: NextRequest) {
       }
 
       // Derive title from first card
-      let title = cardsData[0]?.title ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}` : 'Storyboard'
+      const title = cardsData[0]?.title ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}` : 'Storyboard'
       
       // Convert cards to frames format
-      let frames: Array<{
+      const frames: Array<{
         id: string;
         scene?: number;
         shotDescription?: string;

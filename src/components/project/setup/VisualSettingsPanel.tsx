@@ -5,6 +5,9 @@ import Image from 'next/image'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu'
 import { getImageGenerationModels, getModelInfo, type FalAIModel } from '@/lib/fal-ai'
 
+const aspectOptions = ['16:9', '1:1', '9:16'] as const
+type AspectRatioOption = (typeof aspectOptions)[number]
+
 type Props = {
   // Model
   selectedModel: string
@@ -27,10 +30,9 @@ type Props = {
   setRatio?: (r: '16:9' | '1:1' | '9:16') => void
   // Style
   visualStyle?: string
-  setVisualStyle?: (s: string) => void
 }
 
-export default function VisualSettingsPanel({ selectedModel, setSelectedModel, modelOptions, showModel = true, showAspect = true, showStyle = true, panelTitle = 'Visual Settings', modelSectionTitle = 'AI Model', modelDropdownTitle = 'Select AI Model', aspectSectionTitle = 'Aspect Ratio', aspectDropdownTitle = 'Select Aspect Ratio', styleSectionTitle = 'Visual Style', frameless = false, ratio, setRatio, visualStyle, setVisualStyle }: Props) {
+export default function VisualSettingsPanel({ selectedModel, setSelectedModel, modelOptions, showModel = true, showAspect = true, showStyle = true, panelTitle = 'Visual Settings', modelSectionTitle = 'AI Model', modelDropdownTitle = 'Select AI Model', aspectSectionTitle = 'Aspect Ratio', aspectDropdownTitle = 'Select Aspect Ratio', styleSectionTitle = 'Visual Style', frameless = false, ratio, setRatio, visualStyle }: Props) {
   const stylePresets: { id: string; label: string; img: string; desc: string }[] = [
     { id: 'photo', label: 'Photo realistic', img: '/styles/photo.jpg', desc: 'Photorealistic imagery' },
     { id: 'cinematic', label: 'Cinematic', img: '/styles/cinematic.jpg', desc: 'Film-like lighting & depth' },
@@ -95,8 +97,16 @@ export default function VisualSettingsPanel({ selectedModel, setSelectedModel, m
                 </DropdownMenuTrigger>
                 <DropdownMenuContent sideOffset={4} className="w-48 border border-neutral-700 bg-neutral-900 shadow-xl rounded-lg">
                   <DropdownMenuLabel className="text-xs font-semibold text-neutral-300 px-4 py-3 border-b border-neutral-700 bg-neutral-800 rounded-t-lg">{aspectDropdownTitle}</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={ratio} onValueChange={(v) => setRatio(v as any)}>
-                    {(['16:9','1:1','9:16'] as const).map(r => (
+                  <DropdownMenuRadioGroup
+                    value={ratio}
+                    onValueChange={value => {
+                      const nextRatio = aspectOptions.find(option => option === value) as AspectRatioOption | undefined
+                      if (nextRatio) {
+                        setRatio(nextRatio)
+                      }
+                    }}
+                  >
+                    {aspectOptions.map(r => (
                       <DropdownMenuRadioItem key={r} value={r} className="px-4 py-3 hover:bg-neutral-800 cursor-pointer text-white border-b border-neutral-700 last:border-b-0 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-2 h-2 rounded-full bg-white"></div>
@@ -139,5 +149,4 @@ export default function VisualSettingsPanel({ selectedModel, setSelectedModel, m
     </div>
   )
 }
-
 

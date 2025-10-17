@@ -3,7 +3,7 @@ import { openrouter } from './openrouter'
 import { EventEmitter } from 'events'
 import { generateImageWithModel, DEFAULT_MODEL } from './fal-ai'
 import { uploadImageToR2 } from './r2'
-import { supabase } from './supabase'
+import { queryD1 } from './db/d1'
 
 export interface FrameRecord {
   id: string
@@ -42,6 +42,9 @@ export interface StoryboardRecord {
     imageUrl?: string
     originalImageUrl?: string
     editPrompt?: string
+    image_url?: string
+    original_image_url?: string
+    edit_prompt?: string
   }>
 }
 
@@ -241,7 +244,7 @@ export async function createStoryboard(params: {
 
 async function extractMetadataWithLLM(block: string, style: string, aspect: string) {
   // Returns an object with keys: shotDescription, shotType, dialogue, sound
-  const prompt = `Extract the following fields from the scene text. Output ONLY a valid JSON object with keys: shotDescription, shotType, dialogue, sound. If a field is missing, set it to an empty string. Do not include any extra text.\n\nScene text:\n${block}`
+  const prompt = `Extract the following fields from the scene text. Output ONLY a valid JSON object with keys: shotDescription, shotType, dialogue, sound. If a field is missing, set it to an empty string. Do not include any extra text.\n\nScene text:\n${block}\n\nStyle hint: ${style}\nPreferred aspect ratio: ${aspect}`
   try {
     const res = await retry(async () => {
       const r = await openrouter.chat.completions.create({
@@ -314,7 +317,7 @@ Output: Deliver the complete structured prompt only, following the exact format 
       return text
     }, { retries: 2, baseDelay: 250 })
     return completion
-  } catch (e:any) {
+  } catch {
     return enhanceText(base, style)
   }
 }
@@ -344,7 +347,7 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
         let characterRef = `${character.name}`
         
         // Add visual description if available
-        const editPrompt = character.editPrompt ?? (character as any).edit_prompt
+        const editPrompt = character.editPrompt ?? character.edit_prompt
         if (editPrompt && editPrompt.trim()) {
           characterRef += ` (${editPrompt.trim()})`
         }
@@ -354,9 +357,9 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
         // Collect character image URLs for visual reference
         const imageCandidates = [
           character.imageUrl,
-          (character as any).image_url,
+          character.image_url,
           character.originalImageUrl,
-          (character as any).original_image_url,
+          character.original_image_url,
         ].filter((url): url is string => typeof url === 'string' && url.length > 0)
 
         for (const url of imageCandidates) {
@@ -379,6 +382,74 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
   if (frame.shotType) parts.push(frame.shotType)
   parts.push(sb.style, `aspect ${sb.aspectRatio}`)
   return parts.join(', ')
+}
+
+
+type CardUpdatePatch = {
+  image_url?: string | null
+  image_urls?: string[]
+  selected_image_url?: number
+  image_key?: string | null
+  image_size?: number | null
+  image_type?: string | null
+  storyboard_status?: string
+}
+
+async function updateCardRecord(
+  projectId: string | undefined,
+  orderIndex: number,
+  patch: CardUpdatePatch,
+) {
+  if (!projectId) return
+
+  const entries = Object.entries(patch).filter(
+    ([, value]) => value !== undefined,
+  )
+  if (entries.length === 0) return
+
+  try {
+    const setClauses: string[] = []
+    const params: unknown[] = []
+    let paramIndex = 1
+
+    for (const [key, rawValue] of entries) {
+      let value: unknown = rawValue
+
+      if (key === 'image_urls') {
+        const urls = Array.isArray(rawValue) ? rawValue : []
+        value = JSON.stringify(urls)
+      }
+
+      const placeholder = `?${paramIndex}`
+      setClauses.push(`${key} = ${placeholder}`)
+      params.push(value ?? null)
+      paramIndex += 1
+    }
+
+    const updatedAtPlaceholder = `?${paramIndex}`
+    setClauses.push(`updated_at = ${updatedAtPlaceholder}`)
+    params.push(new Date().toISOString())
+    paramIndex += 1
+
+    const projectPlaceholder = `?${paramIndex}`
+    params.push(projectId)
+    paramIndex += 1
+
+    const orderPlaceholder = `?${paramIndex}`
+    params.push(orderIndex)
+
+    const sql = `UPDATE cards
+                 SET ${setClauses.join(', ')}
+                 WHERE project_id = ${projectPlaceholder}
+                   AND order_index = ${orderPlaceholder}`
+
+    await queryD1(sql, params)
+  } catch (error) {
+    console.error(
+      `[Engine] Failed to update card in D1 for frame ${orderIndex}`,
+      error,
+    )
+  }
 }
 
 
@@ -481,35 +552,26 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
 
             // 3) DB 업데이트
             try {
-              const updateData = {
-                image_url: frame.imageUrl,
-                image_urls: [frame.imageUrl],
+              const updateData: CardUpdatePatch = {
+                image_url: frame.imageUrl ?? null,
+                image_urls: frame.imageUrl ? [frame.imageUrl] : [],
                 selected_image_url: 0,
-                image_key: key || undefined,
-                image_size: size || undefined,
+                image_key: key ?? null,
+                image_size: typeof size === 'number' ? size : null,
                 image_type: 'generated',
-                storyboard_status: 'ready'
+                storyboard_status: 'ready',
               }
-              
+
               console.log(`[Engine] Updating card ${i} with R2 data:`, {
                 storyboardId,
                 order_index: i,
                 image_url: frame.imageUrl?.slice(0, 50) + '...',
                 image_key: key,
-                image_size: size
+                image_size: size,
               })
-              
-              const { error: updateError } = await supabase
-                .from('cards')
-                .update(updateData)
-                .eq('project_id', storyboardId)
-                .eq('order_index', i)
-              
-              if (updateError) {
-                console.error(`[Engine] Failed to update card in database for frame ${i}:`, updateError)
-              } else {
-                console.log(`[Engine] Successfully updated card in database for frame ${i}: ${storyboardId}`)
-              }
+
+              await updateCardRecord(record.projectId ?? storyboardId, i, updateData)
+              console.log(`[Engine] Successfully updated card in database for frame ${i}: ${storyboardId}`)
             } catch (dbError) {
               console.error(`[Engine] Database update error for frame ${i}:`, dbError)
             }
@@ -542,17 +604,9 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
         
         // DB에 에러 상태 업데이트
         try {
-          const { error: updateError } = await supabase
-            .from('cards')
-            .update({ 
-              storyboard_status: 'error'
-            })
-            .eq('project_id', storyboardId)
-            .eq('order_index', i)
-          
-          if (updateError) {
-            console.error(`[Engine] Failed to update error status in database for frame ${i}:`, updateError)
-          }
+          await updateCardRecord(record.projectId ?? storyboardId, i, {
+            storyboard_status: 'error',
+          })
         } catch (dbError) {
           console.error(`[Engine] Database error status update error for frame ${i}:`, dbError)
         }

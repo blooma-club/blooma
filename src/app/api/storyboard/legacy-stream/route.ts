@@ -41,8 +41,9 @@ export async function GET(req: NextRequest) {
               done()
             }
           }, 500)
-        } catch (e: any) {
-          send({ error: e?.message || 'Failed to build storyboard' })
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to build storyboard'
+          send({ error: errorMessage })
           done()
         }
       })()

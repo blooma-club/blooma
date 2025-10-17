@@ -60,12 +60,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 // Hydration을 안전하게 처리하는 커스텀 훅
 export const useHydratedUIStore = () => {
   const store = useUIStore()
+  const setHydrated = useUIStore((state) => state.setHydrated)
   const [isClient, setIsClient] = useState(false)
   
   useEffect(() => {
     setIsClient(true)
-    store.setHydrated()
-  }, [])
+    setHydrated()
+  }, [setHydrated])
   
   return {
     ...store,

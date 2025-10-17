@@ -2,7 +2,6 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Card } from '@/types'
 import type { StoryboardFrame } from '@/types/storyboard'
-import { supabase } from './supabase'
 
 type CardSnakeCaseFields = {
   duration?: number
@@ -68,32 +67,57 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
 export async function verifyProjectOwnership(
   projectId: string,
   userId: string
-): Promise<{ isOwner: boolean; project?: any; error?: string }> {
+): Promise<{ isOwner: boolean; project?: unknown; error?: string }> {
   try {
     if (!projectId || !userId) {
       return { isOwner: false, error: 'Project ID and User ID are required' };
     }
 
-    const { data: project, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single();
+    const baseUrl =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_APP_URL ??
+          process.env.NEXT_PUBLIC_SITE_URL ??
+          process.env.NEXT_PUBLIC_BASE_URL ??
+          'http://localhost:3000';
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No rows returned - project doesn't exist or user doesn't own it
-        return { isOwner: false, error: 'Project not found or access denied' };
-      }
-      console.error('[verifyProjectOwnership] Supabase error:', error)
-      return {
-        isOwner: false,
-        error: error.message || 'Failed to verify project access (Supabase error)'
-      };
+    const url = new URL(
+      `/api/projects/${encodeURIComponent(projectId)}/ownership`,
+      baseUrl
+    );
+    url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const typedPayload = payload as {
+      error?: unknown
+      project?: unknown
+      isOwner?: unknown
     }
 
-    return { isOwner: true, project };
+    if (!response.ok) {
+      const errorMessage =
+        typeof typedPayload.error === 'string'
+          ? typedPayload.error
+          : 'Failed to verify project access';
+
+      return { isOwner: false, error: errorMessage };
+    }
+
+    const project = typedPayload.project
+    const isOwner = typeof typedPayload.isOwner === 'boolean' ? typedPayload.isOwner : Boolean(typedPayload.isOwner)
+
+    return {
+      isOwner,
+      project,
+    };
   } catch (error) {
     const message =
       error instanceof Error

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { Coins, TrendingUp, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,52 +25,51 @@ export const CreditDisplay: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchCreditInfo = async () => {
+  const fetchCreditInfo = useCallback(async () => {
     if (!session?.access_token || !user) return
-    
+
     try {
       setLoading(true)
       setError(null)
-      
+
       // 크레딧 잔액 조회
       const balanceResponse = await fetch('/api/credits?action=balance', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       })
-      
+
       if (!balanceResponse.ok) {
         throw new Error('Failed to fetch credit balance')
       }
-      
+
       const balanceData = await balanceResponse.json()
       setCreditInfo(balanceData.data)
-      
+
       // 이번 달 사용량 조회
       const usageResponse = await fetch('/api/credits?action=usage&period=month', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       })
-      
+
       if (usageResponse.ok) {
         const usageData = await usageResponse.json()
         setUsageStats(usageData.data)
       }
-      
     } catch (error) {
       console.error('Error fetching credit info:', error)
       setError(error instanceof Error ? error.message : 'Failed to load credit information')
     } finally {
       setLoading(false)
     }
-  }
+  }, [session?.access_token, user])
 
   useEffect(() => {
-    fetchCreditInfo()
-  }, [session, user])
+    void fetchCreditInfo()
+  }, [fetchCreditInfo])
 
   if (!user || loading) {
     return (
