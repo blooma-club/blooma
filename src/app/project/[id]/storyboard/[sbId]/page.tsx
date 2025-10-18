@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import type { StoryboardFrame } from '@/types/storyboard'
+import { arrayMove } from '@dnd-kit/sortable'
+import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import type { Card, Storyboard } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
 import type { SupabaseCharacter } from '@/lib/supabase'
@@ -21,6 +22,28 @@ import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import ProfessionalVideoTimeline from '@/components/storyboard/ProfessionalVideoTimeline'
 import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
+import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
+
+const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
+  '16:9': '16 / 9',
+  '4:3': '4 / 3',
+  '3:2': '3 / 2',
+  '2:3': '2 / 3',
+  '3:4': '3 / 4',
+  '9:16': '9 / 16',
+}
+const DEFAULT_RATIO: StoryboardAspectRatio = '16:9'
+const CARD_WIDTH_MIN = 240
+const CARD_WIDTH_MAX = 1104
+const CARD_WIDTH_LOCK_THRESHOLD = 540
+const DEFAULT_CARD_WIDTH = 400
+const GRID_CONTAINER_MAX_WIDTH = 1824
+const GRID_GAP_PX = 24
+const DEFAULT_CONTAINER_WIDTH = 1672
+const CARD_WIDTH_STORAGE_PREFIX = 'blooma_storyboard_card_width:'
+
+const clampCardWidth = (value: number) =>
+  Math.max(CARD_WIDTH_MIN, Math.min(CARD_WIDTH_MAX, Math.round(value)))
 
 // Empty state component for projects with no cards
 const EmptyStoryboardState = ({
@@ -170,8 +193,10 @@ export default function StoryboardPage() {
   const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
   const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
-  // aspect ratio is selected at build time; not yet sent back in API payload. Placeholder for future.
-  const [ratio] = useState<'16:9' | '1:1' | '9:16' | '4:3' | '3:4'>('3:4')
+  const [ratio, setRatio] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
+  const [cardWidth, setCardWidth] = useState<number>(DEFAULT_CARD_WIDTH)
+  const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_CONTAINER_WIDTH)
+  const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
 
   // View mode 상태: 'storyboard' | 'editor' | 'timeline'
@@ -190,6 +215,144 @@ export default function StoryboardPage() {
   const deleteCard = useStoryboardStore(s => s.deleteCard)
   const sseRef = React.useRef<EventSource | null>(null)
   const framesRef = useRef<StoryboardFrame[]>([])
+  const latestCardWidthRef = useRef<number>(DEFAULT_CARD_WIDTH)
+  const persistCardWidthTimeout = useRef<number | null>(null)
+
+  const readStoredCardWidth = useCallback((): number | null => {
+    if (typeof window === 'undefined' || !projectId) {
+      return null
+    }
+
+    const raw = window.localStorage.getItem(`${CARD_WIDTH_STORAGE_PREFIX}${projectId}`)
+    if (!raw) {
+      return null
+    }
+
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) {
+      return null
+    }
+
+    return clampCardWidth(parsed)
+  }, [projectId])
+
+  const persistCardWidthLocally = useCallback(
+    (width: number) => {
+      if (typeof window === 'undefined' || !projectId) {
+        return
+      }
+      window.localStorage.setItem(
+        `${CARD_WIDTH_STORAGE_PREFIX}${projectId}`,
+        String(clampCardWidth(width))
+      )
+    },
+    [projectId]
+  )
+
+  const schedulePersistCardWidth = useCallback(
+    (width: number) => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      if (persistCardWidthTimeout.current !== null) {
+        window.clearTimeout(persistCardWidthTimeout.current)
+      }
+
+      persistCardWidthTimeout.current = window.setTimeout(() => {
+        const storeCards = useStoryboardStore.getState().cards[projectId] || []
+        if (storeCards.length === 0) {
+          persistCardWidthLocally(width)
+          return
+        }
+
+        fetch('/api/cards', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            cards: storeCards.map(card => ({
+              id: card.id,
+              card_width: clampCardWidth(width),
+            })),
+          }),
+        }).catch(error => {
+          console.error('[STORYBOARD] Failed to persist card width:', error)
+        })
+
+        persistCardWidthLocally(width)
+      }, 400)
+    },
+    [projectId, persistCardWidthLocally]
+  )
+
+  useEffect(() => {
+    const storedWidth = readStoredCardWidth()
+    if (storedWidth !== null) {
+      const clamped = clampCardWidth(storedWidth)
+      latestCardWidthRef.current = clamped
+      setCardWidth(clamped)
+      persistCardWidthLocally(clamped)
+    }
+  }, [persistCardWidthLocally, readStoredCardWidth])
+
+  const handleCardWidthChange = useCallback(
+    (value: number) => {
+      const nextWidth = clampCardWidth(value)
+      if (latestCardWidthRef.current === nextWidth) {
+        return
+      }
+
+      latestCardWidthRef.current = nextWidth
+      setCardWidth(nextWidth)
+      persistCardWidthLocally(nextWidth)
+
+      setFrames(prev =>
+        prev.map(frame =>
+          frame.cardWidth === nextWidth ? frame : { ...frame, cardWidth: nextWidth }
+        )
+      )
+
+      const storeCards = useStoryboardStore.getState().cards[projectId] || []
+      if (storeCards.length > 0) {
+        const needsUpdate = storeCards.some(card => card.card_width !== nextWidth)
+        if (needsUpdate) {
+          const updatedCards = storeCards.map(card =>
+            card.card_width === nextWidth ? card : { ...card, card_width: nextWidth }
+          )
+          setCards(projectId, updatedCards)
+        }
+      }
+
+      schedulePersistCardWidth(nextWidth)
+    },
+    [persistCardWidthLocally, projectId, schedulePersistCardWidth, setCards, setFrames]
+  )
+
+  const handleContainerWidthChange = useCallback(
+    (value: number) => {
+      const normalized = clampCardWidth(cardWidth)
+      const minWidth = normalized
+      const maxWidth =
+        normalized > CARD_WIDTH_LOCK_THRESHOLD ? normalized : GRID_CONTAINER_MAX_WIDTH
+      const step = minWidth + GRID_GAP_PX
+      const clamped = Math.max(minWidth, Math.min(Math.round(value), maxWidth))
+      if (step <= 0) {
+        setContainerWidth(clamped)
+        return
+      }
+      const stepCount = Math.max(0, Math.round((clamped - minWidth) / step))
+      const snapped = minWidth + stepCount * step
+      if (snapped > maxWidth) {
+        const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
+        setContainerWidth(minWidth + maxSteps * step)
+        return
+      }
+      setContainerWidth(snapped)
+    },
+    [cardWidth]
+  )
 
   // 안정적인 이미지 업데이트 콜백
   const handleImageUpdated = useCallback(
@@ -255,6 +418,14 @@ export default function StoryboardPage() {
   useEffect(() => {
     framesRef.current = frames
   }, [frames])
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && persistCardWidthTimeout.current !== null) {
+        window.clearTimeout(persistCardWidthTimeout.current)
+      }
+    }
+  }, [])
 
   // 근본적 해결: 실제 데이터 변경 시그니처 기반 동기화
   const lastSyncSignatureRef = useRef<string>('')
@@ -328,7 +499,15 @@ export default function StoryboardPage() {
     const orderedCards = [...cards].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
 
     // cards를 frames로 변환 - 메타데이터 완전 통합
-    const syncedFrames = orderedCards.map((card, index) => cardToFrame(card, index))
+    const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
+    const syncedFrames = orderedCards.map((card, index) => {
+      const frame = cardToFrame(card, index)
+      if (typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)) {
+        frame.cardWidth = clampCardWidth(frame.cardWidth)
+        return frame
+      }
+      return { ...frame, cardWidth: normalizedWidth }
+    })
 
     setFrames(syncedFrames)
     lastSyncSignatureRef.current = currentSignature
@@ -406,9 +585,33 @@ export default function StoryboardPage() {
         console.log('[STORYBOARD] Cards fetch result', { count: cardsData.length })
 
         if (cardsData.length > 0) {
-          setCards(projectId, cardsData)
+          const widthFromCards = cardsData.reduce<number | null>((acc, card) => {
+            if (acc !== null) return acc
+            if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
+              return clampCardWidth(card.card_width)
+            }
+            return acc
+          }, null)
 
-          const initialFrames = cardsData.map((card, index) => cardToFrame(card, index))
+          const storedWidth = readStoredCardWidth()
+          const resolvedCardWidth = clampCardWidth(
+            widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH
+          )
+          latestCardWidthRef.current = resolvedCardWidth
+          setCardWidth(resolvedCardWidth)
+          persistCardWidthLocally(resolvedCardWidth)
+
+          const cardsWithWidth = cardsData.map(card => {
+            if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
+              const normalized = clampCardWidth(card.card_width)
+              return normalized === card.card_width ? card : { ...card, card_width: normalized }
+            }
+            return { ...card, card_width: resolvedCardWidth }
+          })
+
+          setCards(projectId, cardsWithWidth)
+
+          const initialFrames = cardsWithWidth.map((card, index) => cardToFrame(card, index))
           setFrames(initialFrames)
           console.log('[STORYBOARD] Loaded frames from cards', { frameCount: initialFrames.length })
 
@@ -441,6 +644,11 @@ export default function StoryboardPage() {
           }
         } else {
           console.log('[STORYBOARD] Project has no cards yet, showing empty state')
+          const storedWidth = readStoredCardWidth() ?? DEFAULT_CARD_WIDTH
+          const normalizedWidth = clampCardWidth(storedWidth)
+          latestCardWidthRef.current = normalizedWidth
+          setCardWidth(normalizedWidth)
+          persistCardWidthLocally(normalizedWidth)
           setCards(projectId, [])
           setFrames([])
           setSbTitle('New Storyboard')
@@ -506,7 +714,16 @@ export default function StoryboardPage() {
     }
 
     loadStoryboardData()
-  }, [sbId, projectId, userId, isLoaded, setStoryboard, setCards])
+  }, [
+    sbId,
+    projectId,
+    userId,
+    isLoaded,
+    setStoryboard,
+    setCards,
+    readStoredCardWidth,
+    persistCardWidthLocally,
+  ])
 
   // SSE stream for progressive updates
   const startStream = useCallback(() => {
@@ -526,8 +743,16 @@ export default function StoryboardPage() {
             setStatus(data.status ? { status: data.status } : null)
             if (data.title) setSbTitle(data.title)
             if (Array.isArray(data.frames) && framesRef.current.length === 0) {
-              setFrames(data.frames)
-              framesRef.current = data.frames
+              const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
+              const initialFrames = data.frames.map(frame => ({
+                ...frame,
+                cardWidth:
+                  typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
+                    ? clampCardWidth(frame.cardWidth)
+                    : normalizedWidth,
+              }))
+              setFrames(initialFrames)
+              framesRef.current = initialFrames
               setIndex(0)
             }
             setLoading(false)
@@ -542,8 +767,19 @@ export default function StoryboardPage() {
             if (data?.frame?.id) {
               setFrames(prev => {
                 const idx = prev.findIndex(f => f.id === data.frame?.id)
+                const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
                 if (idx === -1 && data.frame) {
-                  return [...prev, data.frame]
+                  return [
+                    ...prev,
+                    {
+                      ...data.frame,
+                      cardWidth:
+                        typeof data.frame.cardWidth === 'number' &&
+                        Number.isFinite(data.frame.cardWidth)
+                          ? clampCardWidth(data.frame.cardWidth)
+                          : normalizedWidth,
+                    },
+                  ]
                 } else if (idx !== -1 && data.frame) {
                   const existingFrame = prev[idx]
                   const updatedFrame: StoryboardFrame = {
@@ -551,6 +787,12 @@ export default function StoryboardPage() {
                     ...data.frame,
                     imageUrl: existingFrame.imageUrl || data.frame.imageUrl,
                   }
+                  const incomingWidth =
+                    typeof data.frame.cardWidth === 'number' &&
+                    Number.isFinite(data.frame.cardWidth)
+                      ? clampCardWidth(data.frame.cardWidth)
+                      : (existingFrame.cardWidth ?? normalizedWidth)
+                  updatedFrame.cardWidth = incomingWidth
                   if (existingFrame.scene !== data.frame.scene && existingFrame.scene !== idx + 1) {
                     updatedFrame.scene = existingFrame.scene
                   }
@@ -755,6 +997,72 @@ export default function StoryboardPage() {
     [projectId, router]
   )
 
+  const handleReorderFrames = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!projectId) return
+      if (fromIndex === toIndex) return
+
+      const currentFrames = framesRef.current
+      if (!currentFrames.length) return
+
+      const reorderedFrames = arrayMove(currentFrames, fromIndex, toIndex).map((frame, idx) => ({
+        ...frame,
+        scene: idx + 1,
+      }))
+      framesRef.current = reorderedFrames
+      setFrames(reorderedFrames)
+
+      const storeState = useStoryboardStore.getState()
+      const projectCards = storeState.cards[projectId] || []
+      if (projectCards.length > 0) {
+        const movedCards = arrayMove([...projectCards], fromIndex, toIndex)
+        const normalisedCards = movedCards.map((card, idx) => {
+          const prevCard = movedCards[idx - 1]
+          const nextCard = movedCards[idx + 1]
+          return {
+            ...card,
+            order_index: idx,
+            scene_number: idx + 1,
+            prev_card_id: prevCard ? prevCard.id : null,
+            next_card_id: nextCard ? nextCard.id : null,
+          }
+        })
+
+        setCards(projectId, normalisedCards)
+
+        fetch('/api/cards', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            cards: normalisedCards.map(card => ({
+              id: card.id,
+              order_index: card.order_index,
+              scene_number: card.scene_number,
+              prev_card_id: card.prev_card_id,
+              next_card_id: card.next_card_id,
+            })),
+          }),
+        }).catch(error => {
+          console.error('[STORYBOARD] Failed to persist reordered cards:', error)
+        })
+      }
+
+      setIndex(prevIndex => {
+        if (prevIndex === fromIndex) return toIndex
+        if (fromIndex < toIndex && prevIndex > fromIndex && prevIndex <= toIndex) {
+          return prevIndex - 1
+        }
+        if (fromIndex > toIndex && prevIndex >= toIndex && prevIndex < fromIndex) {
+          return prevIndex + 1
+        }
+        return prevIndex
+      })
+    },
+    [projectId, setCards, setFrames, setIndex]
+  )
+
   // Add / Delete frame handlers
   const handleAddFrame = useCallback(
     async (insertIndex?: number) => {
@@ -770,12 +1078,19 @@ export default function StoryboardPage() {
             projectId: projectId,
             currentCards: allCards,
             insertIndex: targetIndex,
+            cardWidth: latestCardWidthRef.current,
           },
           'STORYBOARD'
         )
 
+        const widthForCard = clampCardWidth(latestCardWidthRef.current)
+        const normalizedInserted =
+          typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
+            ? { ...inserted, card_width: clampCardWidth(inserted.card_width) }
+            : { ...inserted, card_width: widthForCard }
+
         const mergedCards = [...allCards]
-        mergedCards.splice(targetIndex, 0, inserted)
+        mergedCards.splice(targetIndex, 0, normalizedInserted)
 
         const reindexedCards = mergedCards.map((card, idx, arr) => ({
           ...card,
@@ -837,6 +1152,7 @@ export default function StoryboardPage() {
             userId,
             projectId: projectId,
             currentCards: currentCardsSnapshot,
+            cardWidth: latestCardWidthRef.current,
           },
           'TIMELINE_GENERATE'
         )
@@ -850,8 +1166,13 @@ export default function StoryboardPage() {
         throw new Error('새로운 씬이 정상적으로 생성되지 않았습니다.')
       }
 
+      const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
       const insertedWithPrompt: Card = {
         ...inserted,
+        card_width:
+          typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
+            ? clampCardWidth(inserted.card_width)
+            : normalizedWidth,
         shot_description: trimmedPrompt,
         image_prompt: trimmedPrompt,
         storyboard_status: 'generating',
@@ -1163,12 +1484,62 @@ export default function StoryboardPage() {
 
   // 현재 프레임 안정적 참조
   const currentFrame = useMemo(() => frames[index] || null, [frames, index])
+  const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
+  const containerStep = useMemo(() => normalizedCardWidth + GRID_GAP_PX, [normalizedCardWidth])
+  const containerMaxWidth = useMemo(
+    () =>
+      normalizedCardWidth > CARD_WIDTH_LOCK_THRESHOLD
+        ? normalizedCardWidth
+        : GRID_CONTAINER_MAX_WIDTH,
+    [normalizedCardWidth]
+  )
+  const normalizedContainerWidth = useMemo(() => {
+    const minWidth = normalizedCardWidth
+    const maxWidth = containerMaxWidth
+    const step = containerStep
+    const clamped = Math.max(minWidth, Math.min(Math.round(containerWidth), maxWidth))
+    if (step <= 0) {
+      return clamped
+    }
+    const stepCount = Math.max(0, Math.round((clamped - minWidth) / step))
+    const snapped = minWidth + stepCount * step
+    if (snapped > maxWidth) {
+      const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
+      return minWidth + maxSteps * step
+    }
+    return snapped
+  }, [containerMaxWidth, containerStep, containerWidth, normalizedCardWidth])
+  const gridTemplateColumns = useMemo(
+    () => `repeat(auto-fit, minmax(${normalizedCardWidth}px, ${normalizedCardWidth}px))`,
+    [normalizedCardWidth]
+  )
+  useEffect(() => {
+    setContainerWidth(prev => {
+      const minWidth = normalizedCardWidth
+      const maxWidth = containerMaxWidth
+      const step = containerStep
+      const clampedPrev = Math.max(minWidth, Math.min(prev, maxWidth))
+      if (step <= 0) {
+        return clampedPrev
+      }
+      const stepCount = Math.max(0, Math.round((clampedPrev - minWidth) / step))
+      const snapped = minWidth + stepCount * step
+      if (snapped > maxWidth) {
+        const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
+        return minWidth + maxSteps * step
+      }
+      return snapped
+    })
+  }, [containerMaxWidth, containerStep, normalizedCardWidth])
+  const gridContainerMaxWidth = normalizedContainerWidth
+  const canShowWidthControlsPanel =
+    viewMode === 'storyboard' && (!isClient || storyboardViewMode === 'grid')
 
   return (
     <div>
       <div className="w-full px-4">
         {/* Header 라인: FloatingHeader + ViewModeToggle */}
-        <div className="relative w-full mb-6">
+        <div className="relative mx-auto mb-6 w-full max-w-[1280px]">
           {/* FloatingHeader */}
           <FloatingHeader
             title={sbTitle || 'Storyboard'}
@@ -1179,11 +1550,55 @@ export default function StoryboardPage() {
             onNavigateToEditor={handleNavigateToEditor}
             onNavigateToTimeline={handleNavigateToTimeline}
             onNavigateToCharacters={handleNavigateToCharacters}
+            aspectRatio={ratio}
+            onAspectRatioChange={setRatio}
+            isWidthPanelOpen={showWidthControls}
+            onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
+            layout="inline"
+            containerClassName="mx-auto w-full sm:w-auto"
+            className="mx-auto w-full max-w-[1040px] sm:pr-16"
           />
+
+          {canShowWidthControlsPanel && (
+            <>
+              <div
+                className="hidden sm:absolute sm:block sm:-translate-y-1/2"
+                style={{ top: '50%', left: 'calc(50% - min(100%, 65rem) / 2 - 13.5rem)' }}
+              >
+                <StoryboardWidthControls
+                  visible={showWidthControls}
+                  cardWidthMin={CARD_WIDTH_MIN}
+                  cardWidthMax={CARD_WIDTH_MAX}
+                  normalizedCardWidth={normalizedCardWidth}
+                  normalizedContainerWidth={normalizedContainerWidth}
+                  containerMaxWidth={containerMaxWidth}
+                  containerStep={containerStep}
+                  onCardWidthChange={handleCardWidthChange}
+                  onContainerWidthChange={handleContainerWidthChange}
+                  className="mx-auto sm:mx-0"
+                />
+              </div>
+              {showWidthControls ? (
+                <div className="mt-4 sm:hidden">
+                  <StoryboardWidthControls
+                    visible={showWidthControls}
+                    cardWidthMin={CARD_WIDTH_MIN}
+                    cardWidthMax={CARD_WIDTH_MAX}
+                    normalizedCardWidth={normalizedCardWidth}
+                    normalizedContainerWidth={normalizedContainerWidth}
+                    containerMaxWidth={containerMaxWidth}
+                    containerStep={containerStep}
+                    onCardWidthChange={handleCardWidthChange}
+                    onContainerWidthChange={handleContainerWidthChange}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
 
           {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
           {viewMode === 'storyboard' && (
-            <div className="absolute top-0 right-4 pointer-events-auto">
+            <div className="absolute top-0 right-0 pointer-events-auto">
               <div className="bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-3 py-3">
                 <ViewModeToggle
                   viewMode={isClient ? storyboardViewMode : 'grid'}
@@ -1204,15 +1619,26 @@ export default function StoryboardPage() {
             {/* 콘텐츠 렌더링 */}
             {loading && (
               <div className="flex justify-center">
-                <div className="grid grid-cols-4 gap-6 w-full max-w-[2000px]">
+                <div
+                  className="grid gap-6 w-full"
+                  style={{
+                    maxWidth: `${gridContainerMaxWidth}px`,
+                    gridTemplateColumns,
+                  }}
+                >
                   {Array.from({ length: Math.max(cards.length, 8) }).map((_, idx) => (
                     <div
                       key={idx}
-                      className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden h-96"
+                      className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden"
                     >
                       <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-neutral-800 w-16 h-4 animate-pulse" />
                       <div className="absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full bg-neutral-700 ring-2 ring-neutral-700 animate-pulse" />
-                      <div className="relative w-full h-96 bg-neutral-900">
+                      <div
+                        className="relative w-full bg-neutral-900"
+                        style={{
+                          aspectRatio: RATIO_TO_CSS[ratio],
+                        }}
+                      >
                         <div className="absolute inset-0 bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
                         <style jsx>{`
                           @keyframes shimmer {
@@ -1251,6 +1677,10 @@ export default function StoryboardPage() {
                 onGenerateVideo={handleGenerateVideo}
                 onPlayVideo={handlePlayVideo}
                 generatingVideoId={generatingVideoId}
+                aspectRatio={ratio}
+                containerMaxWidth={gridContainerMaxWidth}
+                cardWidth={normalizedCardWidth}
+                onReorder={handleReorderFrames}
               />
             )}
 
@@ -1268,6 +1698,7 @@ export default function StoryboardPage() {
                 onGenerateVideo={handleGenerateVideo}
                 onPlayVideo={handlePlayVideo}
                 generatingVideoId={generatingVideoId}
+                aspectRatio={ratio}
               />
             )}
           </>
@@ -1318,13 +1749,20 @@ export default function StoryboardPage() {
                       userId,
                       projectId: projectId,
                       currentCards: cards,
+                      cardWidth: latestCardWidthRef.current,
                     },
                     'TIMELINE'
                   )
 
                   if (newCard) {
-                    setCards(projectId, [...cards, newCard])
-                    setFrames(prev => [...prev, cardToFrame(newCard)])
+                    const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
+                    const cardWithWidth: Card =
+                      typeof newCard.card_width === 'number' && Number.isFinite(newCard.card_width)
+                        ? { ...newCard, card_width: clampCardWidth(newCard.card_width) }
+                        : { ...newCard, card_width: normalizedWidth }
+
+                    setCards(projectId, [...cards, cardWithWidth])
+                    setFrames(prev => [...prev, cardToFrame(cardWithWidth)])
                   }
                 } catch (error) {
                   console.error('Error creating new frame:', error)

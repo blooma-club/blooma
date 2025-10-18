@@ -5,6 +5,7 @@ export type CreateCardOptions = {
   projectId: string
   currentCards: Card[]
   insertIndex?: number
+  cardWidth?: number
 }
 
 export const computeNextSceneIndex = (currentCards: Card[]): number => {
@@ -42,6 +43,7 @@ export const buildCardPayload = (opts: CreateCardOptions) => {
     sound: '',
     image_prompt: '',
     storyboard_status: 'ready',
+    card_width: typeof opts.cardWidth === 'number' ? Math.round(opts.cardWidth) : null,
     prev_card_id: previousCard?.id || null,
     next_card_id: followingCard?.id || null,
   }

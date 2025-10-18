@@ -114,8 +114,6 @@ export default function ProjectHeader() {
         Dashboard
       </button>
       <div className="w-px h-4 bg-gray-600 mx-2" />
-      <h1 className="text-sm font-medium text-gray-300">Project</h1>
-      <div className="w-px h-4 bg-gray-600 mx-2" />
       {isEditing ? (
         <div className="flex items-center gap-3">
           <input

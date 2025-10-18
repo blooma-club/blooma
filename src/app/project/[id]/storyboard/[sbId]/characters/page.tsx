@@ -44,7 +44,9 @@ export default function ProjectCharactersPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [initialCharacters, setInitialCharacters] = useState<CharacterWizardCharacter[] | null>(null)
+  const [initialCharacters, setInitialCharacters] = useState<CharacterWizardCharacter[] | null>(
+    null
+  )
 
   useEffect(() => {
     if (!projectId || !user?.id) {
@@ -65,7 +67,7 @@ export default function ProjectCharactersPage() {
           `/api/characters?project_id=${encodeURIComponent(projectId)}`,
           {
             credentials: 'include',
-          },
+          }
         )
 
         if (isCancelled) {
@@ -151,7 +153,12 @@ export default function ProjectCharactersPage() {
             Loading characters...
           </div>
         ) : (
-          <CharacterWizard initial={initialCharacters} onChange={() => {}} projectId={projectId} userId={user?.id} />
+          <CharacterWizard
+            initial={initialCharacters}
+            onChange={() => {}}
+            projectId={projectId}
+            userId={user?.id}
+          />
         )}
       </div>
     </div>

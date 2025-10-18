@@ -60,6 +60,7 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     videoUrl: card.videoUrl ?? snakeCaseCard.video_url,
     videoKey: card.videoKey ?? snakeCaseCard.video_key,
     videoPrompt: card.videoPrompt ?? snakeCaseCard.video_prompt,
+    cardWidth: typeof card.card_width === 'number' ? card.card_width : undefined,
   };
 }
 

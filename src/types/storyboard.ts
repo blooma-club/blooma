@@ -25,6 +25,7 @@ export interface StoryboardFrame {
   videoUrl?: string // Generated video derived from the storyboard image
   videoKey?: string // Cloud storage object key
   videoPrompt?: string // Prompt used when generating the video
+  cardWidth?: number | null
 }
 
 export interface Character {
@@ -57,3 +58,5 @@ export interface StoryboardBuildResponse {
   title?: string
   error?: string
 }
+
+export type StoryboardAspectRatio = '16:9' | '4:3' | '3:2' | '2:3' | '3:4' | '9:16'

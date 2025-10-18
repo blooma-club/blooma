@@ -1,8 +1,28 @@
-"use client"
+'use client'
 
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
-import type { StoryboardFrame } from '@/types/storyboard'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import clsx from 'clsx'
+import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
 
 interface FrameGridProps {
@@ -17,6 +37,10 @@ interface FrameGridProps {
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
   generatingVideoId?: string | null
+  aspectRatio?: StoryboardAspectRatio
+  containerMaxWidth?: number
+  cardWidth: number
+  onReorder?: (fromIndex: number, toIndex: number) => void
 }
 
 const SideInsertButton = ({
@@ -28,15 +52,18 @@ const SideInsertButton = ({
   onClick: () => void
   label: string
 }) => {
-  const positionClass =
-    position === 'left'
-      ? 'left-0 -translate-x-1/2'
-      : 'right-0 translate-x-1/2'
+  const positionClass = position === 'left' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2'
+
+  const stopPropagation = (event: React.SyntheticEvent) => {
+    event.stopPropagation()
+  }
 
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={stopPropagation}
+      onTouchStart={stopPropagation}
       className={`absolute top-1/2 -translate-y-1/2 ${positionClass} z-30 flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-neutral-600 bg-neutral-900 text-neutral-200 shadow transition-all duration-150 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:border-neutral-400 hover:text-neutral-100`}
       aria-label={label}
     >
@@ -44,6 +71,20 @@ const SideInsertButton = ({
     </button>
   )
 }
+
+const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
+  '16:9': '16 / 9',
+  '4:3': '4 / 3',
+  '3:2': '3 / 2',
+  '2:3': '2 / 3',
+  '3:4': '3 / 4',
+  '9:16': '9 / 16',
+}
+
+const CARD_WIDTH_MIN = 240
+const CARD_WIDTH_MAX = 1104
+const clampCardWidth = (value: number) =>
+  Math.max(CARD_WIDTH_MIN, Math.min(CARD_WIDTH_MAX, Math.round(value)))
 
 export const FrameGrid: React.FC<FrameGridProps> = ({
   frames,
@@ -57,17 +98,82 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   onGenerateVideo,
   onPlayVideo,
   generatingVideoId = null,
+  aspectRatio = '16:9',
+  containerMaxWidth,
+  cardWidth,
+  onReorder,
 }) => {
+  const aspectValue = RATIO_TO_CSS[aspectRatio]
+  const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
+  const gridTemplateColumns = `repeat(auto-fit, minmax(${normalizedCardWidth}px, ${normalizedCardWidth}px))`
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const activeFrame = useMemo(
+    () => frames.find(frame => frame.id === activeId) ?? null,
+    [activeId, frames]
+  )
+  const activeCardWidth = useMemo(() => {
+    if (!activeFrame) {
+      return normalizedCardWidth
+    }
+    if (typeof activeFrame.cardWidth === 'number' && Number.isFinite(activeFrame.cardWidth)) {
+      return clampCardWidth(activeFrame.cardWidth)
+    }
+    return normalizedCardWidth
+  }, [activeFrame, normalizedCardWidth])
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = frames.findIndex(frame => frame.id === active.id)
+    const newIndex = frames.findIndex(frame => frame.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) {
+      return
+    }
+
+    if (onReorder) {
+      onReorder(oldIndex, newIndex)
+    }
+  }
+
+  const handleDragCancel = () => setActiveId(null)
+
   if (loading) {
     return (
       <div className="flex justify-center">
-        <div className="grid grid-cols-4 gap-6 w-full max-w-[2000px]">
+        <div
+          className="grid w-full gap-6"
+          style={
+            containerMaxWidth
+              ? { maxWidth: `${containerMaxWidth}px`, gridTemplateColumns }
+              : { gridTemplateColumns }
+          }
+        >
           {Array.from({ length: Math.max(cardsLength, 8) }).map((_, idx) => (
-            <div key={idx} className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden h-96">
-              <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-neutral-800 w-16 h-4 animate-pulse" />
-              <div className="absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full bg-neutral-700 ring-2 ring-neutral-700 animate-pulse" />
-              <div className="relative w-full h-96 bg-neutral-900">
-                <div className="absolute inset-0 bg-gradient-to-r from-neutral-700 via-neutral-600 to-neutral-700 animate-pulse" />
+            <div
+              key={idx}
+              className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-neutral-700 bg-black shadow-lg"
+            >
+              <div className="absolute left-2 top-2 z-20 h-4 w-16 animate-pulse rounded-md bg-neutral-800 px-1.5 py-0.5" />
+              <div className="absolute right-2 top-2 z-20 h-2.5 w-2.5 animate-pulse rounded-full bg-neutral-700 ring-2 ring-neutral-700" />
+              <div className="relative w-full bg-neutral-900" style={{ aspectRatio: aspectValue }}>
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-neutral-700 via-neutral-600 to-neutral-700" />
               </div>
             </div>
           ))}
@@ -77,52 +183,181 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   }
 
   return (
-    <div className="flex justify-center">
-      <div className="grid grid-cols-4 gap-6 w-full max-w-[2000px]">
-        {frames.map((frame, i) => (
-          <div key={frame.id} className="relative group">
-            {i === 0 && (
-              <SideInsertButton
-                position="left"
-                label="Add scene at the beginning"
-                onClick={() => onAddFrame(0)}
-              />
-            )}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      modifiers={[restrictToParentElement]}
+    >
+      <div className="flex justify-center pt-10">
+        <SortableContext items={frames.map(frame => frame.id)} strategy={rectSortingStrategy}>
+          <div
+            className="grid w-full gap-6"
+            style={
+              containerMaxWidth
+                ? { maxWidth: `${containerMaxWidth}px`, gridTemplateColumns }
+                : { gridTemplateColumns }
+            }
+          >
+            {frames.map((frame, index) => {
+              const frameWidth =
+                typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
+                  ? clampCardWidth(frame.cardWidth)
+                  : normalizedCardWidth
+
+              return (
+                <SortableFrameCard
+                  key={frame.id}
+                  frame={frame}
+                  index={index}
+                  deleting={deletingFrameId === frame.id}
+                  aspectRatio={aspectRatio}
+                  cardWidth={frameWidth}
+                  onOpen={() => onFrameOpen(index)}
+                  onEdit={() => onFrameEdit(frame.id)}
+                  onDelete={() => onFrameDelete(frame.id)}
+                  onAddBefore={() => onAddFrame(index)}
+                  onAddAfter={() => onAddFrame(index + 1)}
+                  onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
+                  onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+                  isGeneratingVideo={generatingVideoId === frame.id}
+                  highlight={activeId === frame.id}
+                />
+              )
+            })}
+
+            <button
+              type="button"
+              onClick={() => onAddFrame()}
+              className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-600 bg-neutral-900/50 text-neutral-400 transition-colors hover:border-neutral-500 hover:text-neutral-300"
+              style={{ aspectRatio: aspectValue }}
+              aria-label="Add new frame"
+            >
+              <Plus className="mb-1 h-7 w-7" />
+              <span className="text-sm font-medium">Add new scene</span>
+            </button>
+          </div>
+        </SortableContext>
+      </div>
+
+      <DragOverlay adjustScale={false}>
+        {activeFrame ? (
+          <div
+            className="pointer-events-none w-full"
+            style={{
+              width: `${activeCardWidth}px`,
+              maxWidth: `${activeCardWidth}px`,
+              minWidth: `${activeCardWidth}px`,
+            }}
+          >
             <StoryboardCard
-              sceneNumber={i + 1}
-              imageUrl={frame.imageUrl}
-              status={frame.status}
+              sceneNumber={frames.findIndex(frame => frame.id === activeFrame.id) + 1}
+              imageUrl={activeFrame.imageUrl}
+              status={activeFrame.status}
               imageFit="cover"
-              deleting={deletingFrameId === frame.id}
-              onOpen={() => onFrameOpen(i)}
-              onEdit={() => onFrameEdit(frame.id)}
-              onDelete={() => onFrameDelete(frame.id)}
-              videoUrl={frame.videoUrl}
-              onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
-              onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
-              isGeneratingVideo={generatingVideoId === frame.id}
-            />
-            <SideInsertButton
-              position="right"
-              label={`Add scene after scene ${i + 1}`}
-              onClick={() => onAddFrame(i + 1)}
+              aspectRatio={aspectRatio}
+              cardWidth={activeCardWidth}
             />
           </div>
-        ))}
-        
-        {/* Add new frame button */}
-        <button 
-          type="button" 
-          onClick={() => onAddFrame()} 
-          className="w-full h-96 border-2 border-dashed border-neutral-600 rounded-lg flex flex-col items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50" 
-          aria-label="Add new frame"
-        >
-          <Plus className="w-7 h-7 mb-1" />
-          <span className="text-sm font-medium">Add new scene</span>
-        </button>
-      </div>
-    </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
 export default FrameGrid
+
+type SortableFrameCardProps = {
+  frame: StoryboardFrame
+  index: number
+  deleting: boolean
+  aspectRatio: StoryboardAspectRatio
+  cardWidth: number
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onAddBefore: () => void
+  onAddAfter: () => void
+  onGenerateVideo?: () => void
+  onPlayVideo?: () => void
+  isGeneratingVideo: boolean
+  highlight: boolean
+}
+
+const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
+  frame,
+  index,
+  deleting,
+  aspectRatio,
+  cardWidth,
+  onOpen,
+  onEdit,
+  onDelete,
+  onAddBefore,
+  onAddAfter,
+  onGenerateVideo,
+  onPlayVideo,
+  isGeneratingVideo,
+  highlight,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: frame.id,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 15 : undefined,
+    touchAction: 'none',
+    width: `${cardWidth}px`,
+    maxWidth: `${cardWidth}px`,
+    minWidth: `${cardWidth}px`,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={clsx(
+        'group relative w-full cursor-grab active:cursor-grabbing',
+        isDragging && 'ring-2 ring-blue-500/80 shadow-lg',
+        highlight && !isDragging && 'ring-2 ring-blue-400/60'
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      {index === 0 && (
+        <SideInsertButton
+          position="left"
+          label="Add scene at the beginning"
+          onClick={onAddBefore}
+        />
+      )}
+
+      <StoryboardCard
+        sceneNumber={index + 1}
+        imageUrl={frame.imageUrl}
+        status={frame.status}
+        imageFit="cover"
+        deleting={deleting}
+        onOpen={onOpen}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        videoUrl={frame.videoUrl}
+        onGenerateVideo={onGenerateVideo}
+        onPlayVideo={onPlayVideo}
+        isGeneratingVideo={isGeneratingVideo}
+        aspectRatio={aspectRatio}
+        cardWidth={cardWidth}
+      />
+
+      <SideInsertButton
+        position="right"
+        label={`Add scene after scene ${index + 1}`}
+        onClick={onAddAfter}
+      />
+    </div>
+  )
+}

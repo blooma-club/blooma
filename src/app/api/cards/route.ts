@@ -21,6 +21,7 @@ const ALLOWED_KEYS = new Set([
   'image_size', // 파일 크기
   'image_type', // uploaded/generated
   'order_index',
+  'card_width',
   'next_card_id',
   'prev_card_id',
   // 메타데이터 필드
@@ -51,6 +52,7 @@ const INTEGER_COLUMNS = new Set([
   'image_size',
   'order_index',
   'scene_number',
+  'card_width',
 ])
 const FLOAT_COLUMNS = new Set(['duration', 'start_time'])
 
@@ -88,6 +90,7 @@ type CardRow = {
   image_prompt?: string | null
   storyboard_status?: string | null
   shot_description?: string | null
+  card_width?: number | string | null
   duration?: number | string | null
   audio_url?: string | null
   voice_over_url?: string | null
@@ -517,6 +520,7 @@ function normalizeCardRow(row: CardRow): Record<string, unknown> {
     image_size: parseNullableInteger(row.image_size),
     order_index: parseNullableInteger(row.order_index),
     scene_number: parseNullableInteger(row.scene_number),
+    card_width: parseNullableInteger(row.card_width),
     duration: parseNullableNumber(row.duration),
     start_time: parseNullableNumber(row.start_time),
   }

@@ -2,8 +2,10 @@
 
 import React from 'react'
 import { Plus } from 'lucide-react'
-import type { StoryboardFrame } from '@/types/storyboard'
+import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
+
+const PORTRAIT_RATIOS: StoryboardAspectRatio[] = ['2:3', '3:4', '9:16']
 
 interface FrameListProps {
   frames: StoryboardFrame[]
@@ -15,6 +17,7 @@ interface FrameListProps {
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
   generatingVideoId?: string | null
+  aspectRatio?: StoryboardAspectRatio
 }
 
 const BetweenInsertRow = ({
@@ -52,7 +55,10 @@ export const FrameList: React.FC<FrameListProps> = ({
   onGenerateVideo,
   onPlayVideo,
   generatingVideoId = null,
+  aspectRatio = '16:9',
 }) => {
+  const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
+  const maxHeight = PORTRAIT_RATIOS.includes(aspectRatio) ? 520 : 360
   return (
     <div className="flex justify-center">
       <div className="w-full max-w-[2000px] space-y-4">
@@ -66,7 +72,7 @@ export const FrameList: React.FC<FrameListProps> = ({
           <React.Fragment key={frame.id}>
             <div className="flex items-center gap-6 p-6 bg-neutral-900 border border-neutral-800 rounded-lg hover:bg-neutral-800 transition-colors">
               {/* 왼쪽: StoryboardCard */}
-              <div className="w-96 flex-shrink-0">
+              <div className={`${previewWidthClass} flex-shrink-0`}>
                 <StoryboardCard
                   sceneNumber={i + 1}
                   imageUrl={frame.imageUrl}
@@ -80,6 +86,7 @@ export const FrameList: React.FC<FrameListProps> = ({
                   onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
                   onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
                   isGeneratingVideo={generatingVideoId === frame.id}
+                  aspectRatio={aspectRatio}
                 />
               </div>
 
@@ -131,7 +138,8 @@ export const FrameList: React.FC<FrameListProps> = ({
         {/* Add new frame button */}
         <button
           onClick={() => onAddFrame()}
-          className="w-full p-8 border-2 border-dashed border-neutral-600 rounded-lg flex items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50 min-h-[384px]"
+          className="w-full p-8 border-2 border-dashed border-neutral-600 rounded-lg flex items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50"
+          style={{ minHeight: maxHeight }}
           aria-label="Add new frame"
         >
           <Plus className="w-8 h-8 mr-4" />

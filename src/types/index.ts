@@ -55,10 +55,11 @@ export interface Card {
   image_type?: string // uploaded/generated
 
   order_index: number
+  card_width?: number
 
   // Scene 흐름 필드
-  next_card_id?: string // 다음 Scene을 가리키는 외래키
-  prev_card_id?: string // 이전 Scene을 가리키는 외래키
+  next_card_id?: string | null // 다음 Scene을 가리키는 외래키
+  prev_card_id?: string | null // 이전 Scene을 가리키는 외래키
 
   // Storyboard 메타데이터 필드 (완전 통합)
   scene_number?: number        // 씬 번호
@@ -121,6 +122,7 @@ export interface CardInput {
   selected_image_url?: number // Index of the selected image (0, 1, or 2)
 
   order_index?: number
+  card_width?: number
 
   // Storyboard 메타데이터 필드 (완전 통합)
   scene_number?: number

@@ -12,6 +12,10 @@ ADD COLUMN IF NOT EXISTS video_url TEXT,
 ADD COLUMN IF NOT EXISTS video_key TEXT,
 ADD COLUMN IF NOT EXISTS video_prompt TEXT;
 
+-- Store preferred storyboard card width (pixels)
+ALTER TABLE cards 
+ADD COLUMN IF NOT EXISTS card_width INTEGER;
+
 -- Add comments for documentation
 COMMENT ON COLUMN cards.duration IS 'Duration of the scene in seconds (default: 3.0)';
 COMMENT ON COLUMN cards.audio_url IS 'URL to background audio/music file for this scene';
@@ -21,6 +25,7 @@ COMMENT ON COLUMN cards.start_time IS 'Start time of the scene in the timeline (
 COMMENT ON COLUMN cards.video_url IS 'URL to generated storyboard video clip';
 COMMENT ON COLUMN cards.video_key IS 'Cloudflare R2 object key for the generated video clip';
 COMMENT ON COLUMN cards.video_prompt IS 'Prompt text used to generate the storyboard video clip';
+COMMENT ON COLUMN cards.card_width IS 'Preferred storyboard card width in pixels';
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_cards_duration ON cards(duration);

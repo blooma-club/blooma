@@ -37,20 +37,30 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const appShell = (
+    <ToasterProvider>
+      <div id="root" className="relative flex min-h-screen flex-col">
+        <main className="flex-1">{children}</main>
+      </div>
+    </ToasterProvider>
+  );
+
+  const shellWithProviders = clerkPublishableKey ? (
+    <SupabaseProvider>
+      <ClerkSyncEffect />
+      {appShell}
+    </SupabaseProvider>
+  ) : (
+    appShell
+  );
+
   return (
     <PublishableClerkProvider>
       <html lang="en">
         <body
           className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
         >
-          <SupabaseProvider>
-            {clerkPublishableKey ? <ClerkSyncEffect /> : null}
-            <ToasterProvider>
-              <div id="root" className="relative flex min-h-screen flex-col">
-                <main className="flex-1">{children}</main>
-              </div>
-            </ToasterProvider>
-          </SupabaseProvider>
+          {shellWithProviders}
         </body>
       </html>
     </PublishableClerkProvider>

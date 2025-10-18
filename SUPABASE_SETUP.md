@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS public.cards (
 
   -- Positioning
   order_index INTEGER NOT NULL DEFAULT 0,
+  card_width INTEGER,
   next_card_id UUID REFERENCES public.cards,
   prev_card_id UUID REFERENCES public.cards,
 
