@@ -1,18 +1,35 @@
 'use client'
 
 import { useRouter, useParams } from 'next/navigation'
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useUserStore } from '@/store/user'
+import { loadLastStoryboardId } from '@/lib/localStorage'
 
-// Project index: client redirect to setup so layout renders first.
+// Project index: determine default destination based on existing storyboard data.
 export default function ProjectIndexRedirect() {
   const router = useRouter()
   const params = useParams() as { id?: string }
   const id = params?.id
+  const { isLoaded } = useUserStore()
+  const hasRedirectedRef = useRef(false)
 
-  const useIso = typeof window !== 'undefined' ? useLayoutEffect : useEffect
-  useIso(() => {
-    if (id) router.replace(`/project/${id}/setup`)
-  }, [id, router])
+  useEffect(() => {
+    if (!id || hasRedirectedRef.current) return
+    if (!isLoaded) return
+
+    hasRedirectedRef.current = true
+
+    // storyboard ID가 이미 생성되었는지 확인
+    const lastSbId = loadLastStoryboardId(id)
+    
+    if (lastSbId) {
+      // sbId가 있으면 편집기로 직접 이동
+      router.replace(`/project/${id}/storyboard/${lastSbId}`)
+    } else {
+      // sbId가 없으면 생성 옵션 페이지로 이동
+      router.replace(`/project/${id}/storyboard`)
+    }
+  }, [id, isLoaded, router])
 
   return (
     <div className="w-full h-full flex items-center justify-center">
@@ -38,7 +55,7 @@ export default function ProjectIndexRedirect() {
             ></path>
           </svg>
         </div>
-        <div className="text-neutral-300 text-sm">Redirecting to setup...</div>
+        <div className="text-neutral-300 text-sm">Preparing your project...</div>
       </div>
     </div>
   )

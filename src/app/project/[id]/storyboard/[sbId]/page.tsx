@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { arrayMove } from '@dnd-kit/sortable'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import type { Card, Storyboard } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
@@ -13,7 +12,6 @@ import FrameEditModal from '@/components/storyboard/FrameEditModal'
 import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
 import FrameList from '@/components/storyboard/viewer/FrameList'
 import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
-import { createAndLinkCard } from '@/lib/cards'
 import SingleEditorLayout from '@/components/storyboard/editor/SingleEditorLayout'
 import SequencePanel from '@/components/storyboard/editor/SequencePanel'
 import ImageStage from '@/components/storyboard/editor/ImageStage'
@@ -21,151 +19,26 @@ import ImageEditPanel from '@/components/storyboard/editor/ImageEditPanel'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import ProfessionalVideoTimeline from '@/components/storyboard/ProfessionalVideoTimeline'
 import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
+import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
-
-const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
-  '16:9': '16 / 9',
-  '4:3': '4 / 3',
-  '3:2': '3 / 2',
-  '2:3': '2 / 3',
-  '3:4': '3 / 4',
-  '9:16': '9 / 16',
-}
-const DEFAULT_RATIO: StoryboardAspectRatio = '16:9'
-const CARD_WIDTH_MIN = 240
-const CARD_WIDTH_MAX = 1104
-const CARD_WIDTH_LOCK_THRESHOLD = 540
-const DEFAULT_CARD_WIDTH = 400
-const GRID_CONTAINER_MAX_WIDTH = 1824
-const GRID_GAP_PX = 24
-const DEFAULT_CONTAINER_WIDTH = 1672
-const CARD_WIDTH_STORAGE_PREFIX = 'blooma_storyboard_card_width:'
-
-const clampCardWidth = (value: number) =>
-  Math.max(CARD_WIDTH_MIN, Math.min(CARD_WIDTH_MAX, Math.round(value)))
-
-// Empty state component for projects with no cards
-const EmptyStoryboardState = ({
-  onCreateFirstCard,
-}: {
-  onCreateFirstCard: () => Promise<void>
-}) => {
-  const [isCreating, setIsCreating] = React.useState(false)
-
-  const handleCreateFirstCard = async () => {
-    try {
-      setIsCreating(true)
-      await onCreateFirstCard()
-    } catch (error) {
-      console.error('Failed to create first card:', error)
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6">
-      <div className="max-w-md space-y-4">
-        <div className="w-16 h-16 mx-auto rounded-full bg-neutral-800 flex items-center justify-center">
-          <svg
-            className="w-8 h-8 text-neutral-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-        </div>
-
-        <h3 className="text-xl font-semibold text-white">No scenes yet</h3>
-        <p className="text-neutral-400 leading-relaxed">
-          This project doesn&apos;t have any storyboard scenes yet. Create your first scene to get
-          started with your storyboard.
-        </p>
-
-        <button
-          onClick={handleCreateFirstCard}
-          disabled={isCreating}
-          className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-        >
-          {isCreating ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Creating Scene...
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Create First Scene
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  )
-}
+import EmptyStoryboardState from '@/components/storyboard/EmptyStoryboardState'
+import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
+import LoadingGrid from '@/components/storyboard/LoadingGrid'
+import { useCardWidth } from '@/hooks/useCardWidth'
+import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
+import { useFrameManagement } from '@/hooks/useFrameManagement'
+import { DEFAULT_RATIO, CARD_WIDTH_MIN, CARD_WIDTH_MAX, DEFAULT_CARD_WIDTH, clampCardWidth } from '@/lib/constants'
 
 // Stable empty array to avoid creating new [] in selectors (prevents getSnapshot loop warnings)
 const EMPTY_CARDS: Card[] = []
-type StoryboardStatusState = { status: string; readyCount?: number; total?: number } | null
+// Removed: StoryboardStatusState (status UI 미사용)
 type CardImageUpdate = Partial<
   Pick<
     Card,
     'image_url' | 'image_urls' | 'selected_image_url' | 'image_key' | 'image_size' | 'image_type'
   >
 >
-
-const isProcessingStatus = (status: StoryboardFrame['status']) =>
-  status !== 'ready' && status !== 'error'
-
-type StreamInitPayload = {
-  status?: string
-  title?: string
-  frames?: StoryboardFrame[]
-}
-
-type StreamFramePayload = {
-  storyboardId?: string
-  status?: string
-  frame?: StoryboardFrame
-}
-
-type StreamCompletePayload = {
-  status?: string
-  title?: string
-}
 
 export default function StoryboardPage() {
   const params = useParams<{ id: string; sbId: string }>()
@@ -187,15 +60,10 @@ export default function StoryboardPage() {
   const [index, setIndex] = useState(initialIndex) // current frame in single view mode
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [, setStatus] = useState<StoryboardStatusState>(null)
   const [sbTitle, setSbTitle] = useState<string>('Storyboard')
   const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
-  const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
-  const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
-  const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
   const [ratio, setRatio] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
-  const [cardWidth, setCardWidth] = useState<number>(DEFAULT_CARD_WIDTH)
-  const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_CONTAINER_WIDTH)
+  // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
 
@@ -203,156 +71,19 @@ export default function StoryboardPage() {
   const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'models'>(
     initialFrameMode ? 'editor' : 'storyboard'
   )
-  // Frame editor 모드 상태 (backward compatibility)
-  const isFrameMode = viewMode === 'editor'
   // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
   const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
+
+  // Custom hooks
+  const { cardWidth, setCardWidth, latestCardWidthRef, persistCardWidthTimeout, handleCardWidthChange, readStoredCardWidth, persistCardWidthLocally, schedulePersistCardWidth } = useCardWidth(projectId, setFrames)
+  const { handleNavigateToStoryboard, handleNavigateToEditor, handleNavigateToTimeline, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index)
+  const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId, latestCardWidthRef)
 
   // Zustand store 연결
   const setStoryboard = useStoryboardStore(s => s.setStoryboard)
   const cards = useStoryboardStore(s => s.cards[projectId] || EMPTY_CARDS)
   const setCards = useStoryboardStore(s => s.setCards)
-  const deleteCard = useStoryboardStore(s => s.deleteCard)
-  const sseRef = React.useRef<EventSource | null>(null)
-  const framesRef = useRef<StoryboardFrame[]>([])
-  const latestCardWidthRef = useRef<number>(DEFAULT_CARD_WIDTH)
-  const persistCardWidthTimeout = useRef<number | null>(null)
 
-  const readStoredCardWidth = useCallback((): number | null => {
-    if (typeof window === 'undefined' || !projectId) {
-      return null
-    }
-
-    const raw = window.localStorage.getItem(`${CARD_WIDTH_STORAGE_PREFIX}${projectId}`)
-    if (!raw) {
-      return null
-    }
-
-    const parsed = Number(raw)
-    if (!Number.isFinite(parsed)) {
-      return null
-    }
-
-    return clampCardWidth(parsed)
-  }, [projectId])
-
-  const persistCardWidthLocally = useCallback(
-    (width: number) => {
-      if (typeof window === 'undefined' || !projectId) {
-        return
-      }
-      window.localStorage.setItem(
-        `${CARD_WIDTH_STORAGE_PREFIX}${projectId}`,
-        String(clampCardWidth(width))
-      )
-    },
-    [projectId]
-  )
-
-  const schedulePersistCardWidth = useCallback(
-    (width: number) => {
-      if (typeof window === 'undefined') {
-        return
-      }
-
-      if (persistCardWidthTimeout.current !== null) {
-        window.clearTimeout(persistCardWidthTimeout.current)
-      }
-
-      persistCardWidthTimeout.current = window.setTimeout(() => {
-        const storeCards = useStoryboardStore.getState().cards[projectId] || []
-        if (storeCards.length === 0) {
-          persistCardWidthLocally(width)
-          return
-        }
-
-        fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cards: storeCards.map(card => ({
-              id: card.id,
-              card_width: clampCardWidth(width),
-            })),
-          }),
-        }).catch(error => {
-          console.error('[STORYBOARD] Failed to persist card width:', error)
-        })
-
-        persistCardWidthLocally(width)
-      }, 400)
-    },
-    [projectId, persistCardWidthLocally]
-  )
-
-  useEffect(() => {
-    const storedWidth = readStoredCardWidth()
-    if (storedWidth !== null) {
-      const clamped = clampCardWidth(storedWidth)
-      latestCardWidthRef.current = clamped
-      setCardWidth(clamped)
-      persistCardWidthLocally(clamped)
-    }
-  }, [persistCardWidthLocally, readStoredCardWidth])
-
-  const handleCardWidthChange = useCallback(
-    (value: number) => {
-      const nextWidth = clampCardWidth(value)
-      if (latestCardWidthRef.current === nextWidth) {
-        return
-      }
-
-      latestCardWidthRef.current = nextWidth
-      setCardWidth(nextWidth)
-      persistCardWidthLocally(nextWidth)
-
-      setFrames(prev =>
-        prev.map(frame =>
-          frame.cardWidth === nextWidth ? frame : { ...frame, cardWidth: nextWidth }
-        )
-      )
-
-      const storeCards = useStoryboardStore.getState().cards[projectId] || []
-      if (storeCards.length > 0) {
-        const needsUpdate = storeCards.some(card => card.card_width !== nextWidth)
-        if (needsUpdate) {
-          const updatedCards = storeCards.map(card =>
-            card.card_width === nextWidth ? card : { ...card, card_width: nextWidth }
-          )
-          setCards(projectId, updatedCards)
-        }
-      }
-
-      schedulePersistCardWidth(nextWidth)
-    },
-    [persistCardWidthLocally, projectId, schedulePersistCardWidth, setCards, setFrames]
-  )
-
-  const handleContainerWidthChange = useCallback(
-    (value: number) => {
-      const normalized = clampCardWidth(cardWidth)
-      const minWidth = normalized
-      const maxWidth =
-        normalized > CARD_WIDTH_LOCK_THRESHOLD ? normalized : GRID_CONTAINER_MAX_WIDTH
-      const step = minWidth + GRID_GAP_PX
-      const clamped = Math.max(minWidth, Math.min(Math.round(value), maxWidth))
-      if (step <= 0) {
-        setContainerWidth(clamped)
-        return
-      }
-      const stepCount = Math.max(0, Math.round((clamped - minWidth) / step))
-      const snapped = minWidth + stepCount * step
-      if (snapped > maxWidth) {
-        const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
-        setContainerWidth(minWidth + maxSteps * step)
-        return
-      }
-      setContainerWidth(snapped)
-    },
-    [cardWidth]
-  )
 
   // 안정적인 이미지 업데이트 콜백
   const handleImageUpdated = useCallback(
@@ -515,27 +246,26 @@ export default function StoryboardPage() {
 
   // viewportWidth 제거에 따라 resize 리스너도 제거
 
-  // Initial data load from Cloudflare D1 (immediate, no SSE waiting)
+  // Initial data load from Cloudflare D1
   useEffect(() => {
     if (!sbId || !projectId) {
-      console.log('[STORYBOARD] No sbId or projectId provided', { sbId, projectId })
+
       return
     }
 
     if (!isLoaded) {
-      console.log('[STORYBOARD] Waiting for user store hydration...')
       return
     }
 
     if (!userId) {
       setFrames([])
-      setStatus({ status: 'empty', readyCount: 0, total: 0 })
+      // status UI 제거
       setError('로그인이 필요합니다. 다시 로그인해 주세요.')
       setLoading(false)
       return
     }
 
-    console.log('[STORYBOARD] Starting data load', { sbId, projectId, userId })
+
 
     // Verify that sbId matches projectId in the new architecture
     if (sbId !== projectId) {
@@ -547,7 +277,7 @@ export default function StoryboardPage() {
       setError(null) // Clear any previous errors
 
       try {
-        console.log('[STORYBOARD] Verifying project ownership', { projectId, userId })
+
         const ownershipResult = await verifyProjectOwnership(projectId, userId)
 
         if (!ownershipResult.isOwner) {
@@ -558,7 +288,7 @@ export default function StoryboardPage() {
           throw new Error(ownershipResult.error || 'You do not have access to this project')
         }
 
-        console.log('[STORYBOARD] Loading cards for project', { projectId })
+
 
         const cardsResponse = await fetch(
           `/api/cards?project_id=${encodeURIComponent(projectId)}`,
@@ -582,7 +312,7 @@ export default function StoryboardPage() {
 
         const cardsData = Array.isArray(cardsResult?.data) ? (cardsResult.data as Card[]) : []
 
-        console.log('[STORYBOARD] Cards fetch result', { count: cardsData.length })
+
 
         if (cardsData.length > 0) {
           const widthFromCards = cardsData.reduce<number | null>((acc, card) => {
@@ -613,7 +343,7 @@ export default function StoryboardPage() {
 
           const initialFrames = cardsWithWidth.map((card, index) => cardToFrame(card, index))
           setFrames(initialFrames)
-          console.log('[STORYBOARD] Loaded frames from cards', { frameCount: initialFrames.length })
+
 
           const derivedTitle = cardsData[0]?.title
             ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}`
@@ -621,11 +351,7 @@ export default function StoryboardPage() {
           setSbTitle(derivedTitle)
 
           const readyCount = cardsData.filter(card => card.storyboard_status === 'ready').length
-          setStatus({
-            status: readyCount === cardsData.length ? 'completed' : 'processing',
-            readyCount,
-            total: cardsData.length,
-          })
+          // status UI 제거
 
           try {
             const storyboardPayload: Storyboard = {
@@ -643,7 +369,7 @@ export default function StoryboardPage() {
             console.warn('[STORYBOARD] Failed to update storyboard store:', storeError)
           }
         } else {
-          console.log('[STORYBOARD] Project has no cards yet, showing empty state')
+
           const storedWidth = readStoredCardWidth() ?? DEFAULT_CARD_WIDTH
           const normalizedWidth = clampCardWidth(storedWidth)
           latestCardWidthRef.current = normalizedWidth
@@ -652,11 +378,7 @@ export default function StoryboardPage() {
           setCards(projectId, [])
           setFrames([])
           setSbTitle('New Storyboard')
-          setStatus({
-            status: 'empty',
-            readyCount: 0,
-            total: 0,
-          })
+          // status UI 제거
 
           try {
             const storyboardPayload: Storyboard = {
@@ -676,7 +398,7 @@ export default function StoryboardPage() {
         }
 
         setLoading(false)
-        console.log('[STORYBOARD] Successfully loaded storyboard data')
+
       } catch (error) {
         console.error('[STORYBOARD] Failed to load storyboard:', error)
 
@@ -725,194 +447,9 @@ export default function StoryboardPage() {
     persistCardWidthLocally,
   ])
 
-  // SSE stream for progressive updates
-  const startStream = useCallback(() => {
-    if (!projectId) return
-    if (sseRef.current) {
-      sseRef.current.close()
-      sseRef.current = null
-    }
-    const connect = (attempt = 0) => {
-      try {
-        const es = new EventSource(`/api/storyboard/stream?id=${encodeURIComponent(projectId)}`)
-        sseRef.current = es
 
-        const handleInit = (event: MessageEvent<string>) => {
-          try {
-            const data = JSON.parse(event.data) as StreamInitPayload
-            setStatus(data.status ? { status: data.status } : null)
-            if (data.title) setSbTitle(data.title)
-            if (Array.isArray(data.frames) && framesRef.current.length === 0) {
-              const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
-              const initialFrames = data.frames.map(frame => ({
-                ...frame,
-                cardWidth:
-                  typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
-                    ? clampCardWidth(frame.cardWidth)
-                    : normalizedWidth,
-              }))
-              setFrames(initialFrames)
-              framesRef.current = initialFrames
-              setIndex(0)
-            }
-            setLoading(false)
-          } catch (error) {
-            console.warn('[SSE] Failed to process init event:', error)
-          }
-        }
 
-        const handleFrame = (event: MessageEvent<string>) => {
-          try {
-            const data = JSON.parse(event.data) as StreamFramePayload
-            if (data?.frame?.id) {
-              setFrames(prev => {
-                const idx = prev.findIndex(f => f.id === data.frame?.id)
-                const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
-                if (idx === -1 && data.frame) {
-                  return [
-                    ...prev,
-                    {
-                      ...data.frame,
-                      cardWidth:
-                        typeof data.frame.cardWidth === 'number' &&
-                        Number.isFinite(data.frame.cardWidth)
-                          ? clampCardWidth(data.frame.cardWidth)
-                          : normalizedWidth,
-                    },
-                  ]
-                } else if (idx !== -1 && data.frame) {
-                  const existingFrame = prev[idx]
-                  const updatedFrame: StoryboardFrame = {
-                    ...existingFrame,
-                    ...data.frame,
-                    imageUrl: existingFrame.imageUrl || data.frame.imageUrl,
-                  }
-                  const incomingWidth =
-                    typeof data.frame.cardWidth === 'number' &&
-                    Number.isFinite(data.frame.cardWidth)
-                      ? clampCardWidth(data.frame.cardWidth)
-                      : (existingFrame.cardWidth ?? normalizedWidth)
-                  updatedFrame.cardWidth = incomingWidth
-                  if (existingFrame.scene !== data.frame.scene && existingFrame.scene !== idx + 1) {
-                    updatedFrame.scene = existingFrame.scene
-                  }
-                  const copy = [...prev]
-                  copy[idx] = updatedFrame
-                  return copy
-                }
-                return prev
-              })
-            }
-          } catch (error) {
-            console.warn('[SSE] Failed to process frame event:', error)
-          }
-        }
-
-        const handleComplete = (event: MessageEvent<string>) => {
-          try {
-            const data = JSON.parse(event.data) as StreamCompletePayload
-            if (data.status) {
-              setStatus({ status: data.status })
-            }
-            if (data.title) setSbTitle(data.title)
-          } catch (error) {
-            console.warn('[SSE] Failed to process complete event:', error)
-          }
-        }
-
-        es.addEventListener('init', handleInit as EventListener)
-        es.addEventListener('frame', handleFrame as EventListener)
-        es.addEventListener('complete', handleComplete as EventListener)
-        es.addEventListener('end', () => {
-          if (sseRef.current) {
-            sseRef.current.close()
-            sseRef.current = null
-          }
-        })
-        es.onerror = () => {
-          es.close()
-          if (attempt < 5) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 8000)
-            setTimeout(() => connect(attempt + 1), delay)
-          } else {
-            setError(null)
-            setLoading(false)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to connect to storyboard stream:', error)
-        if (attempt < 5) setTimeout(() => connect(attempt + 1), 1000 * (attempt + 1))
-      }
-    }
-    connect()
-  }, [projectId, setError, setFrames, setIndex, setLoading, setSbTitle, setStatus])
-
-  // SSE stream: 이미지 생성 중인 프레임이 있을 때만 연결
-  useEffect(() => {
-    if (!projectId) return
-
-    // 진행 중인 프레임이 있는지 확인
-    const hasProcessingFrames = frames.some(frame => isProcessingStatus(frame.status))
-
-    if (hasProcessingFrames) {
-      console.log('[SSE] Starting stream - processing frames detected')
-      startStream()
-    } else {
-      // 모든 프레임이 완료 상태면 SSE 연결 해제
-      if (sseRef.current) {
-        console.log('[SSE] Closing stream - all frames completed')
-        sseRef.current.close()
-        sseRef.current = null
-      }
-    }
-  }, [projectId, frames, startStream])
-
-  // 프레임 상태 변경 시 SSE 연결 상태 재확인
-  useEffect(() => {
-    if (!projectId || frames.length === 0) return
-
-    const processingFrames = frames.filter(frame => isProcessingStatus(frame.status))
-
-    // 모든 프레임이 완료되었는데 SSE가 여전히 연결되어 있다면 해제
-    if (processingFrames.length === 0 && sseRef.current) {
-      console.log('[SSE] Force closing stream - no processing frames')
-      sseRef.current.close()
-      sseRef.current = null
-    }
-  }, [frames, projectId])
-  React.useEffect(
-    () => () => {
-      if (sseRef.current) sseRef.current.close()
-    },
-    []
-  )
-
-  // 네비게이션 핸들러
-  const handleNavigateToStoryboard = useCallback(() => {
-    setViewMode('storyboard')
-    // URL에서 frame 파라미터 제거
-    const newUrl = `/project/${projectId}/storyboard/${projectId}`
-    router.replace(newUrl, { scroll: false })
-  }, [projectId, router])
-
-  const handleNavigateToEditor = useCallback(() => {
-    setViewMode('editor')
-    // URL에 frame 파라미터 추가
-    const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${index + 1}`
-    router.replace(newUrl, { scroll: false })
-  }, [projectId, index, router])
-
-  const handleNavigateToTimeline = useCallback(() => {
-    // URL에서 frame 파라미터 제거
-    const newUrl = `/project/${projectId}/storyboard/${projectId}?view=timeline`
-    router.replace(newUrl, { scroll: false })
-  }, [projectId, router])
-
-  const handleNavigateToCharacters = useCallback(() => {
-    setViewMode('models')
-    if (!projectId || !sbId) return
-    router.push(`/project/${projectId}/storyboard/${sbId}/characters`)
-  }, [projectId, router, sbId])
+  // 네비게이션 핸들러 (커스텀 훅에서 가져옴)
 
   // Timeline frame update handler
   const handleUpdateFrame = useCallback(
@@ -962,171 +499,8 @@ export default function StoryboardPage() {
     [cards, projectId, setCards]
   )
 
-  // 키보드 네비게이션 (Frame 모드에서만)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (isFrameMode) {
-        if (e.key === 'ArrowRight' && index < frames.length - 1) {
-          const newIndex = index + 1
-          setIndex(newIndex)
-          // URL 업데이트
-          const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${newIndex + 1}`
-          router.replace(newUrl, { scroll: false })
-        }
-        if (e.key === 'ArrowLeft' && index > 0) {
-          const newIndex = index - 1
-          setIndex(newIndex)
-          // URL 업데이트
-          const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${newIndex + 1}`
-          router.replace(newUrl, { scroll: false })
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [frames.length, index, isFrameMode, projectId, router])
 
-  const handleOpenFrame = useCallback(
-    (frameIndex: number) => {
-      setIndex(frameIndex)
-      setViewMode('editor')
-      // URL에 frame 파라미터 추가
-      const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${frameIndex + 1}`
-      router.replace(newUrl, { scroll: false })
-    },
-    [projectId, router]
-  )
-
-  const handleReorderFrames = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      if (!projectId) return
-      if (fromIndex === toIndex) return
-
-      const currentFrames = framesRef.current
-      if (!currentFrames.length) return
-
-      const reorderedFrames = arrayMove(currentFrames, fromIndex, toIndex).map((frame, idx) => ({
-        ...frame,
-        scene: idx + 1,
-      }))
-      framesRef.current = reorderedFrames
-      setFrames(reorderedFrames)
-
-      const storeState = useStoryboardStore.getState()
-      const projectCards = storeState.cards[projectId] || []
-      if (projectCards.length > 0) {
-        const movedCards = arrayMove([...projectCards], fromIndex, toIndex)
-        const normalisedCards = movedCards.map((card, idx) => {
-          const prevCard = movedCards[idx - 1]
-          const nextCard = movedCards[idx + 1]
-          return {
-            ...card,
-            order_index: idx,
-            scene_number: idx + 1,
-            prev_card_id: prevCard ? prevCard.id : null,
-            next_card_id: nextCard ? nextCard.id : null,
-          }
-        })
-
-        setCards(projectId, normalisedCards)
-
-        fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cards: normalisedCards.map(card => ({
-              id: card.id,
-              order_index: card.order_index,
-              scene_number: card.scene_number,
-              prev_card_id: card.prev_card_id,
-              next_card_id: card.next_card_id,
-            })),
-          }),
-        }).catch(error => {
-          console.error('[STORYBOARD] Failed to persist reordered cards:', error)
-        })
-      }
-
-      setIndex(prevIndex => {
-        if (prevIndex === fromIndex) return toIndex
-        if (fromIndex < toIndex && prevIndex > fromIndex && prevIndex <= toIndex) {
-          return prevIndex - 1
-        }
-        if (fromIndex > toIndex && prevIndex >= toIndex && prevIndex < fromIndex) {
-          return prevIndex + 1
-        }
-        return prevIndex
-      })
-    },
-    [projectId, setCards, setFrames, setIndex]
-  )
-
-  // Add / Delete frame handlers
-  const handleAddFrame = useCallback(
-    async (insertIndex?: number) => {
-      if (!userId || !projectId) return
-
-      const allCards = useStoryboardStore.getState().cards[projectId] || []
-      const targetIndex = Math.min(Math.max(insertIndex ?? allCards.length, 0), allCards.length)
-
-      try {
-        const inserted = await createAndLinkCard(
-          {
-            userId: userId,
-            projectId: projectId,
-            currentCards: allCards,
-            insertIndex: targetIndex,
-            cardWidth: latestCardWidthRef.current,
-          },
-          'STORYBOARD'
-        )
-
-        const widthForCard = clampCardWidth(latestCardWidthRef.current)
-        const normalizedInserted =
-          typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
-            ? { ...inserted, card_width: clampCardWidth(inserted.card_width) }
-            : { ...inserted, card_width: widthForCard }
-
-        const mergedCards = [...allCards]
-        mergedCards.splice(targetIndex, 0, normalizedInserted)
-
-        const reindexedCards = mergedCards.map((card, idx, arr) => ({
-          ...card,
-          order_index: idx,
-          scene_number: idx + 1,
-          prev_card_id: idx > 0 ? arr[idx - 1].id : undefined,
-          next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
-        }))
-
-        setCards(projectId, reindexedCards)
-        setFrames(reindexedCards.map((card, idx) => cardToFrame(card, idx)))
-        setIndex(targetIndex)
-
-        await fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cards: reindexedCards.map(card => ({
-              id: card.id,
-              order_index: card.order_index,
-              scene_number: card.scene_number,
-              prev_card_id: card.prev_card_id,
-              next_card_id: card.next_card_id,
-            })),
-          }),
-        }).catch(() => {})
-      } catch (e) {
-        console.error('❌ [STORYBOARD ADD FRAME] Failed to add frame:', e)
-        const msg = e instanceof Error ? e.message : '알 수 없는 오류'
-        alert(`카드 생성에 실패했습니다: ${msg}`)
-      }
-    },
-    [userId, projectId, setCards, setFrames, setIndex]
-  )
+  // 프레임 관리 핸들러 (커스텀 훅에서 가져옴)
 
   const handleGenerateSceneFromPrompt = useCallback(
     async (promptText: string) => {
@@ -1289,176 +663,7 @@ export default function StoryboardPage() {
     [userId, projectId, setCards, ratio, projectCharacters]
   )
 
-  const handleDeleteFrame = useCallback(
-    async (frameId: string) => {
-      if (!userId || !projectId || deletingFrameId) return
-
-      console.log('🗑️ [DELETE FRAME] Deleting card via Zustand:', frameId)
-
-      // 삭제 중 상태 설정 (중복 클릭 방지)
-      setDeletingFrameId(frameId)
-
-      try {
-        // 1) 서버 영구 삭제
-        const delRes = await fetch('/api/cards', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ cardIds: [frameId] }),
-        })
-        if (!delRes.ok) {
-          const msg = await delRes.text().catch(() => 'Delete failed')
-          throw new Error(msg)
-        }
-
-        // 2) 로컬 Zustand 스토어 반영
-        await deleteCard(frameId)
-
-        // 3) 최신 cards 스냅샷 재구성 + 순번 보정 + DB 반영
-        const allCards = useStoryboardStore.getState().cards[projectId] || []
-        const sorted = allCards.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-        const reindexedCards = sorted.map((c, idx) => ({
-          ...c,
-          order_index: idx,
-          scene_number: idx + 1,
-        }))
-        if (reindexedCards.length > 0) {
-          await fetch('/api/cards', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              cards: reindexedCards.map(c => ({
-                id: c.id,
-                order_index: c.order_index,
-                scene_number: c.scene_number,
-              })),
-            }),
-          }).catch(() => {})
-        }
-
-        // 4) 프레임 상태 갱신 및 인덱스 클램프
-        const reindexed = reindexedCards.map(card => cardToFrame(card))
-        setFrames(reindexed)
-        setIndex(prev => {
-          const newLen = reindexed.length
-          if (newLen === 0) return 0
-          return Math.min(prev, newLen - 1)
-        })
-        console.log('🔄 [DELETE FRAME] Frames rebuilt & reindexed:', reindexed.length)
-      } catch (error) {
-        console.error('❌ [DELETE FRAME] Error during deletion:', error)
-      } finally {
-        // 삭제 완료 후 상태 초기화
-        setDeletingFrameId(null)
-      }
-    },
-    [userId, projectId, deletingFrameId, deleteCard, setFrames, setIndex]
-  )
-
-  const handleGenerateVideo = useCallback(
-    async (frameId: string) => {
-      if (!projectId) return
-      const frame = frames.find(f => f.id === frameId)
-      if (!frame) return
-
-      if (!frame.imageUrl) {
-        setError('Generate an image for this scene before creating a video.')
-        return
-      }
-
-      if (!userId) {
-        setError('You must be signed in to generate videos.')
-        return
-      }
-
-      try {
-        setGeneratingVideoId(frameId)
-        setError(null)
-
-        const requestPrompt = (frame.imagePrompt || frame.shotDescription || '').trim()
-
-        const response = await fetch('/api/video/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            frameId,
-            projectId,
-            imageUrl: frame.imageUrl,
-            prompt: requestPrompt,
-          }),
-        })
-
-        const payload = (await response.json().catch(() => ({}))) as {
-          videoUrl?: string
-          videoKey?: string | null
-          videoPrompt?: string
-          error?: string
-        }
-
-        if (!response.ok) {
-          throw new Error(payload?.error || 'Failed to generate video')
-        }
-
-        const videoUrl = payload.videoUrl
-        const videoKey = payload.videoKey ?? undefined
-        const updatedVideoPrompt = payload.videoPrompt ?? requestPrompt
-        if (!videoUrl) {
-          throw new Error('Video generation completed without returning a usable URL')
-        }
-
-        setFrames(prev =>
-          prev.map(f =>
-            f.id === frameId
-              ? { ...f, videoUrl, videoKey: videoKey ?? undefined, videoPrompt: updatedVideoPrompt }
-              : f
-          )
-        )
-
-        const storeState = useStoryboardStore.getState()
-        const existingCards = storeState.cards[projectId] || []
-        const updatedCards = existingCards.map(card =>
-          card.id === frameId
-            ? {
-                ...card,
-                video_url: videoUrl,
-                videoUrl,
-                video_key: videoKey,
-                videoKey,
-                video_prompt: updatedVideoPrompt,
-                videoPrompt: updatedVideoPrompt,
-              }
-            : card
-        )
-        setCards(projectId, updatedCards)
-
-        setVideoPreview({ frameId, url: videoUrl })
-      } catch (error) {
-        console.error('❌ [VIDEO] Generation failed:', error)
-        setError(error instanceof Error ? error.message : 'Failed to generate video')
-      } finally {
-        setGeneratingVideoId(null)
-      }
-    },
-    [frames, projectId, setCards, setFrames, userId]
-  )
-
-  const handlePlayVideo = useCallback(
-    (frameId: string) => {
-      const frame = frames.find(f => f.id === frameId)
-      if (!frame || !frame.videoUrl) {
-        setError('No video available yet for this scene. Generate one first.')
-        return
-      }
-
-      setVideoPreview({ frameId, url: frame.videoUrl })
-    },
-    [frames]
-  )
+  // 비디오 관련 핸들러 (커스텀 훅에서 가져옴)
 
   useEffect(() => {
     if (!videoPreview) return
@@ -1479,59 +684,9 @@ export default function StoryboardPage() {
     }
   }, [videoPreview])
 
-  // 단순 카드 (드래그 제거)
-  // FrameCard 컴포넌트 제거: StoryboardCard로 직접 렌더링
-
   // 현재 프레임 안정적 참조
   const currentFrame = useMemo(() => frames[index] || null, [frames, index])
-  const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
-  const containerStep = useMemo(() => normalizedCardWidth + GRID_GAP_PX, [normalizedCardWidth])
-  const containerMaxWidth = useMemo(
-    () =>
-      normalizedCardWidth > CARD_WIDTH_LOCK_THRESHOLD
-        ? normalizedCardWidth
-        : GRID_CONTAINER_MAX_WIDTH,
-    [normalizedCardWidth]
-  )
-  const normalizedContainerWidth = useMemo(() => {
-    const minWidth = normalizedCardWidth
-    const maxWidth = containerMaxWidth
-    const step = containerStep
-    const clamped = Math.max(minWidth, Math.min(Math.round(containerWidth), maxWidth))
-    if (step <= 0) {
-      return clamped
-    }
-    const stepCount = Math.max(0, Math.round((clamped - minWidth) / step))
-    const snapped = minWidth + stepCount * step
-    if (snapped > maxWidth) {
-      const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
-      return minWidth + maxSteps * step
-    }
-    return snapped
-  }, [containerMaxWidth, containerStep, containerWidth, normalizedCardWidth])
-  const gridTemplateColumns = useMemo(
-    () => `repeat(auto-fit, minmax(${normalizedCardWidth}px, ${normalizedCardWidth}px))`,
-    [normalizedCardWidth]
-  )
-  useEffect(() => {
-    setContainerWidth(prev => {
-      const minWidth = normalizedCardWidth
-      const maxWidth = containerMaxWidth
-      const step = containerStep
-      const clampedPrev = Math.max(minWidth, Math.min(prev, maxWidth))
-      if (step <= 0) {
-        return clampedPrev
-      }
-      const stepCount = Math.max(0, Math.round((clampedPrev - minWidth) / step))
-      const snapped = minWidth + stepCount * step
-      if (snapped > maxWidth) {
-        const maxSteps = Math.max(0, Math.floor((maxWidth - minWidth) / step))
-        return minWidth + maxSteps * step
-      }
-      return snapped
-    })
-  }, [containerMaxWidth, containerStep, normalizedCardWidth])
-  const gridContainerMaxWidth = normalizedContainerWidth
+  
   const canShowWidthControlsPanel =
     viewMode === 'storyboard' && (!isClient || storyboardViewMode === 'grid')
 
@@ -1550,8 +705,6 @@ export default function StoryboardPage() {
             onNavigateToEditor={handleNavigateToEditor}
             onNavigateToTimeline={handleNavigateToTimeline}
             onNavigateToCharacters={handleNavigateToCharacters}
-            aspectRatio={ratio}
-            onAspectRatioChange={setRatio}
             isWidthPanelOpen={showWidthControls}
             onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
             layout="inline"
@@ -1569,12 +722,10 @@ export default function StoryboardPage() {
                   visible={showWidthControls}
                   cardWidthMin={CARD_WIDTH_MIN}
                   cardWidthMax={CARD_WIDTH_MAX}
-                  normalizedCardWidth={normalizedCardWidth}
-                  normalizedContainerWidth={normalizedContainerWidth}
-                  containerMaxWidth={containerMaxWidth}
-                  containerStep={containerStep}
+                  normalizedCardWidth={clampCardWidth(cardWidth)}
                   onCardWidthChange={handleCardWidthChange}
-                  onContainerWidthChange={handleContainerWidthChange}
+                  aspectRatio={ratio}
+                  onAspectRatioChange={setRatio}
                   className="mx-auto sm:mx-0"
                 />
               </div>
@@ -1584,12 +735,10 @@ export default function StoryboardPage() {
                     visible={showWidthControls}
                     cardWidthMin={CARD_WIDTH_MIN}
                     cardWidthMax={CARD_WIDTH_MAX}
-                    normalizedCardWidth={normalizedCardWidth}
-                    normalizedContainerWidth={normalizedContainerWidth}
-                    containerMaxWidth={containerMaxWidth}
-                    containerStep={containerStep}
+                    normalizedCardWidth={clampCardWidth(cardWidth)}
                     onCardWidthChange={handleCardWidthChange}
-                    onContainerWidthChange={handleContainerWidthChange}
+                    aspectRatio={ratio}
+                    onAspectRatioChange={setRatio}
                   />
                 </div>
               ) : null}
@@ -1618,85 +767,165 @@ export default function StoryboardPage() {
 
             {/* 콘텐츠 렌더링 */}
             {loading && (
-              <div className="flex justify-center">
-                <div
-                  className="grid gap-6 w-full"
-                  style={{
-                    maxWidth: `${gridContainerMaxWidth}px`,
-                    gridTemplateColumns,
-                  }}
-                >
-                  {Array.from({ length: Math.max(cards.length, 8) }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden"
-                    >
-                      <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-neutral-800 w-16 h-4 animate-pulse" />
-                      <div className="absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full bg-neutral-700 ring-2 ring-neutral-700 animate-pulse" />
-                      <div
-                        className="relative w-full bg-neutral-900"
-                        style={{
-                          aspectRatio: RATIO_TO_CSS[ratio],
-                        }}
-                      >
-                        <div className="absolute inset-0 bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
-                        <style jsx>{`
-                          @keyframes shimmer {
-                            0% {
-                              background-position: 0% 0;
-                            }
-                            100% {
-                              background-position: -200% 0;
-                            }
-                          }
-                        `}</style>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <LoadingGrid 
+                cardsLength={frames.length} 
+                aspectRatio={ratio}
+                cardWidth={cardWidth}
+              />
             )}
 
             {!loading && frames.length === 0 && (
-              <EmptyStoryboardState onCreateFirstCard={handleAddFrame} />
+              <EmptyStoryboardState 
+                onCreateFirstCard={async () => {
+                  try {
+                    const newFrames = await handleAddFrame()
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(0)
+                    }
+                  } catch (error) {
+                    console.error('Failed to create first card:', error)
+                  }
+                }} 
+              />
             )}
 
             {!loading && frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
               <FrameGrid
                 frames={frames}
-                onFrameOpen={handleOpenFrame}
+                onFrameOpen={(frameIndex) => {
+                  setIndex(frameIndex)
+                  setViewMode('editor')
+                  handleOpenFrame(frameIndex)
+                }}
                 onFrameEdit={frameId => {
                   const frameData = frames.find(f => f.id === frameId)
                   if (frameData) setEditingFrame(frameData)
                 }}
-                onFrameDelete={handleDeleteFrame}
-                onAddFrame={handleAddFrame}
+                onFrameDelete={async (frameId) => {
+                  try {
+                    const newFrames = await handleDeleteFrame(frameId)
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(prev => {
+                        const newLen = newFrames.length
+                        if (newLen === 0) return 0
+                        return Math.min(prev, newLen - 1)
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Failed to delete frame:', error)
+                  }
+                }}
+                onAddFrame={async (insertIndex) => {
+                  try {
+                    const newFrames = await handleAddFrame(insertIndex)
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(insertIndex ?? newFrames.length - 1)
+                    }
+                  } catch (error) {
+                    console.error('Failed to add frame:', error)
+                  }
+                }}
                 deletingFrameId={deletingFrameId}
                 loading={loading}
                 cardsLength={cards.length}
-                onGenerateVideo={handleGenerateVideo}
-                onPlayVideo={handlePlayVideo}
+                onGenerateVideo={async (frameId) => {
+                  try {
+                    await handleGenerateVideo(frameId, frames)
+                    // Update frames with video data
+                    setFrames(prev =>
+                      prev.map(f =>
+                        f.id === frameId
+                          ? { ...f, videoUrl: videoPreview?.url, status: 'ready' }
+                          : f
+                      )
+                    )
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Failed to generate video')
+                  }
+                }}
+                onPlayVideo={(frameId) => {
+                  try {
+                    handlePlayVideo(frameId, frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'No video available')
+                  }
+                }}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
-                containerMaxWidth={gridContainerMaxWidth}
-                cardWidth={normalizedCardWidth}
-                onReorder={handleReorderFrames}
+                cardWidth={cardWidth}
+                onReorder={(fromIndex, toIndex) => {
+                  const result = handleReorderFrames(fromIndex, toIndex)
+                  if (result) {
+                    setFrames(result.reorderedFrames)
+                    setIndex(result.newIndex)
+                  }
+                }}
               />
             )}
 
             {!loading && frames.length > 0 && isClient && storyboardViewMode === 'list' && (
               <FrameList
                 frames={frames}
-                onFrameEdit={handleOpenFrame}
+                onFrameEdit={(frameIndex) => {
+                  setIndex(frameIndex)
+                  setViewMode('editor')
+                  handleOpenFrame(frameIndex)
+                }}
                 onFrameEditMetadata={frameId => {
                   const frameData = frames.find(f => f.id === frameId)
                   if (frameData) setEditingFrame(frameData)
                 }}
-                onFrameDelete={handleDeleteFrame}
-                onAddFrame={handleAddFrame}
+                onFrameDelete={async (frameId) => {
+                  try {
+                    const newFrames = await handleDeleteFrame(frameId)
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(prev => {
+                        const newLen = newFrames.length
+                        if (newLen === 0) return 0
+                        return Math.min(prev, newLen - 1)
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Failed to delete frame:', error)
+                  }
+                }}
+                onAddFrame={async (insertIndex) => {
+                  try {
+                    const newFrames = await handleAddFrame(insertIndex)
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(insertIndex ?? newFrames.length - 1)
+                    }
+                  } catch (error) {
+                    console.error('Failed to add frame:', error)
+                  }
+                }}
                 deletingFrameId={deletingFrameId}
-                onGenerateVideo={handleGenerateVideo}
-                onPlayVideo={handlePlayVideo}
+                onGenerateVideo={async (frameId) => {
+                  try {
+                    await handleGenerateVideo(frameId, frames)
+                    setFrames(prev =>
+                      prev.map(f =>
+                        f.id === frameId
+                          ? { ...f, videoUrl: videoPreview?.url, status: 'ready' }
+                          : f
+                      )
+                    )
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Failed to generate video')
+                  }
+                }}
+                onPlayVideo={(frameId) => {
+                  try {
+                    handlePlayVideo(frameId, frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'No video available')
+                  }
+                }}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
               />
@@ -1730,10 +959,6 @@ export default function StoryboardPage() {
 
                   if (response.ok) {
                     const result = await response.json()
-                    console.log(
-                      `Timeline saved: ${result.successful} successful, ${result.failed} failed`
-                    )
-                    // You could add a toast notification here
                   } else {
                     console.error('Failed to save timeline')
                   }
@@ -1743,26 +968,9 @@ export default function StoryboardPage() {
               }}
               onAddFrame={async () => {
                 try {
-                  if (!userId) return
-                  const newCard = await createAndLinkCard(
-                    {
-                      userId,
-                      projectId: projectId,
-                      currentCards: cards,
-                      cardWidth: latestCardWidthRef.current,
-                    },
-                    'TIMELINE'
-                  )
-
-                  if (newCard) {
-                    const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
-                    const cardWithWidth: Card =
-                      typeof newCard.card_width === 'number' && Number.isFinite(newCard.card_width)
-                        ? { ...newCard, card_width: clampCardWidth(newCard.card_width) }
-                        : { ...newCard, card_width: normalizedWidth }
-
-                    setCards(projectId, [...cards, cardWithWidth])
-                    setFrames(prev => [...prev, cardToFrame(cardWithWidth)])
+                  const newFrames = await handleAddFrame()
+                  if (newFrames) {
+                    setFrames(newFrames)
                   }
                 } catch (error) {
                   console.error('Error creating new frame:', error)
@@ -1787,7 +995,17 @@ export default function StoryboardPage() {
                   const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${newIndex + 1}`
                   router.replace(newUrl, { scroll: false })
                 }}
-                onAddFrame={handleAddFrame}
+                onAddFrame={async (insertIndex) => {
+                  try {
+                    const newFrames = await handleAddFrame(insertIndex)
+                    if (newFrames) {
+                      setFrames(newFrames)
+                      setIndex(insertIndex ?? newFrames.length - 1)
+                    }
+                  } catch (error) {
+                    console.error('Failed to add frame:', error)
+                  }
+                }}
               />
             }
             center={
@@ -1807,8 +1025,27 @@ export default function StoryboardPage() {
                   const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${newIndex + 1}`
                   router.replace(newUrl, { scroll: false })
                 }}
-                onGenerateVideo={frame => handleGenerateVideo(frame.id)}
-                onPlayVideo={frame => handlePlayVideo(frame.id)}
+                onGenerateVideo={async (frame) => {
+                  try {
+                    await handleGenerateVideo(frame.id, frames)
+                    setFrames(prev =>
+                      prev.map(f =>
+                        f.id === frame.id
+                          ? { ...f, videoUrl: videoPreview?.url, status: 'ready' }
+                          : f
+                      )
+                    )
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Failed to generate video')
+                  }
+                }}
+                onPlayVideo={(frame) => {
+                  try {
+                    handlePlayVideo(frame.id, frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'No video available')
+                  }
+                }}
                 isGeneratingVideo={generatingVideoId === currentFrame.id}
               />
             }
@@ -1841,33 +1078,10 @@ export default function StoryboardPage() {
       </div>
 
       {videoPreview && (
-        <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
-          onClick={() => setVideoPreview(null)}
-        >
-          <div
-            className="relative w-full max-w-4xl bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl p-6"
-            onClick={event => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setVideoPreview(null)}
-              className="absolute top-4 right-4 px-3 py-1 rounded-md border border-neutral-700 text-xs text-neutral-300 hover:bg-neutral-800"
-            >
-              Close
-            </button>
-            <div className="text-sm text-neutral-300 mb-4 pr-16">Storyboard clip preview</div>
-            <div className="relative w-full bg-black rounded-xl overflow-hidden">
-              <video
-                key={videoPreview.url}
-                src={videoPreview.url}
-                controls
-                autoPlay
-                className="w-full max-h-[70vh] object-contain"
-              />
-            </div>
-          </div>
-        </div>
+        <VideoPreviewModal 
+          url={videoPreview.url} 
+          onClose={() => setVideoPreview(null)} 
+        />
       )}
     </div>
   )

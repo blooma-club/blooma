@@ -1,6 +1,5 @@
 import { parseScript, ParsedScene, extractTitle, stripTitle } from './scriptParser'
 import { openrouter } from './openrouter'
-import { EventEmitter } from 'events'
 import { generateImageWithModel, DEFAULT_MODEL } from './fal-ai'
 import { uploadImageToR2 } from './r2'
 import { queryD1 } from './db/d1'
@@ -49,50 +48,6 @@ export interface StoryboardRecord {
 }
 
 const storyboards = new Map<string, StoryboardRecord>()
-const storyboardEmitters = new Map<string, EventEmitter>()
-const emitterTimeouts = new Map<string, NodeJS.Timeout>()
-
-function ensureEmitter(id: string) {
-  let em = storyboardEmitters.get(id)
-  if (!em) { 
-    em = new EventEmitter()
-    em.setMaxListeners(50) // 더 많은 리스너 허용
-    storyboardEmitters.set(id, em)
-    
-    // 1시간 후 자동 정리
-    const timeout = setTimeout(() => {
-      console.log(`[Engine] Auto-cleaning emitter for storyboard: ${id}`)
-      cleanupEmitter(id)
-    }, 60 * 60 * 1000) // 1시간
-    
-    emitterTimeouts.set(id, timeout)
-  }
-  return em
-}
-
-function cleanupEmitter(id: string) {
-  const em = storyboardEmitters.get(id)
-  if (em) {
-    em.removeAllListeners()
-    storyboardEmitters.delete(id)
-  }
-  
-  const timeout = emitterTimeouts.get(id)
-  if (timeout) {
-    clearTimeout(timeout)
-    emitterTimeouts.delete(id)
-  }
-  
-  console.log(`[Engine] Cleaned up emitter for storyboard: ${id}`)
-}
-
-export function getStoryboardEmitter(id: string) {
-  return ensureEmitter(id)
-}
-
-export function removeStoryboardEmitter(id: string) {
-  cleanupEmitter(id)
-}
 
 export function getStoryboardRecord(id: string) {
   return storyboards.get(id) || null
@@ -230,13 +185,10 @@ export async function createStoryboard(params: {
     }
   }
   storyboards.set(storyboardId, record)
-  // Prepare emitter so SSE clients can attach immediately
-  const emitter = ensureEmitter(storyboardId)
-  
   // Start image generation process if in async mode
   if (params.processMode === 'async') {
     // Start image generation in background
-    processFramesAsync(storyboardId, record, emitter)
+    processFramesAsync(storyboardId, record)
   }
   
   return record
@@ -490,7 +442,7 @@ function retry<T>(fn: ()=>Promise<T>, opts: { retries: number; baseDelay: number
   })
 }
 
-async function processFramesAsync(storyboardId: string, record: StoryboardRecord, emitter: EventEmitter) {
+async function processFramesAsync(storyboardId: string, record: StoryboardRecord) {
   console.log(`[Engine] Starting async image generation for storyboard: ${storyboardId}`)
   
   const sb = storyboards.get(storyboardId)
@@ -501,7 +453,6 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
   
   // Update status to processing
   sb.status = 'processing'
-  emitter.emit('update', { storyboardId, status: 'processing' })
   
   try {
     // Process frames sequentially
@@ -510,11 +461,6 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
       
       // Update frame status to generating
       frame.status = 'generating'
-      emitter.emit('update', { 
-        storyboardId, 
-        frame: trimFrame(frame),
-        status: 'generating'
-      })
       
       try {
         // Generate image using the frame's imagePrompt
@@ -526,9 +472,10 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
               aspectRatio: record.aspectRatio,
               style: record.style,
               // Pass character reference images if available
-              imageUrls: frame.characterImageUrls && frame.characterImageUrls.length > 0 
-                ? frame.characterImageUrls 
-                : undefined
+              imageUrls:
+                frame.characterImageUrls && frame.characterImageUrls.length > 0
+                  ? frame.characterImageUrls
+                  : undefined,
             }
           )
           
@@ -571,7 +518,9 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
               })
 
               await updateCardRecord(record.projectId ?? storyboardId, i, updateData)
-              console.log(`[Engine] Successfully updated card in database for frame ${i}: ${storyboardId}`)
+              console.log(
+                `[Engine] Successfully updated card in database for frame ${i}: ${storyboardId}`,
+              )
             } catch (dbError) {
               console.error(`[Engine] Database update error for frame ${i}:`, dbError)
             }
@@ -580,22 +529,10 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
           }
           frame.status = 'ready'
           
-          // Emit frame update
-          emitter.emit('update', { 
-            storyboardId, 
-            frame: trimFrame(frame),
-            status: 'ready'
-          })
-          
           console.log(`[Engine] Generated image for frame ${i + 1}/${sb.frames.length}: ${storyboardId}`)
         } else {
           frame.status = 'error'
           frame.error = 'No image prompt available'
-          emitter.emit('update', { 
-            storyboardId, 
-            frame: trimFrame(frame),
-            status: 'error'
-          })
         }
       } catch (error) {
         console.error(`[Engine] Failed to generate image for frame ${i}:`, error)
@@ -610,12 +547,6 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
         } catch (dbError) {
           console.error(`[Engine] Database error status update error for frame ${i}:`, dbError)
         }
-        
-        emitter.emit('update', { 
-          storyboardId, 
-          frame: trimFrame(frame),
-          status: 'error'
-        })
       }
       
       // Small delay between frames to avoid rate limiting
@@ -634,22 +565,13 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
       sb.status = 'ready'
     }
     
-    // Emit completion
-    emitter.emit('complete', { 
-      storyboardId, 
-      status: sb.status,
-      frames: sb.frames.map(trimFrame)
-    })
-    
     console.log(`[Engine] Completed image generation for storyboard: ${storyboardId}, status: ${sb.status}`)
     
   } catch (error) {
     console.error(`[Engine] Failed to process frames for storyboard: ${storyboardId}`, error)
-    sb.status = 'error'
-    emitter.emit('complete', { 
-      storyboardId, 
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Processing failed'
-    })
+    const sbRecord = storyboards.get(storyboardId)
+    if (sbRecord) {
+      sbRecord.status = 'error'
+    }
   }
 }

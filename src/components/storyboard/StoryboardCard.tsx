@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import Image from 'next/image'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
+import { RATIO_TO_CSS } from '@/lib/constants'
 
 type CardStatus = 'ready' | 'processing' | 'enhancing' | 'error' | string
 
@@ -26,17 +27,8 @@ interface StoryboardCardProps {
   onPlayVideo?: () => void
   isGeneratingVideo?: boolean
   aspectRatio?: StoryboardAspectRatio
-  cardWidth?: number
 }
 
-const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
-  '16:9': '16 / 9',
-  '4:3': '4 / 3',
-  '3:2': '3 / 2',
-  '2:3': '2 / 3',
-  '3:4': '3 / 4',
-  '9:16': '9 / 16',
-}
 
 const StoryboardCard: React.FC<StoryboardCardProps> = ({
   title,
@@ -55,10 +47,8 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   onPlayVideo,
   isGeneratingVideo = false,
   aspectRatio = '16:9',
-  cardWidth,
 }) => {
   void description
-  void cardWidth
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
   const statusDotClass =
     status === 'ready'

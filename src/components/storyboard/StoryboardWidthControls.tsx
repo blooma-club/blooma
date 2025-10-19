@@ -1,20 +1,30 @@
 "use client"
 
-import React from 'react'
+import React, { useState } from 'react'
 import clsx from 'clsx'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { CARD_WIDTH_MIN, CARD_WIDTH_MAX, clampCardWidth } from '@/lib/constants'
+import type { StoryboardAspectRatio } from '@/types/storyboard'
 
 type StoryboardWidthControlsProps = {
   visible: boolean
   cardWidthMin: number
   cardWidthMax: number
   normalizedCardWidth: number
-  normalizedContainerWidth: number
-  containerMaxWidth: number
-  containerStep: number
   onCardWidthChange: (value: number) => void
-  onContainerWidthChange: (value: number) => void
+  aspectRatio?: StoryboardAspectRatio
+  onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
   className?: string
 }
+
+const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16']
+
+const PRESETS = [
+  { label: 'Compact', value: 280 },
+  { label: 'Normal', value: 400 },
+  { label: 'Large', value: 560 },
+] as const
 
 const sliderBaseClasses =
   'w-full appearance-none rounded-full h-2 bg-neutral-800 accent-neutral-100 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:border-0'
@@ -24,13 +34,30 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
   cardWidthMin,
   cardWidthMax,
   normalizedCardWidth,
-  normalizedContainerWidth,
-  containerMaxWidth,
-  containerStep,
   onCardWidthChange,
-  onContainerWidthChange,
+  aspectRatio = '16:9',
+  onAspectRatioChange,
   className,
 }) => {
+  const [aspectDropdownOpen, setAspectDropdownOpen] = useState(false)
+
+  // 외부 클릭 시 드롭다운 닫기
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.aspect-dropdown-container')) {
+        setAspectDropdownOpen(false)
+      }
+    }
+
+    if (aspectDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [aspectDropdownOpen])
   return (
     <div className={clsx('w-full sm:w-[208px]', className)}>
       <div
@@ -41,13 +68,76 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
         aria-hidden={!visible}
       >
         <div className="space-y-4">
+          {/* 비율 드롭다운 */}
+          {onAspectRatioChange && (
+            <div className="space-y-2">
+              <span className="text-xs text-neutral-400">Aspect ratio</span>
+              <div className="relative aspect-dropdown-container">
+                <button
+                  type="button"
+                  className="w-full appearance-none bg-neutral-800 rounded text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between border border-neutral-700 hover:bg-neutral-700 hover:text-white transition-colors"
+                  onClick={() => setAspectDropdownOpen(!aspectDropdownOpen)}
+                >
+                  {aspectRatio}
+                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-300 text-xs">
+                    <FontAwesomeIcon icon={faChevronDown} />
+                  </span>
+                </button>
+                {aspectDropdownOpen && (
+                  <ul className="absolute z-10 mt-1 min-w-[80px] bg-neutral-800 border border-neutral-700 rounded shadow-lg">
+                    {ASPECT_RATIO_OPTIONS.map(option => (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          className="block w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors whitespace-nowrap"
+                          onClick={() => {
+                            onAspectRatioChange(option)
+                            setAspectDropdownOpen(false)
+                          }}
+                        >
+                          {option}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 프리셋 버튼들 */}
+          <div className="space-y-2">
+            <span className="text-xs text-neutral-400">Quick presets</span>
+            <div className="flex gap-1">
+              {PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => onCardWidthChange(preset.value)}
+                  className={clsx(
+                    'flex-1 px-2 py-1 text-xs rounded-md transition-colors',
+                    Math.abs(normalizedCardWidth - preset.value) < 20
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 슬라이더 */}
           <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-neutral-100">Card size</span>
-            <div className="flex items-center justify-between text-xs text-neutral-400">
-              <span className="text-neutral-100 font-semibold">{normalizedCardWidth}px</span>
-              <span>
-                {cardWidthMin}px – {cardWidthMax}px
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-neutral-100">Card size</span>
+              <span className="text-xs text-neutral-400">
+                {normalizedCardWidth}px
               </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-neutral-400">
+              <span>{cardWidthMin}px</span>
+              <span>{cardWidthMax}px</span>
             </div>
             <input
               id="storyboard-card-width"
@@ -59,25 +149,6 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
               aria-label="Adjust storyboard card width"
               onChange={event => onCardWidthChange(Number(event.target.value))}
               className={sliderBaseClasses}
-            />
-          </label>
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-neutral-100">Container size</span>
-            <div className="flex items-center justify-between text-xs text-neutral-400">
-              <span className="text-neutral-100 font-semibold">{normalizedContainerWidth}px</span>
-              <span>max {containerMaxWidth}px</span>
-            </div>
-            <input
-              id="storyboard-container-width"
-              type="range"
-              min={normalizedCardWidth}
-              max={containerMaxWidth}
-              step={containerStep}
-              value={normalizedContainerWidth}
-              aria-label="Adjust storyboard container width"
-              onChange={event => onContainerWidthChange(Number(event.target.value))}
-              className={clsx(sliderBaseClasses, 'bg-neutral-900')}
             />
           </label>
         </div>

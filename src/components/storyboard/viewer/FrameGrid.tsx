@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities'
 import clsx from 'clsx'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
+import { RATIO_TO_CSS, CARD_WIDTH_MIN, CARD_WIDTH_MAX, clampCardWidth } from '@/lib/constants'
 
 interface FrameGridProps {
   frames: StoryboardFrame[]
@@ -72,19 +73,6 @@ const SideInsertButton = ({
   )
 }
 
-const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
-  '16:9': '16 / 9',
-  '4:3': '4 / 3',
-  '3:2': '3 / 2',
-  '2:3': '2 / 3',
-  '3:4': '3 / 4',
-  '9:16': '9 / 16',
-}
-
-const CARD_WIDTH_MIN = 240
-const CARD_WIDTH_MAX = 1104
-const clampCardWidth = (value: number) =>
-  Math.max(CARD_WIDTH_MIN, Math.min(CARD_WIDTH_MAX, Math.round(value)))
 
 export const FrameGrid: React.FC<FrameGridProps> = ({
   frames,
@@ -158,12 +146,12 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
     return (
       <div className="flex justify-center">
         <div
-          className="grid w-full gap-6"
-          style={
-            containerMaxWidth
-              ? { maxWidth: `${containerMaxWidth}px`, gridTemplateColumns }
-              : { gridTemplateColumns }
-          }
+          className="grid gap-6 justify-center"
+          style={{
+            gridTemplateColumns,
+            maxWidth: '100%',
+            width: 'fit-content'
+          }}
         >
           {Array.from({ length: Math.max(cardsLength, 8) }).map((_, idx) => (
             <div
@@ -194,12 +182,12 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
       <div className="flex justify-center pt-10">
         <SortableContext items={frames.map(frame => frame.id)} strategy={rectSortingStrategy}>
           <div
-            className="grid w-full gap-6"
-            style={
-              containerMaxWidth
-                ? { maxWidth: `${containerMaxWidth}px`, gridTemplateColumns }
-                : { gridTemplateColumns }
-            }
+            className="grid gap-6 justify-center"
+            style={{
+              gridTemplateColumns,
+              maxWidth: '100%',
+              width: 'fit-content'
+            }}
           >
             {frames.map((frame, index) => {
               const frameWidth =
@@ -258,7 +246,6 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
               status={activeFrame.status}
               imageFit="cover"
               aspectRatio={aspectRatio}
-              cardWidth={activeCardWidth}
             />
           </div>
         ) : null}
@@ -350,7 +337,6 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         onPlayVideo={onPlayVideo}
         isGeneratingVideo={isGeneratingVideo}
         aspectRatio={aspectRatio}
-        cardWidth={cardWidth}
       />
 
       <SideInsertButton
