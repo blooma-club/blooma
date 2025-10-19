@@ -12,6 +12,7 @@ import {
   saveDraftToLocal,
   loadDraftFromLocal,
   clearDraftFromLocal,
+  saveLastStoryboardId,
 } from '@/lib/localStorage'
 import Image from 'next/image'
 import ScriptEditor from '@/components/project/setup/ScriptEditor'
@@ -386,6 +387,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       if (newProjectId) {
         // Clear the draft since we've successfully generated a storyboard
         clearSavedDraft()
+        saveLastStoryboardId(newProjectId, newProjectId)
 
         const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard/${encodeURIComponent(newProjectId)}?view=editor`
         console.log('[SETUP] Navigating directly to editor:', newUrl)

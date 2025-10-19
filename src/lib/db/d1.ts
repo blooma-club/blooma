@@ -137,6 +137,17 @@ export async function queryD1<T = unknown>(
       payload.errors?.map(error => error.message).join('; ') ||
       `${response.status} ${response.statusText}`
 
+    // 더 자세한 에러 로깅 추가
+    console.error('[D1 Query Error]', {
+      status: response.status,
+      statusText: response.statusText,
+      errors: payload.errors,
+      messages,
+      sql: sql.substring(0, 200) + (sql.length > 200 ? '...' : ''), // SQL 쿼리 일부만 로깅
+      paramsCount: params.length,
+      endpoint: endpoint.replace(accountId, '[ACCOUNT_ID]').replace(databaseId, '[DATABASE_ID]'),
+    })
+
     throw new D1QueryError('Cloudflare D1 query failed', {
       status: response.status,
       statusText: response.statusText,

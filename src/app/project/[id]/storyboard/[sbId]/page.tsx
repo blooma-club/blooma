@@ -1562,8 +1562,8 @@ export default function StoryboardPage() {
           {canShowWidthControlsPanel && (
             <>
               <div
-                className="hidden sm:absolute sm:block sm:-translate-y-1/2"
-                style={{ top: '50%', left: 'calc(50% - min(100%, 65rem) / 2 - 13.5rem)' }}
+                className="hidden sm:absolute sm:block sm:-translate-y-1/2 relative z-[60]"
+                style={{ top: '80px', left: 'calc(50% - min(100%, 65rem) / 2 - 13.5rem)' }}
               >
                 <StoryboardWidthControls
                   visible={showWidthControls}

@@ -131,18 +131,28 @@ export default function ProjectCharactersPage() {
   }, [projectId, router, storyboardId])
 
   return (
-    <div className="px-6 py-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <FloatingHeader
-          title="Models"
-          index={0}
-          total={1}
-          currentView="models"
-          onNavigateToCharacters={handleNavigateToCharacters}
-          onNavigateToStoryboard={handleNavigateToStoryboard}
-          onNavigateToEditor={handleNavigateToEditor}
-          onNavigateToTimeline={handleNavigateToTimeline}
-        />
+    <div>
+      <div className="w-full px-4">
+        {/* Header 라인: FloatingHeader */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1280px]">
+          <FloatingHeader
+            title="Models"
+            index={0}
+            total={1}
+            currentView="models"
+            onNavigateToCharacters={handleNavigateToCharacters}
+            onNavigateToStoryboard={handleNavigateToStoryboard}
+            onNavigateToEditor={handleNavigateToEditor}
+            onNavigateToTimeline={handleNavigateToTimeline}
+            layout="inline"
+            containerClassName="mx-auto w-full sm:w-auto"
+            className="mx-auto w-full max-w-[1040px] sm:pr-16"
+          />
+        </div>
+      </div>
+      
+      <div className="px-6 py-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6">
         {error ? (
           <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
@@ -160,6 +170,7 @@ export default function ProjectCharactersPage() {
             userId={user?.id}
           />
         )}
+        </div>
       </div>
     </div>
   )

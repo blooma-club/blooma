@@ -46,6 +46,25 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const displayIndex = total > 0 ? index + 1 : 0
   const [navigationDropdownOpen, setNavigationDropdownOpen] = React.useState(false)
+
+  // 외부 클릭 시 드롭다운 닫기
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.dropdown-container')) {
+        setDropdownOpen(false)
+        setNavigationDropdownOpen(false)
+      }
+    }
+
+    if (dropdownOpen || navigationDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [dropdownOpen, navigationDropdownOpen])
   const selectedAspect = aspectRatio ?? '16:9'
   const showAspectControls = typeof onAspectRatioChange === 'function'
   const navigationOptions = [
@@ -64,7 +83,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
     'storyboard'
 
   const containerClasses = clsx(
-    'pointer-events-auto bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-6 py-3 flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3',
+    'pointer-events-auto bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-6 py-3 flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 relative z-50',
     className
   )
 
@@ -91,34 +110,25 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         </div>
       </div>
 
-      <div
-        className="flex flex-wrap items-center justify-end gap-4 sm:gap-6"
-        onMouseLeave={() => {
-          setDropdownOpen(false)
-          setNavigationDropdownOpen(false)
-        }}
-      >
+      <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
         {showAspectControls && (
           <label className="flex items-center gap-2 text-xs text-[#DBDBDB]">
-            <div
-              className="relative"
-              onMouseLeave={() => setDropdownOpen(false)}
-            >
+            <div className="relative dropdown-container">
               <div className="relative">
                 <button
                   type="button"
-                  className="appearance-none bg-black rounded text-neutral-100 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full"
-                  onMouseEnter={() => setDropdownOpen(true)}
+                  className="appearance-none bg-neutral-800 rounded text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full border border-neutral-700"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
                 >
                   {selectedAspect}
                 </button>
                 {dropdownOpen && (
-                  <ul className="absolute z-10 mt-1 w-full bg-black border border-neutral-700 rounded shadow-lg">
+                  <ul className="absolute z-10 mt-1 min-w-[80px] bg-neutral-800 border border-neutral-700 rounded shadow-lg">
                     {ASPECT_RATIO_OPTIONS.map(option => (
                       <li key={option}>
                         <button
                           type="button"
-                          className="block w-full text-left px-3 py-2 text-sm text-neutral-100 hover:bg-neutral-800"
+                          className="block w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors whitespace-nowrap"
                           onClick={() => {
                             onAspectRatioChange?.(option)
                             setDropdownOpen(false)
@@ -138,23 +148,21 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
           </label>
         )}
         <label className="flex items-center gap-2 text-xs text-[#DBDBDB]">
-          <div
-            className="relative"
-            onMouseLeave={() => setNavigationDropdownOpen(false)}
-          >
-            <div
-              className="relative appearance-none bg-black rounded text-neutral-100 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full navigation-dropdown"
-              onMouseEnter={() => setNavigationDropdownOpen(true)}
+          <div className="relative dropdown-container">
+            <button
+              type="button"
+              className="relative appearance-none bg-neutral-800 rounded text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full navigation-dropdown border border-neutral-700"
+              onClick={() => setNavigationDropdownOpen(!navigationDropdownOpen)}
             >
               {navigationOptions.find(option => option.value === selectedView)?.label}
-            </div>
+            </button>
             {navigationDropdownOpen && (
-              <ul className="absolute z-50 mt-1 w-full bg-black border border-neutral-700 rounded shadow-lg">
+              <ul className="absolute z-50 mt-1 min-w-[120px] bg-neutral-800 border border-neutral-700 rounded shadow-lg">
                 {navigationOptions.map(option => (
                   <li key={option.value}>
                     <button
                       type="button"
-                      className="block w-full text-left px-3 py-2 text-sm text-neutral-100 hover:bg-neutral-800"
+                      className="block w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors whitespace-nowrap"
                       onClick={() => {
                         option.onSelect()
                         setNavigationDropdownOpen(false)
