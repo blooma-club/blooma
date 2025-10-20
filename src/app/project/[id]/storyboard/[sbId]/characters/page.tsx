@@ -139,7 +139,7 @@ export default function ProjectCharactersPage() {
             title="Models"
             index={0}
             total={1}
-            currentView="models"
+            currentView="storyboard"
             onNavigateToCharacters={handleNavigateToCharacters}
             onNavigateToStoryboard={handleNavigateToStoryboard}
             onNavigateToEditor={handleNavigateToEditor}

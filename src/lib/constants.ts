@@ -19,6 +19,10 @@ export const CARD_WIDTH_MIN = 240
 export const CARD_WIDTH_MAX = 1104
 export const CARD_WIDTH_LOCK_THRESHOLD = 540
 
+// Grid layout constants
+export const GRID_CONTAINER_MAX_WIDTH = 1200
+export const GRID_GAP_PX = 16
+
 // Storage keys
 export const CARD_WIDTH_STORAGE_PREFIX = 'blooma_storyboard_card_width:'
 

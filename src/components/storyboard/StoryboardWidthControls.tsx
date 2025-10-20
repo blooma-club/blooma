@@ -15,6 +15,7 @@ type StoryboardWidthControlsProps = {
   onCardWidthChange: (value: number) => void
   aspectRatio?: StoryboardAspectRatio
   onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
+  onClose?: () => void
   className?: string
 }
 
@@ -37,30 +38,47 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
   onCardWidthChange,
   aspectRatio = '16:9',
   onAspectRatioChange,
+  onClose,
   className,
 }) => {
   const [aspectDropdownOpen, setAspectDropdownOpen] = useState(false)
+  const cardRef = React.useRef<HTMLDivElement>(null)
 
-  // 외부 클릭 시 드롭다운 닫기
+  // 외부 클릭 시 드롭다운 닫기 및 카드 닫기
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
+      
+      // 드롭다운 외부 클릭 시 드롭다운 닫기
       if (!target.closest('.aspect-dropdown-container')) {
         setAspectDropdownOpen(false)
       }
+      
+      // 카드 외부 클릭 시 카드 닫기 (슬라이더, 프리셋 버튼, 드롭다운 제외)
+      if (cardRef.current && !cardRef.current.contains(target) && onClose) {
+        // 슬라이더, 프리셋 버튼, 드롭다운 클릭이 아닌 경우에만 카드 닫기
+        const isSlider = (target as HTMLInputElement).type === 'range' || target.closest('[data-slider="true"]')
+        const isPresetButton = target.closest('[data-preset="true"]')
+        const isDropdown = target.closest('.aspect-dropdown-container')
+        
+        if (!isSlider && !isPresetButton && !isDropdown) {
+          onClose()
+        }
+      }
     }
 
-    if (aspectDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
+    if (visible) {
+      document.addEventListener('click', handleClickOutside)
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('click', handleClickOutside)
     }
-  }, [aspectDropdownOpen])
+  }, [visible, onClose])
   return (
     <div className={clsx('w-full sm:w-[208px]', className)}>
       <div
+        ref={cardRef}
         className={clsx(
           'rounded-xl border border-neutral-800/70 bg-[#1A1A1A] px-4 py-4 shadow-lg text-sm text-neutral-200 transition-all duration-150',
           visible ? 'visible opacity-100 pointer-events-auto' : 'invisible opacity-0 pointer-events-none'
@@ -113,6 +131,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
                 <button
                   key={preset.label}
                   type="button"
+                  data-preset="true"
                   onClick={() => onCardWidthChange(preset.value)}
                   className={clsx(
                     'flex-1 px-2 py-1 text-xs rounded-md transition-colors',
@@ -142,6 +161,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
             <input
               id="storyboard-card-width"
               type="range"
+              data-slider="true"
               min={cardWidthMin}
               max={cardWidthMax}
               step={10}

@@ -18,6 +18,7 @@ import ImageStage from '@/components/storyboard/editor/ImageStage'
 import ImageEditPanel from '@/components/storyboard/editor/ImageEditPanel'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import ProfessionalVideoTimeline from '@/components/storyboard/ProfessionalVideoTimeline'
+import PromptDock from '@/components/storyboard/PromptDock'
 import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
 import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
@@ -67,8 +68,8 @@ export default function StoryboardPage() {
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
 
-  // View mode 상태: 'storyboard' | 'editor' | 'timeline'
-  const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'models'>(
+  // View mode 상태: 'storyboard' | 'editor' | 'timeline' | 'models'
+  const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'timeline' | 'models'>(
     initialFrameMode ? 'editor' : 'storyboard'
   )
   // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
@@ -76,7 +77,7 @@ export default function StoryboardPage() {
 
   // Custom hooks
   const { cardWidth, setCardWidth, latestCardWidthRef, persistCardWidthTimeout, handleCardWidthChange, readStoredCardWidth, persistCardWidthLocally, schedulePersistCardWidth } = useCardWidth(projectId, setFrames)
-  const { handleNavigateToStoryboard, handleNavigateToEditor, handleNavigateToTimeline, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index)
+  const { handleNavigateToStoryboard, handleNavigateToEditor, handleNavigateToTimeline, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index, setViewMode)
   const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId, latestCardWidthRef)
 
   // Zustand store 연결
@@ -726,6 +727,7 @@ export default function StoryboardPage() {
                   onCardWidthChange={handleCardWidthChange}
                   aspectRatio={ratio}
                   onAspectRatioChange={setRatio}
+                  onClose={() => setShowWidthControls(false)}
                   className="mx-auto sm:mx-0"
                 />
               </div>
@@ -739,6 +741,7 @@ export default function StoryboardPage() {
                     onCardWidthChange={handleCardWidthChange}
                     aspectRatio={ratio}
                     onAspectRatioChange={setRatio}
+                    onClose={() => setShowWidthControls(false)}
                   />
                 </div>
               ) : null}
@@ -1076,6 +1079,23 @@ export default function StoryboardPage() {
           />
         )}
       </div>
+
+      {/* 하단 고정 프롬프트 입력 바 */}
+      <PromptDock
+        projectId={projectId}
+        aspectRatio={ratio}
+        onAspectRatioChange={setRatio}
+        onCreateFrame={async (imageUrl: string) => {
+          try {
+            const newFrames = await handleAddFrame()
+            if (newFrames && newFrames.length) {
+              setFrames(newFrames)
+            }
+          } catch (e) {
+            console.error('Failed to add frame after generation:', e)
+          }
+        }}
+      />
 
       {videoPreview && (
         <VideoPreviewModal 
