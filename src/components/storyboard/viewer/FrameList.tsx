@@ -18,6 +18,7 @@ interface FrameListProps {
   onPlayVideo?: (frameId: string) => void
   generatingVideoId?: string | null
   aspectRatio?: StoryboardAspectRatio
+  selectedFrameId?: string
 }
 
 const BetweenInsertRow = ({
@@ -56,6 +57,7 @@ export const FrameList: React.FC<FrameListProps> = ({
   onPlayVideo,
   generatingVideoId = null,
   aspectRatio = '16:9',
+  selectedFrameId,
 }) => {
   const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
   const maxHeight = PORTRAIT_RATIOS.includes(aspectRatio) ? 520 : 360
@@ -70,7 +72,7 @@ export const FrameList: React.FC<FrameListProps> = ({
         )}
         {frames.map((frame, i) => (
           <React.Fragment key={frame.id}>
-            <div className="flex items-center gap-6 p-6 bg-neutral-900 border border-neutral-800 rounded-lg hover:bg-neutral-800 transition-colors">
+            <div className={`flex items-center gap-6 p-6 bg-neutral-900 border rounded-lg hover:bg-neutral-800 transition-colors ${selectedFrameId === frame.id ? 'border-blue-500/60 ring-2 ring-blue-400/60' : 'border-neutral-800'}`}>
               {/* 왼쪽: StoryboardCard */}
               <div className={`${previewWidthClass} flex-shrink-0`}>
                 <StoryboardCard

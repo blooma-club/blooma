@@ -2,7 +2,14 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { ArrowUp, Sparkles, Settings2 } from 'lucide-react'
+import { ArrowUp, Sparkles, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { DEFAULT_MODEL, getImageGenerationModels } from '@/lib/fal-ai'
 
@@ -11,6 +18,7 @@ type PromptDockProps = {
   aspectRatio?: StoryboardAspectRatio
   onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
   onCreateFrame: (imageUrl: string) => Promise<void>
+  selectedShotNumber?: number
   className?: string
 }
 
@@ -21,6 +29,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
   aspectRatio = '16:9',
   onAspectRatioChange,
   onCreateFrame,
+  selectedShotNumber,
   className,
 }) => {
   const models = React.useMemo(() => getImageGenerationModels(), [])
@@ -33,7 +42,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
   const [selectedRatio, setSelectedRatio] = React.useState<StoryboardAspectRatio>(aspectRatio)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [showSettings, setShowSettings] = React.useState(false)
 
   React.useEffect(() => {
     setSelectedRatio(aspectRatio)
@@ -74,11 +82,13 @@ export const PromptDock: React.FC<PromptDockProps> = ({
   }
 
   const selectedModel = models.find(m => m.id === modelId)
+  const baseControlTriggerClass =
+    'h-9 justify-between rounded-lg border-neutral-700/60 bg-neutral-900/70 px-3 text-xs text-neutral-100 transition-colors hover:bg-neutral-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-0'
 
   return (
     <div
       className={clsx(
-        'fixed bottom-6 left-1/2 -translate-x-1/2 w-[min(800px,90%)] z-[70] pointer-events-none',
+        'fixed bottom-6 left-1/2 -translate-x-1/2 w-[min(640px,85%)] z-[70] pointer-events-none',
         className
       )}
       aria-live="polite"
@@ -90,104 +100,112 @@ export const PromptDock: React.FC<PromptDockProps> = ({
         <div className="absolute inset-0 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10"></div>
         
         {/* 실제 컨텐츠 */}
-        <div className="relative bg-neutral-900/95 backdrop-blur-xl rounded-2xl border border-neutral-700/50 shadow-2xl p-4">
-          {/* 설정 패널 */}
-          {showSettings && (
-            <div className="mb-4 p-3 bg-neutral-800/50 rounded-xl border border-neutral-700/30">
-              <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">Model</label>
-                  <select
-                    className="w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={modelId}
-                    onChange={e => setModelId(e.target.value)}
-                  >
-                    {models.map(m => (
-                      <option key={m.id} value={m.id} className="bg-neutral-800">
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 min-w-[120px]">
-                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">Aspect Ratio</label>
-                  <select
-                    className="w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={selectedRatio}
-                    onChange={e => {
-                      const next = e.target.value as StoryboardAspectRatio
-                      setSelectedRatio(next)
-                      onAspectRatioChange?.(next)
-                    }}
-                  >
-                    {ASPECT_RATIO_OPTIONS.map(r => (
-                      <option key={r} value={r} className="bg-neutral-800">
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        <div className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-neutral-700/50 shadow-xl p-3">
+          <div className="flex flex-col gap-2">
+            {/* 상단: 배지 행 */}
+            <div className="flex items-center gap-1 text-xs text-neutral-200">
+              {typeof selectedShotNumber === 'number' && (
+                <span className="px-1.5 py-0.5 rounded-md bg-blue-600/20 text-blue-200 border border-blue-500/40">Shot {selectedShotNumber}</span>
+              )}
             </div>
-          )}
 
-          {/* 메인 입력 영역 */}
-          <div className="flex items-end gap-3">
-            {/* 프롬프트 입력 */}
-            <div className="flex-1 relative">
-              <div className="relative">
+            {/* 중간: 프롬프트 입력 영역 */}
+            <div className="group relative isolate">
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 transition-opacity duration-300 group-focus-within:opacity-100"></div>
+              <div className="relative flex items-center gap-2 rounded-xl border border-neutral-700/60 bg-neutral-900/80 px-4 py-2.5 shadow-[0_8px_25px_-12px_rgba(0,0,0,0.5)]">
                 <input
                   type="text"
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Describe the scene you want to create..."
-                  className="w-full rounded-xl border border-neutral-600 bg-neutral-800/50 px-4 py-3 pr-12 text-sm text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  aria-label="프롬프트 입력"
+                  className="w-full bg-transparent text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-0"
                   disabled={submitting}
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowSettings(!showSettings)}
-                    className={clsx(
-                      'p-1.5 rounded-lg transition-colors',
-                      showSettings 
-                        ? 'bg-blue-500/20 text-blue-400' 
-                        : 'text-neutral-400 hover:text-neutral-300 hover:bg-neutral-700/50'
-                    )}
-                    aria-label="Toggle settings"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
-              
             </div>
 
-            {/* 생성 버튼 */}
-            <button
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={submitting || !prompt.trim()}
-              className={clsx(
-                'flex items-center justify-center w-12 h-12 rounded-xl font-medium transition-all duration-200',
-                submitting || !prompt.trim()
-                  ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 shadow-lg hover:shadow-xl transform hover:scale-105'
-              )}
-            >
-              {submitting ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent"></div>
-              ) : (
-                <ArrowUp className="h-5 w-5" />
-              )}
-            </button>
+            {/* 하단: 설정 도구 및 전송 버튼 */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800/60 pt-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className={clsx(baseControlTriggerClass, 'min-w-[130px]')}>
+                      <span className="truncate text-left">
+                        {selectedModel?.name || 'Select model'}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56 rounded-lg border border-neutral-800/60 bg-neutral-900/95 p-1 backdrop-blur-xl">
+                    {models.map(m => (
+                      <DropdownMenuItem
+                        key={m.id}
+                        onClick={() => setModelId(m.id)}
+                        className={clsx(
+                          'rounded-md px-2.5 py-1.5 text-xs text-neutral-100 transition-colors focus:bg-neutral-800 focus:text-neutral-100',
+                          modelId === m.id && 'bg-neutral-800/80'
+                        )}
+                      >
+                        {m.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className={clsx(baseControlTriggerClass, 'min-w-[100px]')}>
+                      <span>{selectedRatio}</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48 rounded-lg border border-neutral-800/60 bg-neutral-900/95 p-1 backdrop-blur-xl">
+                    {ASPECT_RATIO_OPTIONS.map(r => (
+                      <DropdownMenuItem
+                        key={r}
+                        onClick={() => {
+                          setSelectedRatio(r)
+                          onAspectRatioChange?.(r)
+                        }}
+                        className={clsx(
+                          'rounded-md px-2.5 py-1.5 text-xs text-neutral-100 transition-colors focus:bg-neutral-800 focus:text-neutral-100',
+                          selectedRatio === r && 'bg-neutral-800/80'
+                        )}
+                      >
+                        {r}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <Button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={submitting || !prompt.trim()}
+                className={clsx(
+                  'h-9 rounded-lg bg-blue-500 px-4 text-xs font-semibold text-white shadow-[0_4px_12px_-8px_rgba(59,130,246,0.8)] transition-colors hover:bg-blue-400/90 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-0',
+                  (submitting || !prompt.trim()) && 'cursor-not-allowed opacity-60'
+                )}
+                aria-label="Send"
+              >
+                {submitting ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"></div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUp className="h-4 w-4" />
+                    <span>Send</span>
+                  </div>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* 에러 메시지 */}
           {error && (
-            <div className="mt-3 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-              <p className="text-sm text-red-400">{error}</p>
+            <div className="mt-2 rounded-lg border border-red-500/30 bg-red-900/20 p-2">
+              <p className="text-xs text-red-400">{error}</p>
             </div>
           )}
 

@@ -798,8 +798,6 @@ export default function StoryboardPage() {
                 frames={frames}
                 onFrameOpen={(frameIndex) => {
                   setIndex(frameIndex)
-                  setViewMode('editor')
-                  handleOpenFrame(frameIndex)
                 }}
                 onFrameEdit={frameId => {
                   const frameData = frames.find(f => f.id === frameId)
@@ -859,6 +857,7 @@ export default function StoryboardPage() {
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
                 cardWidth={cardWidth}
+                selectedFrameId={frames[index]?.id}
                 onReorder={(fromIndex, toIndex) => {
                   const result = handleReorderFrames(fromIndex, toIndex)
                   if (result) {
@@ -874,8 +873,6 @@ export default function StoryboardPage() {
                 frames={frames}
                 onFrameEdit={(frameIndex) => {
                   setIndex(frameIndex)
-                  setViewMode('editor')
-                  handleOpenFrame(frameIndex)
                 }}
                 onFrameEditMetadata={frameId => {
                   const frameData = frames.find(f => f.id === frameId)
@@ -931,6 +928,7 @@ export default function StoryboardPage() {
                 }}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
+                selectedFrameId={frames[index]?.id}
               />
             )}
           </>
@@ -1085,6 +1083,7 @@ export default function StoryboardPage() {
         projectId={projectId}
         aspectRatio={ratio}
         onAspectRatioChange={setRatio}
+        selectedShotNumber={frames[index] ? frames[index].scene || index + 1 : undefined}
         onCreateFrame={async (imageUrl: string) => {
           try {
             const newFrames = await handleAddFrame()
@@ -1096,6 +1095,7 @@ export default function StoryboardPage() {
           }
         }}
       />
+
 
       {videoPreview && (
         <VideoPreviewModal 

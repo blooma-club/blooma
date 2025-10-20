@@ -13,7 +13,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { restrictToParentElement } from '@dnd-kit/modifiers'
 import {
   SortableContext,
   rectSortingStrategy,
@@ -42,6 +41,7 @@ interface FrameGridProps {
   containerMaxWidth?: number
   cardWidth: number
   onReorder?: (fromIndex: number, toIndex: number) => void
+  selectedFrameId?: string
 }
 
 const SideInsertButton = ({
@@ -90,6 +90,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   containerMaxWidth,
   cardWidth,
   onReorder,
+  selectedFrameId,
 }) => {
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
@@ -177,7 +178,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
-      modifiers={[restrictToParentElement]}
+      modifiers={[]}
     >
       <div className="flex justify-center pt-10">
         <SortableContext items={frames.map(frame => frame.id)} strategy={rectSortingStrategy}>
@@ -211,7 +212,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
                   onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
                   isGeneratingVideo={generatingVideoId === frame.id}
-                  highlight={activeId === frame.id}
+                  highlight={activeId === frame.id || selectedFrameId === frame.id}
                 />
               )
             })}
@@ -308,7 +309,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
       ref={setNodeRef}
       style={style}
       className={clsx(
-        'group relative w-full cursor-grab active:cursor-grabbing',
+        'group relative w-full cursor-grab active:cursor-grabbing rounded-lg',
         isDragging && 'ring-2 ring-blue-500/80 shadow-lg',
         highlight && !isDragging && 'ring-2 ring-blue-400/60'
       )}
