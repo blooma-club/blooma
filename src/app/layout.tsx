@@ -56,9 +56,10 @@ export default function RootLayout({
 
   return (
     <PublishableClerkProvider>
-      <html lang="en">
+      <html lang="en" className="dark">
         <body
-          className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen bg-black text-white font-sans`}
+          className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen text-white font-sans`}
+          style={{ backgroundColor: 'hsl(var(--background))' }}
         >
           {shellWithProviders}
         </body>

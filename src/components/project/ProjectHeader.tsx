@@ -104,7 +104,7 @@ export default function ProjectHeader() {
   }
 
   return (
-    <>
+    <div className="flex items-center gap-4">
       <button
         onClick={() => router.push('/dashboard')}
         className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
@@ -113,7 +113,7 @@ export default function ProjectHeader() {
         <ArrowLeft className="w-4 h-4" />
         Dashboard
       </button>
-      <div className="w-px h-4 bg-gray-600 mx-2" />
+      <div className="w-px h-4 bg-gray-600" />
       {isEditing ? (
         <div className="flex items-center gap-3">
           <input
@@ -159,6 +159,6 @@ export default function ProjectHeader() {
           </button>
         </div>
       )}
-    </>
+    </div>
   )
 }

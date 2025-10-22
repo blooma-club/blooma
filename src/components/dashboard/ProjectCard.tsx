@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Project, type ProjectInput } from '@/types'
 import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ProjectModal } from './ProjectModal'
 import Image from 'next/image'
 
 interface ProjectCardProps {
@@ -272,19 +271,5 @@ export const ProjectCard = ({
     </div>
   )
 
-  return (
-    <>
-      <div onClick={() => setIsMenuOpen(false)}>
-        {viewMode === 'grid' ? renderGridView() : renderListView()}
-      </div>
-
-      <ProjectModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={projectData => onUpdate(project.id, projectData)}
-        project={project}
-        mode="edit"
-      />
-    </>
-  )
+  return viewMode === 'grid' ? renderGridView() : renderListView()
 }

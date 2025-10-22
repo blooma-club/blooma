@@ -12,7 +12,7 @@ export default function AuthShell({ children }: AuthShellProps) {
   const router = useRouter()
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-black px-4 py-10 text-black sm:px-6 lg:px-8">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-10 text-black sm:px-6 lg:px-8" style={{ backgroundColor: 'hsl(var(--background))' }}>
       <button
         onClick={() => router.push('/')}
         className="absolute left-6 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full hover:opacity-80"

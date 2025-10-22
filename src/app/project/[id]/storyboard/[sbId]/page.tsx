@@ -67,6 +67,7 @@ export default function StoryboardPage() {
   // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
+  const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit'>('generate')
 
   // View mode 상태: 'storyboard' | 'editor' | 'timeline' | 'models'
   const [viewMode, setViewMode] = useState<'storyboard' | 'editor' | 'timeline' | 'models'>(
@@ -691,6 +692,11 @@ export default function StoryboardPage() {
   const canShowWidthControlsPanel =
     viewMode === 'storyboard' && (!isClient || storyboardViewMode === 'grid')
 
+  // 카드 선택 취소 함수
+  const handleDeselectCard = useCallback(() => {
+    setIndex(-1) // 선택 해제
+  }, [])
+
   return (
     <div>
       <div className="w-full px-4">
@@ -857,7 +863,8 @@ export default function StoryboardPage() {
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
                 cardWidth={cardWidth}
-                selectedFrameId={frames[index]?.id}
+                selectedFrameId={index >= 0 ? frames[index]?.id : undefined}
+                onBackgroundClick={handleDeselectCard}
                 onReorder={(fromIndex, toIndex) => {
                   const result = handleReorderFrames(fromIndex, toIndex)
                   if (result) {
@@ -928,7 +935,7 @@ export default function StoryboardPage() {
                 }}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
-                selectedFrameId={frames[index]?.id}
+                selectedFrameId={index >= 0 ? frames[index]?.id : undefined}
               />
             )}
           </>
@@ -1083,15 +1090,60 @@ export default function StoryboardPage() {
         projectId={projectId}
         aspectRatio={ratio}
         onAspectRatioChange={setRatio}
-        selectedShotNumber={frames[index] ? frames[index].scene || index + 1 : undefined}
+        selectedShotNumber={index >= 0 && frames[index] ? frames[index].scene || index + 1 : undefined}
+        mode={promptDockMode}
+        onModeChange={setPromptDockMode}
+        referenceImageUrl={index >= 0 && frames[index] ? frames[index].imageUrl : undefined}
         onCreateFrame={async (imageUrl: string) => {
           try {
+            const hasSelection = index >= 0 && Boolean(frames[index])
+            if (hasSelection) {
+              const targetFrame = frames[index]
+              const targetCardId = targetFrame.id
+              const targetCard = (cards || []).find(c => c.id === targetCardId)
+
+              const prevImage = targetCard?.image_url || targetFrame.imageUrl
+              const existingHistory = Array.isArray(targetCard?.image_urls) ? targetCard!.image_urls! : []
+              const newHistory = prevImage ? [...existingHistory, prevImage] : existingHistory
+
+              const updateRes = await fetch('/api/cards', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  cards: [
+                    {
+                      id: targetCardId,
+                      image_url: imageUrl,
+                      image_urls: newHistory,
+                      selected_image_url: 0,
+                      storyboard_status: 'ready',
+                    },
+                  ],
+                }),
+              })
+
+              if (!updateRes.ok) {
+                const payload = await updateRes.json().catch(() => ({} as any))
+                throw new Error(payload?.error || '이미지 업데이트 저장 실패')
+              }
+
+              const refreshedCards = useStoryboardStore.getState().cards[projectId] || cards
+              const mergedCards = refreshedCards.map(card =>
+                card.id === targetCardId
+                  ? { ...card, image_url: imageUrl, image_urls: newHistory, storyboard_status: 'ready' }
+                  : card
+              )
+              setCards(projectId, mergedCards)
+              setFrames(prev => prev.map(f => (f.id === targetCardId ? { ...f, imageUrl, status: 'ready' } : f)))
+              return
+            }
+
             const newFrames = await handleAddFrame()
             if (newFrames && newFrames.length) {
               setFrames(newFrames)
             }
           } catch (e) {
-            console.error('Failed to add frame after generation:', e)
+            console.error('Failed to apply generated image:', e)
           }
         }}
       />

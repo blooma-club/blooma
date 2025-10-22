@@ -149,10 +149,21 @@ export default function ScriptEditor({
                   // 입력창
                   <div
                     data-testid="script-input-shell"
-                    className="group relative rounded-[26px] bg-gradient-to-r from-white/15 via-indigo-400/30 to-white/15 p-[2px] shadow-[0_0_45px_rgba(99,102,241,0.18)] transition-all duration-500 hover:from-white/25 hover:via-indigo-300/40 hover:to-white/25"
+                    className="group relative rounded-[26px] p-[2px] shadow-[0_0_45px_rgba(0,0,0,0.18)] transition-all duration-500"
+                    style={{ 
+                      background: `linear-gradient(to right, hsl(var(--glow-bg) / 0.15), hsl(var(--glow-bg) / 0.3), hsl(var(--glow-bg) / 0.15))`,
+                      boxShadow: `0 0 45px hsl(var(--glow-bg) / 0.18)`
+                    }}
                   >
                     {/* Soft glow wrapper keeps the requested beam effect without overpowering the dark theme */}
-                    <div className="rounded-[22px] border border-white/12 bg-black/60 px-4 py-4 backdrop-blur-sm transition-colors duration-300 group-hover:border-white/20">
+                    <div 
+                      className="rounded-[22px] bg-black/60 px-4 py-4 backdrop-blur-sm transition-colors duration-300"
+                      style={{ 
+                        borderColor: `hsl(var(--glow-border) / 0.12)`,
+                        borderWidth: '1px',
+                        borderStyle: 'solid'
+                      }}
+                    >
                       <textarea
                         ref={textareaRef}
                         value={textValue}

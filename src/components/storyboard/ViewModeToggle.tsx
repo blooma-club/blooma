@@ -17,13 +17,13 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   className = ''
 }) => {
   return (
-    <div className={`flex items-center bg-neutral-800 rounded p-0.5 ${className}`}>
+    <div className={`flex items-center bg-neutral-50 dark:bg-neutral-800 rounded p-0.5 ${className}`}>
       <button
         onClick={onSetGrid}
         className={`p-1.5 rounded transition-colors ${
           viewMode === 'grid'
-            ? 'bg-white text-neutral-900'
-            : 'text-neutral-400 hover:text-white hover:bg-neutral-700'
+            ? 'bg-neutral-100 dark:bg-white text-neutral-800 dark:text-neutral-900'
+            : 'text-neutral-400 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700'
         }`}
         aria-label="Grid view"
       >
@@ -33,8 +33,8 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
         onClick={onSetList}
         className={`p-1.5 rounded transition-colors ${
           viewMode === 'list'
-            ? 'bg-white text-neutral-900'
-            : 'text-neutral-400 hover:text-white hover:bg-neutral-700'
+            ? 'bg-neutral-100 dark:bg-white text-neutral-800 dark:text-neutral-900'
+            : 'text-neutral-400 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700'
         }`}
         aria-label="List view"
       >

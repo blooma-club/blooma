@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Info } from 'lucide-react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import Image from 'next/image'
@@ -64,14 +64,14 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
     aspectRatio: RATIO_TO_CSS[aspectRatio],
   }
   return (
-    <div className="group relative flex flex-col rounded-lg border border-neutral-700 bg-black shadow-lg hover:shadow-xl transition-shadow overflow-hidden h-full">
+    <div className="group relative flex flex-col rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-black shadow-lg hover:shadow-xl transition-shadow overflow-hidden h-full">
       {typeof sceneNumber === 'number' && (
-        <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-white/20 text-white text-[10px] font-medium tracking-wide select-none">
+        <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-black/20 dark:bg-white/20 text-black dark:text-white text-[10px] font-medium tracking-wide select-none">
           Shot {sceneNumber}
         </div>
       )}
       <div
-        className={`absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full ${statusDotClass} ring-2 ring-neutral-700`}
+        className={`absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full ${statusDotClass} ring-2 ring-neutral-200 dark:ring-neutral-700`}
         aria-hidden="true"
       />
       {/* Hover actions (top-right) */}
@@ -79,20 +79,26 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         {onEdit && (
           <button
             type="button"
-            onClick={onEdit}
-            aria-label="Edit"
-            className="px-2 py-1 text-[11px] rounded-md bg-black/70 text-white hover:bg-black/80"
+            onClick={(e) => {
+              e.stopPropagation() // 이벤트 전파 방지
+              onEdit()
+            }}
+            aria-label="Show Info"
+            className="w-6 h-6 flex items-center justify-center rounded-md bg-neutral-100/80 dark:bg-black/70 text-neutral-700 dark:text-white hover:bg-neutral-200/80 dark:hover:bg-black/80"
           >
-            Edit
+            <Info className="w-3 h-3" />
           </button>
         )}
         {onDelete && (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={(e) => {
+              e.stopPropagation() // 이벤트 전파 방지
+              onDelete()
+            }}
             aria-label="Delete"
             disabled={deleting}
-            className={`px-2 py-1 text-[11px] rounded-md inline-flex items-center gap-1 ${deleting ? 'bg-neutral-400 cursor-not-allowed' : 'bg-red-600/90 text-white hover:bg-red-600'}`}
+            className={`px-2 py-1 text-[11px] rounded-md inline-flex items-center gap-1 ${deleting ? 'bg-neutral-400 dark:bg-neutral-400 cursor-not-allowed' : 'bg-red-600/90 dark:bg-red-600/90 text-white hover:bg-red-600 dark:hover:bg-red-600'}`}
           >
             {deleting ? (
               <>
@@ -109,7 +115,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       </div>
 
       {/* Image area */}
-      <div className="relative w-full bg-neutral-900 overflow-hidden" style={imageBoxStyle}>
+      <div className="relative w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden" style={imageBoxStyle}>
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -122,7 +128,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
           />
         ) : status !== 'ready' && status !== 'error' ? (
           <div className="absolute inset-0 flex items-center justify-center select-none">
-            <div className="w-full h-full bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
+            <div className="w-full h-full bg-[linear-gradient(110deg,#e5e7eb_8%,#d1d5db_18%,#e5e7eb_33%)] dark:bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
             <style jsx>{`
               @keyframes shimmer {
                 0% {
@@ -141,12 +147,12 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             </div>
           </div>
         ) : status === 'error' ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-red-400 text-[11px] bg-neutral-800">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-red-500 text-[11px] bg-neutral-200 dark:bg-neutral-800">
             <span>Image Error</span>
-            <span className="text-[10px] text-red-300">Retry Later</span>
+            <span className="text-[10px] text-red-400 dark:text-red-300">Retry Later</span>
           </div>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-neutral-300 text-xs">
+          <div className="absolute inset-0 flex items-center justify-center text-neutral-400 dark:text-neutral-300 text-xs">
             No image
           </div>
         )}
@@ -158,12 +164,16 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         {onOpen && (
           <button
             type="button"
-            onClick={onOpen}
+            onClick={(e) => {
+              e.stopPropagation() // 이벤트 전파 방지
+              onOpen()
+            }}
             className="absolute inset-0"
             aria-label="Open"
             tabIndex={0}
             onKeyDown={e => {
               if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
                 onOpen()
               }
             }}
@@ -178,7 +188,10 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             {videoUrl && onPlayVideo ? (
               <button
                 type="button"
-                onClick={onPlayVideo}
+                onClick={(e) => {
+                  e.stopPropagation() // 이벤트 전파 방지
+                  onPlayVideo()
+                }}
                 className="flex-1 px-3 py-2 rounded-md bg-white/90 text-black text-xs font-semibold uppercase tracking-wide shadow pointer-events-auto hover:bg-white"
               >
                 Play Video
@@ -188,7 +201,10 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             {!videoUrl && onGenerateVideo ? (
               <button
                 type="button"
-                onClick={onGenerateVideo}
+                onClick={(e) => {
+                  e.stopPropagation() // 이벤트 전파 방지
+                  onGenerateVideo()
+                }}
                 disabled={isGeneratingVideo}
                 className={`absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-xs font-semibold pointer-events-auto transition-opacity opacity-0 group-hover:opacity-100 ${
                   isGeneratingVideo

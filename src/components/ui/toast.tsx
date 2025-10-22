@@ -35,7 +35,7 @@ export function ToasterProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ push }}>
       {children}
       {mounted && createPortal(
-        <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3">
+        <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3">
           {toasts.map(t => (
             <div key={t.id} className={cn('max-w-sm rounded-md shadow-lg p-3 bg-black/90 text-white')}>
               <div className="font-semibold text-sm">{t.title}</div>

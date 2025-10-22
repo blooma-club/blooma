@@ -9,6 +9,7 @@ import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import CreditStatus from '@/components/ui/CreditStatus'
+import ThemeToggle from '@/components/ui/theme-toggle'
 // import CreditDisplay from '@/components/ui/CreditDisplay'
 import { useUserStore } from '@/store/user'
 
@@ -189,9 +190,9 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="w-full min-h-screen bg-black flex flex-col">
+    <div className="w-full min-h-screen flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
       {/* 헤더: Projects 타이틀 + Account Settings */}
-      <header className="w-full bg-black border-b-2 border-neutral-800 px-8 py-4 flex items-center justify-between">
+      <header className="w-full border-b-2 border-neutral-800 px-8 py-4 flex items-center justify-between" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <button
           onClick={() => router.push('/')}
           className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
@@ -209,6 +210,9 @@ export default function DashboardPage() {
 
         {/* 오른쪽: 크레딧 상태 및 계정 설정 */}
         <div className="flex items-center gap-6">
+          {/* 테마 토글 */}
+          <ThemeToggle />
+          
           {/* 크레딧 상태 */}
           <CreditStatus />
 
@@ -396,6 +400,9 @@ export default function DashboardPage() {
                 {searchTerm
                   ? 'Try a different search term.'
                   : 'Get started by creating your first project.'}
+              </p>
+              <p className="text-red-400 mb-4">
+                DEBUG: projects={projects.length}, filtered={filteredProjects.length}, search="{searchTerm}"
               </p>
               {!searchTerm && (
                 <Button

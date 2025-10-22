@@ -66,8 +66,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/flux-pro/kontext',
-    name: 'Flux.1 Kontext [pro] (Image-to-Image)',
-    description: 'Kontext [pro] image-to-image with strong prompt adherence and reference fidelity',
+    name: 'Flux.1 Kontext [pro]',
+    description: 'Kontext [pro] with strong prompt adherence and reference fidelity',
     category: 'image-generation',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'cinematic', 'artistic', 'commercial'],
@@ -84,24 +84,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   {
     id: 'fal-ai/flux-pro/v1.1-ultra',
     name: 'Flux 1.1 Pro',
-    description: 'Flux 1.1 Pro high quality text-to-image generation',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'ultra-detailed', 'artistic', 'cinematic'],
-    quality: 'high',
-    cost: 4,
-    inputSchema: {
-      prompt: 'string',
-      aspect_ratio: 'string?',
-      guidance_scale: 'number?',
-      num_images: 'number?',
-      output_format: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/flux-pro-ultra',
-    name: 'Flux Pro Ultra',
-    description: 'Flux Pro ultra high quality version, maximum performance and detail',
+    description: 'Flux 1.1 Pro high quality generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'ultra-detailed', 'artistic', 'cinematic'],
@@ -118,7 +101,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   {
     id: 'fal-ai/gemini-25-flash-image/edit',
     name: 'Gemini 2.5 Flash Image Edit',
-    description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation (Image to Image)',
+    description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
     category: 'inpainting',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
@@ -132,9 +115,46 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/gemini-25-flash-image/text-to-image',
+    id: 'fal-ai/bytedance/seedream/v4/edit',
+    name: 'Seedream v4 Edit',
+    description: 'ByteDance Seedream 4.0 Edit - unified image generation and editing model',
+    category: 'inpainting',
+    maxResolution: '2048x2048',
+    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
+    quality: 'high',
+    cost: 2,
+    inputSchema: {
+      prompt: 'string',
+      image_urls: 'list<string>',
+      image_size: 'string?',
+      num_images: 'number?',
+      max_images: 'number?',
+      seed: 'number?',
+      enable_safety_checker: 'boolean?'
+    }
+  },
+  {
+    id: 'fal-ai/flux-pro/v1.1-ultra/redux',
+    name: 'FLUX 1.1 Ultra Redux',
+    description: 'FLUX 1.1 [pro] ultra Redux - high-performance image-to-image transformation',
+    category: 'inpainting',
+    maxResolution: '1024x1024',
+    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
+    quality: 'high',
+    cost: 3,
+    inputSchema: {
+      prompt: 'string',
+      image_url: 'string',
+      aspect_ratio: 'string?',
+      guidance_scale: 'number?',
+      num_images: 'number?',
+      output_format: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/gemini-25-flash-image',
     name: 'Gemini 2.5 Flash Image',
-    description: 'Google Gemini 2.5 Flash Image for text-to-image generation',
+    description: 'Google Gemini 2.5 Flash Image for generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
     stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
@@ -148,7 +168,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/bytedance/seedream/v4/text-to-image',
-    name: 'Seedream 4.0 Text to Image',
+    name: 'Seedream 4.0',
     description: 'ByteDance Seedream 4.0 - unified architecture for image generation and editing',
     category: 'image-generation',
     maxResolution: '4096x4096',
@@ -163,57 +183,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       seed: 'number?',
       sync_mode: 'boolean?',
       enable_safety_checker: 'boolean?'
-    }
-  },
-  {
-    id: 'fal-ai/flux/dev',
-    name: 'Flux Dev',
-    description: 'Flux Dev text-to-image model with broad availability and balanced quality',
-    category: 'image-generation',
-    maxResolution: '1536x1536',
-    stylePresets: ['photorealistic', 'cinematic', 'artistic'],
-    quality: 'balanced',
-    cost: 2,
-    inputSchema: {
-      prompt: 'string',
-      image_size: 'string?',
-      guidance_scale: 'number?',
-      num_inference_steps: 'number?',
-      output_format: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/flux/general',
-    name: 'Flux General',
-    description: 'Flux General-purpose generator with support for LoRAs and control signals',
-    category: 'image-generation',
-    maxResolution: '1536x1536',
-    stylePresets: ['photorealistic', 'stylized', 'cinematic', 'commercial'],
-    quality: 'balanced',
-    cost: 2,
-    inputSchema: {
-      prompt: 'string',
-      image_size: 'string?',
-      guidance_scale: 'number?',
-      num_inference_steps: 'number?',
-      output_format: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/stable-diffusion-v35-large',
-    name: 'Stable Diffusion 3.5 Large',
-    description: 'Stable Diffusion 3.5 Large text-to-image generation',
-    category: 'image-generation',
-    maxResolution: '1536x1536',
-    stylePresets: ['photorealistic', 'illustrative', 'concept art'],
-    quality: 'balanced',
-    cost: 2,
-    inputSchema: {
-      prompt: 'string',
-      image_size: 'string?',
-      guidance_scale: 'number?',
-      num_inference_steps: 'number?',
-      output_format: 'string?'
     }
   }
 ]
@@ -274,9 +243,6 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/flux-pro/v1.1-ultra':
       enhancedPrompt = `${basePrompt}, ultra detailed, photorealistic rendering, strong prompt adherence`
       break
-    case 'fal-ai/flux-pro-ultra':
-      enhancedPrompt = `${basePrompt}, ultra maximum quality, frontier image generation, highly detailed, professional photography, ultra resolution`
-      break
     case 'fal-ai/gemini-25-flash-image/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
       break
@@ -286,14 +252,11 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Seedream 4.0 optimized, unified generation and editing`
       break
-    case 'fal-ai/flux/dev':
-      enhancedPrompt = `${basePrompt}, vibrant lighting, cinematic detail, flux dev optimized`
+    case 'fal-ai/bytedance/seedream/v4/edit':
+      enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images, Seedream 4.0 edit optimized`
       break
-    case 'fal-ai/flux/general':
-      enhancedPrompt = `${basePrompt}, highly detailed, stylized cinematic render, flux general tuned`
-      break
-    case 'fal-ai/stable-diffusion-v35-large':
-      enhancedPrompt = `${basePrompt}, sd3.5 large quality, photorealistic detailing, professional lighting`
+    case 'fal-ai/flux-pro/v1.1-ultra/redux':
+      enhancedPrompt = `${basePrompt}, high-performance transformation, maintain core elements while applying style changes, FLUX ultra redux optimized`
       break
   }
 
@@ -365,6 +328,7 @@ export async function generateImageWithModel(
     imageUrls?: string[] // For multi-image models like Gemini
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
+    enhancePrompt?: boolean
   } = {}
 ): Promise<{
   success: boolean
@@ -387,12 +351,10 @@ export async function generateImageWithModel(
     return createPlaceholderImageResult('FAL credentials are not configured. Placeholder image returned.')
   }
 
+  const { enhancePrompt = true, ...generationOptions } = options
   const fallbackModels = [
     modelId,
     'fal-ai/flux-pro/kontext',
-    'fal-ai/flux/dev',
-    'fal-ai/flux/general',
-    'fal-ai/stable-diffusion-v35-large',
     'fal-ai/flux-pro/v1.1-ultra',
     'fal-ai/bytedance/seedream/v4/text-to-image',
   ].filter((id, idx, arr) => arr.indexOf(id) === idx)
@@ -401,18 +363,24 @@ export async function generateImageWithModel(
   let lastStatus: number | undefined
 
   for (const candidateModel of fallbackModels) {
-    const enhancedPrompt = generateModelSpecificPrompt(
-      prompt,
-      candidateModel,
-      options.style,
-      options.aspectRatio
-    )
+    const promptForModel = enhancePrompt
+      ? generateModelSpecificPrompt(
+          prompt,
+          candidateModel,
+          generationOptions.style,
+          generationOptions.aspectRatio
+        )
+      : prompt
 
     try {
       console.log(`[FAL] Generating image with model: ${candidateModel}`)
-      console.log(`[FAL] Enhanced prompt: ${enhancedPrompt}`)
+      if (enhancePrompt) {
+        console.log(`[FAL] Enhanced prompt: ${promptForModel}`)
+      } else {
+        console.log('[FAL] Prompt enhancement disabled; using raw prompt.')
+      }
 
-      const result = await generateImageByModel(candidateModel, enhancedPrompt, options)
+      const result = await generateImageByModel(candidateModel, promptForModel, generationOptions)
 
       return {
         success: true,
@@ -547,26 +515,20 @@ async function generateImageByModel(
     case 'fal-ai/flux-pro/v1.1-ultra':
       return await generateWithFluxProV11Ultra(prompt, options)
 
-    case 'fal-ai/flux-pro-ultra':
-      return await generateWithFluxProUltra(prompt, options)
-    
     case 'fal-ai/gemini-25-flash-image/edit':
       return await generateWithGemini25FlashImageEdit(prompt, options)
 
     case 'fal-ai/gemini-25-flash-image/text-to-image':
       return await generateWithGemini25FlashImageTextToImage(prompt, options)
 
-    case 'fal-ai/flux/dev':
-      return await generateWithFluxDev(prompt, options)
-
-    case 'fal-ai/flux/general':
-      return await generateWithFluxGeneral(prompt, options)
-
-    case 'fal-ai/stable-diffusion-v35-large':
-      return await generateWithStableDiffusion35Large(prompt, options)
-
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
       return await generateWithSeedreamV4(prompt, options)
+    
+    case 'fal-ai/bytedance/seedream/v4/edit':
+      return await generateWithSeedreamV4Edit(prompt, options)
+    
+    case 'fal-ai/flux-pro/v1.1-ultra/redux':
+      return await generateWithFluxProUltraRedux(prompt, options)
     
     default:
       throw new Error(`Unsupported model: ${modelId}`)
@@ -597,28 +559,6 @@ async function generateWithImagen4Ultra(prompt: string, options: any): Promise<s
   })
 
   return extractImageUrl(submission, 'imagen4-ultra')
-}
-
-// Flux Pro Ultra 모델
-async function generateWithFluxProUltra(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/flux-pro-ultra', {
-    input: {
-      prompt,
-      aspect_ratio: options.aspectRatio || '1:1',
-      guidance_scale: options.guidanceScale || 3.5,
-      num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg',
-      safety_tolerance: options.safetyTolerance || '2'
-    } as any,
-    logs: true,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-pro-ultra]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'flux-pro-ultra')
 }
 
 // Flux 1.1 Pro 모델
@@ -711,92 +651,6 @@ async function generateWithGemini25FlashImageTextToImage(prompt: string, options
 }
 
 
-// Flux Dev 모델
-async function generateWithFluxDev(prompt: string, options: any): Promise<string> {
-  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
-  const inputPayload: any = {
-    prompt,
-    guidance_scale: resolveGuidance(options.quality),
-    num_inference_steps: resolveSteps(options.quality),
-    num_images: options.numImages || 1,
-    output_format: options.outputFormat || 'jpeg',
-    sync_mode: true,
-  }
-
-  if (imageSize) {
-    inputPayload.image_size = imageSize
-  }
-
-  const submission: any = await fal.subscribe('fal-ai/flux/dev', {
-    input: inputPayload,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-dev]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'flux-dev')
-}
-
-// Flux General 모델
-async function generateWithFluxGeneral(prompt: string, options: any): Promise<string> {
-  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
-  const inputPayload: any = {
-    prompt,
-    guidance_scale: resolveGuidance(options.quality),
-    num_inference_steps: resolveSteps(options.quality),
-    num_images: options.numImages || 1,
-    output_format: options.outputFormat || 'jpeg',
-    sync_mode: true,
-  }
-
-  if (imageSize) {
-    inputPayload.image_size = imageSize
-  }
-
-  const submission: any = await fal.subscribe('fal-ai/flux/general', {
-    input: inputPayload,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-general]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'flux-general')
-}
-
-// Stable Diffusion 3.5 Large 모델
-async function generateWithStableDiffusion35Large(prompt: string, options: any): Promise<string> {
-  const imageSize = mapAspectRatioToImageSize(options.aspectRatio)
-  const inputPayload: any = {
-    prompt,
-    guidance_scale: resolveGuidance(options.quality),
-    num_inference_steps: resolveSteps(options.quality),
-    num_images: options.numImages || 1,
-    output_format: options.outputFormat || 'jpeg',
-    enable_safety_checker: true,
-    sync_mode: true,
-  }
-
-  if (imageSize) {
-    inputPayload.image_size = imageSize
-  }
-
-  const submission: any = await fal.subscribe('fal-ai/stable-diffusion-v35-large', {
-    input: inputPayload,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][stable-diffusion-v35-large]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'stable-diffusion-v35-large')
-}
-
-
 // Seedream 4.0 Text to Image 모델
 async function generateWithSeedreamV4(prompt: string, options: any): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
@@ -848,6 +702,81 @@ async function generateWithSeedreamV4(prompt: string, options: any): Promise<str
   })
 
   return extractImageUrl(submission, 'seedream-v4')
+}
+
+// Seedream 4.0 Edit 모델
+async function generateWithSeedreamV4Edit(prompt: string, options: any): Promise<string> {
+  // 비율을 Seedream 4.0 형식으로 변환
+  let imageSize: string | { width: number; height: number } = 'square_hd'
+  
+  if (options.aspectRatio) {
+    switch (options.aspectRatio) {
+      case '1:1':
+        imageSize = 'square_hd'
+        break
+      case '16:9':
+        imageSize = 'landscape_16_9'
+        break
+      case '9:16':
+        imageSize = 'portrait_16_9'
+        break
+      case '4:3':
+        imageSize = 'landscape_4_3'
+        break
+      case '3:4':
+        imageSize = 'portrait_4_3'
+        break
+      default:
+        imageSize = 'square_hd'
+    }
+  } else if (options.width && options.height) {
+    imageSize = {
+      width: Math.min(Math.max(options.width, 1024), 4096),
+      height: Math.min(Math.max(options.height, 1024), 4096)
+    }
+  }
+
+  const submission: any = await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
+    input: {
+      prompt,
+      image_urls: options.imageUrls || [],
+      image_size: imageSize,
+      num_images: options.numImages || 1,
+      max_images: options.maxImages || 1,
+      seed: options.seed,
+      enable_safety_checker: options.enableSafetyChecker !== false
+    },
+    logs: true,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][seedream-v4-edit]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'seedream-v4-edit')
+}
+
+// FLUX 1.1 Ultra Redux 모델
+async function generateWithFluxProUltraRedux(prompt: string, options: any): Promise<string> {
+  const submission: any = await fal.subscribe('fal-ai/flux-pro/v1.1-ultra/redux', {
+    input: {
+      prompt,
+      image_url: options.imageUrl || '',
+      aspect_ratio: options.aspectRatio || '1:1',
+      guidance_scale: options.guidanceScale || 3.5,
+      num_images: options.numImages || 1,
+      output_format: options.outputFormat || 'jpeg'
+    },
+    logs: true,
+    onQueueUpdate(update: any) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][flux-pro-ultra-redux]', update.status)
+      }
+    }
+  })
+
+  return extractImageUrl(submission, 'flux-pro-ultra-redux')
 }
 
 // 이미지 URL 추출 (모든 모델 공통)
@@ -999,6 +928,49 @@ export function getModelsByCategory(category: FalAIModel['category']): FalAIMode
 // 이미지 생성 모델만 조회
 export function getImageGenerationModels(): FalAIModel[] {
   return getModelsByCategory('image-generation')
+}
+
+// 이미지-투-이미지 지원 모델 식별
+export function isImageToImageModel(modelId: string): boolean {
+  switch (modelId) {
+    case 'fal-ai/gemini-25-flash-image/edit':
+      return true
+    case 'fal-ai/flux-pro/kontext':
+      // Kontext는 image_url 제공 시 i2i를 지원함
+      return true
+    case 'fal-ai/bytedance/seedream/v4/edit':
+      return true
+    case 'fal-ai/flux-pro/v1.1-ultra/redux':
+      return true
+    default:
+      return false
+  }
+}
+
+// 텍스트-투-이미지 전용/가능 모델 식별
+export function isTextToImageModel(modelId: string): boolean {
+  switch (modelId) {
+    case 'fal-ai/imagen4':
+    case 'fal-ai/imagen4-ultra':
+    case 'fal-ai/flux-pro/v1.1-ultra':
+    case 'fal-ai/gemini-25-flash-image/text-to-image':
+    case 'fal-ai/bytedance/seedream/v4/text-to-image':
+      return true
+    case 'fal-ai/flux-pro/kontext':
+      // i2i도 지원하지만 t2i도 가능
+      return true
+    default:
+      return false
+  }
+}
+
+// PromptDock에서 사용할 모델 목록 (generate는 t2i+i2i, edit는 i2i만)
+export function getModelsForMode(mode: 'generate' | 'edit'): FalAIModel[] {
+  if (mode === 'edit') {
+    return FAL_AI_MODELS.filter(m => isImageToImageModel(m.id))
+  }
+  // generate 모드: 텍스트-투-이미지 + 이미지-투-이미지 모두 노출
+  return FAL_AI_MODELS.filter(m => m.category === 'image-generation' || isImageToImageModel(m.id))
 }
 
 // 모델 비용 계산

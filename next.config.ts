@@ -85,6 +85,12 @@ remotePatterns.push(
     protocol: 'https',
     hostname: 'pbxt.replicate.delivery',
     pathname: '/**'
+  },
+  // Midjourney CDN
+  {
+    protocol: 'https',
+    hostname: 'cdn.midjourney.com',
+    pathname: '/**'
   }
 )
 
@@ -94,6 +100,9 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns,
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   webpack: (config) => {
     config.resolve = config.resolve || {}

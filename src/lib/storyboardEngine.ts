@@ -476,6 +476,7 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
                 frame.characterImageUrls && frame.characterImageUrls.length > 0
                   ? frame.characterImageUrls
                   : undefined,
+              enhancePrompt: true,
             }
           )
           

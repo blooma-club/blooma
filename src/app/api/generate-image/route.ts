@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       width,
       height,
       image_url,
-      imageUrls
+      imageUrls,
+      enhancePrompt = false,
     } = await request.json()
 
     if (!prompt) {
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[API] Requested model: ${modelId}`)
-    console.log(`[API] Options:`, { style, aspectRatio, quality, width, height, image_url, imageUrls })
+    console.log(`[API] Options:`, { style, aspectRatio, quality, width, height, image_url, imageUrls, enhancePrompt })
 
     // Prepare image URLs for the generation
     let inputImageUrls: string[] = []
@@ -78,7 +79,8 @@ export async function POST(request: NextRequest) {
       width,
       height,
       quality,
-      imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined
+      imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined,
+      enhancePrompt,
     })
 
     if (!result.success) {

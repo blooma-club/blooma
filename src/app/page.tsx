@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
+import ThemeToggle from '@/components/ui/theme-toggle'
 
 export default function Home() {
   const router = useRouter()
@@ -18,7 +19,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header (로고+네비+액션) */}
-      <div className="bg-black h-16 flex items-center">
+      <div className="h-16 flex items-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <div className="flex items-center justify-between w-full max-w-7xl mx-auto gap-x-32 px-4">
           {/* 좌측: 로고 */}
           <button
@@ -65,6 +66,7 @@ export default function Home() {
           </nav>
           {/* 우측: 액션 버튼 */}
           <div className="flex items-center gap-4 -mt-1 group">
+            <ThemeToggle />
             {!user ? (
               <>
                 <Button
@@ -110,7 +112,7 @@ export default function Home() {
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48 bg-black border-neutral-700" align="end">
+                <DropdownMenuContent className="w-48 border-neutral-700" style={{ backgroundColor: 'hsl(var(--background))' }} align="end">
                   <div className="px-3 py-2 border-b border-neutral-700">
                     <p className="text-sm text-neutral-300 truncate">{user.email}</p>
                   </div>
@@ -127,29 +129,86 @@ export default function Home() {
         </div>
       </div>
       {/* Hero Section */}
-      <section className="relative isolate min-h-screen overflow-hidden">
-        {/* 배경 이미지 (목업) */}
-        <div className="absolute inset-0 flex justify-center">
-          <div className="relative h-full w-[90%]">
-            <Image
-              src="/hero-background.png"
-              alt="hero background"
-              fill
-              className="rounded-4xl object-cover"
-              priority
-            />
-          </div>
-        </div>
-        {/* 오버레이 */}
-
-        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-70 pb-24 flex flex-col items-center text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/70 backdrop-blur mt-10">
+      <section className="relative" style={{ backgroundColor: 'hsl(var(--background))' }}>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-32 pb-24 flex flex-col items-center text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-neutral-700/60 bg-neutral-900/70 px-4 py-2 text-sm uppercase tracking-[0.15em] text-neutral-300">
             Blooma Studio • Storyboard
           </div>
 
-          <div className="mt-10 flex items-center gap-4">
+          <h1 className="mt-8 text-8xl font-regular tracking-tight font-instrument-serif" style={{ color: 'hsl(var(--foreground))' }}>
+            Now, you are a director
+          </h1>
+
+          {/* 스토리보드 카드 그룹 */}
+          <div className="mt-10 w-full max-w-6xl relative px-4">
+            <div className="group relative flex items-center justify-center gap-6 perspective-1500 transform-style-3d">
+              {/* 왼쪽 카드 */}
+              <div 
+                className="absolute left-0 w-96 rounded-xl shadow-2xl border-2 opacity-0 -translate-x-16 scale-90 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-95 hover:scale-100 cursor-pointer overflow-hidden"
+                style={{ 
+                  aspectRatio: '16/9',
+                  backgroundColor: 'hsl(var(--card))',
+                  borderColor: 'hsl(var(--border))',
+                  zIndex: 1
+                }}
+              >
+                <Image
+                  src="/styles/cinematic.jpg"
+                  alt="Opening Scene - Cinematic Style"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 384px"
+                />
+              </div>
+
+              {/* 중앙 메인 카드 */}
+              <div 
+                className="relative w-full max-w-3xl rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border-2 transition-all duration-700 ease-out group-hover:scale-[1.02] hover:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)] cursor-pointer overflow-hidden"
+                style={{ 
+                  aspectRatio: '16/9',
+                  backgroundColor: 'hsl(var(--card))',
+                  borderColor: 'hsl(var(--border))',
+                  zIndex: 3
+                }}
+              >
+                <Image
+                  src="https://cdn.midjourney.com/db57d0cf-73d9-4d85-883e-a6435690c23e/0_0.png"
+                  alt="Main Scene - AI Generated"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 768px"
+                  unoptimized={true}
+                />
+              </div>
+
+              {/* 오른쪽 카드 */}
+              <div 
+                className="absolute right-0 w-96 rounded-xl shadow-2xl border-2 opacity-0 translate-x-16 scale-90 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-95 hover:scale-100 cursor-pointer overflow-hidden"
+                style={{ 
+                  aspectRatio: '16/9',
+                  backgroundColor: 'hsl(var(--card))',
+                  borderColor: 'hsl(var(--border))',
+                  zIndex: 1
+                }}
+              >
+                <Image
+                  src="/styles/watercolor.jpg"
+                  alt="Action Scene - Watercolor Style"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 384px"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-16 flex items-center gap-4">
             <Button
-              className="bg-white text-black hover:bg-neutral-200"
+              className="px-8 py-3 text-lg font-semibold"
+              style={{ 
+                backgroundColor: 'hsl(var(--primary))', 
+                color: 'hsl(var(--primary-foreground))' 
+              }}
               onClick={() => {
                 console.log('Hero Get Started button clicked, navigating to /auth')
                 router.push('/auth')
@@ -159,7 +218,11 @@ export default function Home() {
             </Button>
             <Button
               variant="outline"
-              className="border-neutral-700 text-white hover:bg-neutral-800"
+              className="px-8 py-3 text-lg font-semibold border-2"
+              style={{ 
+                borderColor: 'hsl(var(--border))', 
+                color: 'hsl(var(--foreground))' 
+              }}
               onClick={() => router.push('/dashboard')}
             >
               View Demo
@@ -168,14 +231,14 @@ export default function Home() {
         </div>
 
         {/* 스크롤 힌트 */}
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-[11px] text-neutral-400">
-          <div className="h-6 w-px bg-neutral-600 mb-2" />
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          <div className="h-6 w-px mb-2" style={{ backgroundColor: 'hsl(var(--border))' }} />
           Scroll
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-black">
+      <footer className="py-8" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-sm text-neutral-400">
             <p>&copy; 2025 Blooma. All rights reserved.</p>

@@ -104,7 +104,7 @@ export default function StoryboardPage() {
   // 스토리보드 확인 중
   if (checkingStoryboard) {
     return (
-      <div className="w-full h-full min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full h-full min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <div className="text-center">
           <div className="mb-4">
             <svg
@@ -139,7 +139,7 @@ export default function StoryboardPage() {
   // 액세스 에러 시 표시
   if (accessError) {
     return (
-      <div className="w-full h-full min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full h-full min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <div className="text-center max-w-md mx-auto p-6">
           <div className="mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/10 rounded-full mb-4">
@@ -173,7 +173,7 @@ export default function StoryboardPage() {
 
   // 스토리보드가 없으면 생성 옵션 표시
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: 'hsl(var(--background))' }}>
       <div className="max-w-4xl mx-auto text-center">
         {/* 메인 아이콘 */}
         <div className="mb-12">

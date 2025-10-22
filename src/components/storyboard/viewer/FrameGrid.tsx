@@ -42,6 +42,7 @@ interface FrameGridProps {
   cardWidth: number
   onReorder?: (fromIndex: number, toIndex: number) => void
   selectedFrameId?: string
+  onBackgroundClick?: () => void
 }
 
 const SideInsertButton = ({
@@ -91,6 +92,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   cardWidth,
   onReorder,
   selectedFrameId,
+  onBackgroundClick,
 }) => {
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
@@ -180,7 +182,15 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
       onDragCancel={handleDragCancel}
       modifiers={[]}
     >
-      <div className="flex justify-center pt-10">
+      <div 
+        className="flex justify-center pt-10"
+        onClick={(e) => {
+          // 카드나 버튼이 아닌 배경 영역을 클릭했을 때만 실행
+          if (e.target === e.currentTarget) {
+            onBackgroundClick?.()
+          }
+        }}
+      >
         <SortableContext items={frames.map(frame => frame.id)} strategy={rectSortingStrategy}>
           <div
             className="grid gap-6 justify-center"
@@ -219,7 +229,10 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
 
             <button
               type="button"
-              onClick={() => onAddFrame()}
+              onClick={(e) => {
+                e.stopPropagation() // 이벤트 전파 방지
+                onAddFrame()
+              }}
               className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-600 bg-neutral-900/50 text-neutral-400 transition-colors hover:border-neutral-500 hover:text-neutral-300"
               style={{ aspectRatio: aspectValue }}
               aria-label="Add new frame"
