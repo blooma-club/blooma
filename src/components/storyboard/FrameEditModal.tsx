@@ -2,11 +2,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import type { StoryboardFrame } from '@/types/storyboard'
 import type { Card } from '@/types'
-import { useStoryboardStore } from '@/store/storyboard'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Image from 'next/image'
-import { getSupabaseClient, isSupabaseConfigured, type SupabaseCharacter } from '@/lib/supabase'
+import type { Character } from '@/types'
 import { buildCharacterSnippet, getCharacterMentionSlug } from '@/lib/characterMentions'
+import { useCards } from '@/lib/api'
 export interface FrameEditModalProps {
   frame: StoryboardFrame
   projectId: string
@@ -15,12 +14,11 @@ export interface FrameEditModalProps {
 }
 const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClose, onSaved }) => {
   const [draft, setDraft] = useState<StoryboardFrame>({ ...frame })
-  const setCards = useStoryboardStore(s => s.setCards)
-  const { session, user } = useSupabase()
-  const [characters, setCharacters] = useState<SupabaseCharacter[]>([])
+  const { cards, updateCards } = useCards(projectId)
+  const [characters, setCharacters] = useState<Character[]>([])
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(false)
   useEffect(() => {
-    if (!projectId || !user?.id) {
+    if (!projectId) {
       setCharacters([])
       return
     }
@@ -28,37 +26,36 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     const fetchCharacters = async () => {
       setIsLoadingCharacters(true)
 
-      if (!isSupabaseConfigured()) {
-        console.warn('[FrameEditModal] Supabase environment variables are not configured.')
+      try {
+        const response = await fetch(`/api/characters?project_id=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch characters: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        if (!isMounted) return
+        
+        setCharacters(data.characters ?? [])
+      } catch (error) {
+        console.warn('[FrameEditModal] Failed to load characters:', error)
         if (isMounted) {
           setCharacters([])
+        }
+      } finally {
+        if (isMounted) {
           setIsLoadingCharacters(false)
         }
-        return
       }
-
-      const supabase = getSupabaseClient()
-
-      const { data, error } = await supabase
-        .from('characters')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-      if (!isMounted) return
-      if (error) {
-        console.warn('[FrameEditModal] Failed to load characters:', error)
-        setCharacters([])
-      } else {
-        setCharacters(data ?? [])
-      }
-      setIsLoadingCharacters(false)
     }
     fetchCharacters()
     return () => {
       isMounted = false
     }
-  }, [projectId, user?.id])
+  }, [projectId])
   const characterPromptSnippets = useMemo(() => {
     return characters
       .map(character => {
@@ -87,8 +84,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const state = useStoryboardStore.getState()
-    const currentCards = state.cards[projectId] || []
+    const currentCards = cards || []
     const updatedCards = currentCards.map((card: Card) =>
       card.id === draft.id
         ? {
@@ -102,49 +98,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
           }
         : card
     )
-    setCards(projectId, updatedCards)
-    const cardToPersist = updatedCards.find((c: Card) => c.id === draft.id)
-    if (cardToPersist) {
-      try {
-        const res = await fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token || ''}`,
-          },
-          body: JSON.stringify({
-            cards: [
-              {
-                id: cardToPersist.id,
-                project_id: cardToPersist.project_id,
-                user_id: cardToPersist.user_id,
-                type: cardToPersist.type,
-                title: cardToPersist.title,
-                content: cardToPersist.content,
-                user_input: cardToPersist.user_input,
-                image_urls: cardToPersist.image_urls,
-                selected_image_url: cardToPersist.selected_image_url,
-                order_index: cardToPersist.order_index,
-                scene_number: cardToPersist.scene_number,
-                shot_type: cardToPersist.shot_type,
-                dialogue: cardToPersist.dialogue,
-                sound: cardToPersist.sound,
-                image_prompt: cardToPersist.image_prompt,
-                storyboard_status: cardToPersist.storyboard_status,
-                shot_description: cardToPersist.shot_description,
-                next_card_id: cardToPersist.next_card_id,
-                prev_card_id: cardToPersist.prev_card_id,
-              },
-            ],
-          }),
-        })
-        if (!res.ok) {
-          console.warn('⚠️ 메타데이터 저장 실패', await res.text())
-        }
-      } catch (err) {
-        console.warn('⚠️ 메타데이터 저장 중 오류', err)
-      }
-    }
+    await updateCards(updatedCards)
     onSaved?.(draft)
     onClose()
   }

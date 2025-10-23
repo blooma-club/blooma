@@ -1,4 +1,4 @@
-import type { SupabaseCharacter } from '@/lib/supabase'
+import type { Character } from '@/types'
 
 type CharacterCamelCaseExtras = {
   editPrompt?: string | null
@@ -7,7 +7,7 @@ type CharacterCamelCaseExtras = {
 }
 
 export interface CharacterMention {
-  character: SupabaseCharacter
+  character: Character
   slug: string
   snippet: string
   imageUrls: string[]
@@ -23,7 +23,7 @@ export function getCharacterMentionSlug(name: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
-export function buildCharacterSnippet(character: SupabaseCharacter): string {
+export function buildCharacterSnippet(character: Character): string {
   const extras = character as CharacterCamelCaseExtras
   const parts: string[] = []
   if (character.name?.trim()) parts.push(character.name.trim())
@@ -37,7 +37,7 @@ export function buildCharacterSnippet(character: SupabaseCharacter): string {
 
 export function resolveCharacterMentions(
   text: string,
-  characters: SupabaseCharacter[]
+  characters: Character[]
 ): CharacterMention[] {
   if (!text || characters.length === 0) return []
 
@@ -50,7 +50,7 @@ export function resolveCharacterMentions(
 
   if (mentionSlugs.size === 0) return []
 
-  const characterLookup = new Map<string, SupabaseCharacter>()
+  const characterLookup = new Map<string, Character>()
   for (const character of characters) {
     const slug = getCharacterMentionSlug(character.name || '')
     if (slug) {

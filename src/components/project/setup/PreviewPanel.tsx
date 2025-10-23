@@ -160,9 +160,6 @@ export default function PreviewPanel({
               <section>
                 <div className="mb-2 flex items-center justify-between text-sm font-medium">
                   <span className="text-neutral-300">AI model</span>
-                  <span className="text-xs text-neutral-500">
-                    {getModelInfo(selectedModel)?.cost || 0} credits
-                  </span>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

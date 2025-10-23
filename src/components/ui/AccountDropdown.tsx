@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
+import { useUser, useClerk } from '@clerk/nextjs'
 import Image from 'next/image'
 
 export default function AccountDropdown() {
   const [isOpen, setIsOpen] = useState(false)
-  const { user, signOut } = useSupabase()
+  const { user } = useUser()
+  const { signOut } = useClerk()
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // 외부 클릭 시 드롭다운 닫기
@@ -45,9 +46,9 @@ export default function AccountDropdown() {
         className="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-800 transition-colors border border-neutral-700 bg-neutral-900"
       >
         {/* 사용자 아바타 또는 기본 아이콘 */}
-        {user.user_metadata?.avatar_url ? (
+        {user.imageUrl ? (
           <Image
-            src={user.user_metadata.avatar_url}
+            src={user.imageUrl}
             alt="User Avatar"
             width={24}
             height={24}
@@ -61,7 +62,7 @@ export default function AccountDropdown() {
         
         {/* 사용자 이메일 */}
         <span className="text-sm text-neutral-300 hidden sm:block max-w-32 truncate">
-          {user.email}
+          {user.emailAddresses[0]?.emailAddress}
         </span>
         
         {/* 드롭다운 화살표 */}
@@ -76,9 +77,9 @@ export default function AccountDropdown() {
           {/* 사용자 정보 헤더 */}
           <div className="px-4 py-3 border-b border-neutral-700">
             <div className="flex items-center gap-3">
-              {user.user_metadata?.avatar_url ? (
+              {user.imageUrl ? (
                 <Image
-                  src={user.user_metadata.avatar_url}
+                  src={user.imageUrl}
                   alt="User Avatar"
                   width={32}
                   height={32}
@@ -90,13 +91,13 @@ export default function AccountDropdown() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                {user.user_metadata?.full_name && (
+                {user.fullName && (
                   <p className="text-sm font-medium text-white truncate">
-                    {user.user_metadata.full_name}
+                    {user.fullName}
                   </p>
                 )}
                 <p className="text-xs text-neutral-400 truncate">
-                  {user.email}
+                  {user.emailAddresses[0]?.emailAddress}
                 </p>
               </div>
             </div>

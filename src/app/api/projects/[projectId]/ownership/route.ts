@@ -37,13 +37,7 @@ export async function GET(
       )
     }
 
-    const requestedUserId = request.nextUrl.searchParams.get('userId')
-    if (requestedUserId && requestedUserId !== userId) {
-      return NextResponse.json(
-        { isOwner: false, error: 'Authenticated user mismatch' },
-        { status: 403 }
-      )
-    }
+    console.log('[ownership] Checking ownership for project:', projectId, 'user:', userId)
 
     const project = await queryD1Single<ProjectRecord>(
       `
@@ -55,6 +49,8 @@ export async function GET(
       [projectId]
     )
 
+    console.log('[ownership] Project query result:', project)
+
     if (!project) {
       return NextResponse.json(
         { isOwner: false, error: 'Project not found' },
@@ -63,12 +59,14 @@ export async function GET(
     }
 
     if (project.user_id !== userId) {
+      console.log('[ownership] User mismatch:', project.user_id, 'vs', userId)
       return NextResponse.json(
         { isOwner: false, error: 'You do not have access to this project' },
         { status: 403 }
       )
     }
 
+    console.log('[ownership] Ownership verified successfully')
     return NextResponse.json({
       isOwner: true,
       project,

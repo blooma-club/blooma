@@ -158,11 +158,6 @@ export async function deleteProjectForUser(userId: string, projectId: string): P
       [projectId, userId],
       'ai_usage',
     )
-    await deleteRelatedRecords(
-      `DELETE FROM credit_transactions WHERE project_id = ?1 AND user_id = ?2`,
-      [projectId, userId],
-      'credit_transactions',
-    )
 
     await queryD1(
       `DELETE FROM projects WHERE id = ?1`,

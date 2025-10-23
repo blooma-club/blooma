@@ -53,22 +53,23 @@ export const PromptDock: React.FC<PromptDockProps> = ({
   const { push: showToast } = useToast()
 
   const [prompt, setPrompt] = React.useState('')
-  const [modelId, setModelId] = React.useState<string>(() => {
-    const exists = models.find(m => m.id === DEFAULT_MODEL)
-    return exists ? DEFAULT_MODEL : models[0]?.id ?? ''
-  })
   const [selectedRatio, setSelectedRatio] = React.useState<StoryboardAspectRatio>(aspectRatio)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // 모델 목록이 변경될 때 현재 선택된 모델이 유효한지 확인
+  // 모델 ID state - 초기값을 고정값으로 설정
+  const [modelId, setModelId] = React.useState<string>(DEFAULT_MODEL)
+
+  // 현재 선택된 모델이 유효한지 확인하고 필요시 업데이트
+  const selectedModel = models.find(m => m.id === modelId) || models[0]
+  
+  // 모델이 유효하지 않으면 첫 번째 모델로 업데이트
   React.useEffect(() => {
-    const currentModelExists = models.find(m => m.id === modelId)
-    if (!currentModelExists && models.length > 0) {
+    if (!selectedModel && models.length > 0) {
       setModelId(models[0].id)
     }
-  }, [models, modelId])
+  }, [selectedModel, models])
 
   React.useEffect(() => {
     setSelectedRatio(aspectRatio)
@@ -185,7 +186,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
     }
   }
 
-  const selectedModel = models.find(m => m.id === modelId)
   const baseControlTriggerClass =
     'h-9 md:h-10 justify-between rounded-lg border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50/80 dark:bg-neutral-900/70 px-3 md:px-4 text-xs md:text-sm text-neutral-800 dark:text-neutral-100 transition-colors hover:bg-neutral-100/80 dark:hover:bg-neutral-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-0'
 
@@ -284,7 +284,13 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                     {models.map(m => (
                       <DropdownMenuItem
                         key={m.id}
-                        onClick={() => setModelId(m.id)}
+                        onClick={() => {
+                          // 모델이 유효하지 않으면 첫 번째 모델로 자동 선택
+                          const validModelId = models.find(model => model.id === m.id) ? m.id : models[0]?.id
+                          if (validModelId) {
+                            setModelId(validModelId)
+                          }
+                        }}
                         className={clsx(
                           'rounded-md px-2.5 py-1.5 text-xs text-neutral-700 dark:text-neutral-100 transition-colors focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-800 dark:focus:text-neutral-100',
                           modelId === m.id && 'bg-neutral-200/60 dark:bg-neutral-700/60'

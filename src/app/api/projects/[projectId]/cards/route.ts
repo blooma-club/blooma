@@ -39,6 +39,8 @@ export async function GET(
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
     }
 
+    console.log('[cards] Checking cards for project:', projectId, 'user:', userId)
+
     const row = await queryD1Single<CountRow>(
       `SELECT COUNT(1) as count
        FROM cards
@@ -48,6 +50,8 @@ export async function GET(
     )
 
     const count = coerceNumber(row?.count)
+    console.log('[cards] Found cards count:', count)
+    
     return NextResponse.json({ hasCards: count > 0, count })
   } catch (error) {
     if (error instanceof D1ConfigurationError) {

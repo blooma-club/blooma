@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { auth } from '@clerk/nextjs/server'
 import { generateVideoFromImage } from '@/lib/videoProviders'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabaseClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: request.headers.get('Authorization') || '',
-          },
-        },
-      }
-    )
+    const { userId } = await auth()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseClient.auth.getUser()
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -35,17 +20,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: cardRecord, error: cardError } = await supabaseClient
-      .from('cards')
-      .select('id, project_id, user_id')
-      .eq('id', frameId)
-      .single()
+    // 카드 소유권 확인
+    const cardResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cards?project_id=${projectId}`, {
+      headers: {
+        'Authorization': request.headers.get('Authorization') || '',
+      },
+    })
 
-    if (cardError || !cardRecord) {
+    if (!cardResponse.ok) {
+      return NextResponse.json({ error: 'Failed to verify card ownership' }, { status: 403 })
+    }
+
+    const cardsData = await cardResponse.json()
+    const cardRecord = cardsData.data?.find((card: any) => card.id === frameId)
+
+    if (!cardRecord) {
       return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
     }
 
-    if (cardRecord.user_id !== user.id || cardRecord.project_id !== projectId) {
+    if (cardRecord.user_id !== userId || cardRecord.project_id !== projectId) {
       return NextResponse.json({ error: 'Access denied for this frame' }, { status: 403 })
     }
 
@@ -61,18 +54,26 @@ export async function POST(request: NextRequest) {
       modelId,
     })
 
-    const { error: updateError } = await supabaseClient
-      .from('cards')
-      .update({
-        video_url: videoResult.videoUrl,
-        video_key: videoResult.key,
-        video_prompt: videoPrompt,
-      })
-      .eq('id', frameId)
+    // 카드 업데이트
+    const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cards`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': request.headers.get('Authorization') || '',
+      },
+      body: JSON.stringify({
+        cards: [{
+          id: frameId,
+          video_url: videoResult.videoUrl,
+          video_key: videoResult.key,
+          video_prompt: videoPrompt,
+        }]
+      }),
+    })
 
-    if (updateError) {
-      console.error('[video][update] Failed to persist video URL:', updateError)
-      throw new Error(updateError.message)
+    if (!updateResponse.ok) {
+      console.error('[video][update] Failed to persist video URL')
+      throw new Error('Failed to update card with video data')
     }
 
     return NextResponse.json({

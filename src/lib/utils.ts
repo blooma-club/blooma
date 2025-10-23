@@ -86,7 +86,8 @@ export async function verifyProjectOwnership(
       `/api/projects/${encodeURIComponent(projectId)}/ownership`,
       baseUrl
     );
-    url.searchParams.set('userId', userId);
+
+    console.log('[verifyProjectOwnership] Making request to:', url.toString())
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -96,12 +97,16 @@ export async function verifyProjectOwnership(
       },
     });
 
+    console.log('[verifyProjectOwnership] Response status:', response.status)
+
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const typedPayload = payload as {
       error?: unknown
       project?: unknown
       isOwner?: unknown
     }
+
+    console.log('[verifyProjectOwnership] Response payload:', typedPayload)
 
     if (!response.ok) {
       const errorMessage =

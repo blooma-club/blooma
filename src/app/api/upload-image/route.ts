@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadImageToR2, uploadCharacterImageToR2, deleteImageFromR2 } from '../../../lib/r2'
-import { getSupabaseClient, isSupabaseConfigured } from '../../../lib/supabase'
+import { auth } from '@clerk/nextjs/server'
+import { uploadImageToR2, uploadCharacterImageToR2, deleteImageFromR2 } from '@/lib/r2'
+import { queryD1, queryD1Single, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 })
-    }
+    const { userId } = await auth()
 
-    const supabase = getSupabaseClient()
+    if (!userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -19,7 +20,6 @@ export async function POST(request: NextRequest) {
     const projectId = projectIdValue || storyboardIdValue
     const frameId = sanitizeOptionalString(formData.get('frameId'))
     const characterId = sanitizeOptionalString(formData.get('characterId'))
-    const userId = sanitizeOptionalString(formData.get('userId'))
     const characterName = sanitizeOptionalString(formData.get('characterName'))
     const editPrompt = sanitizeOptionalString(formData.get('editPrompt'))
     const isUpdate = parseBoolean(formData.get('isUpdate'))
@@ -56,16 +56,13 @@ export async function POST(request: NextRequest) {
       let previousImageKey: string | null = null
       if (isUpdate) {
         try {
-          const { data: existingRows, error: existingError } = await supabase
-            .from('characters')
-            .select('image_key')
-            .eq('id', characterId)
-            .limit(1)
+          const existingCharacter = await queryD1Single<{ image_key?: string | null }>(
+            `SELECT image_key FROM characters WHERE id = ?1 AND user_id = ?2 LIMIT 1`,
+            [characterId, userId]
+          )
 
-          if (!existingError && existingRows && existingRows.length > 0) {
-            previousImageKey = existingRows[0]?.image_key ?? null
-          } else if (existingError) {
-            console.warn('[Upload] Failed to fetch existing character image key:', existingError)
+          if (existingCharacter) {
+            previousImageKey = existingCharacter.image_key ?? null
           }
         } catch (error) {
           console.warn('[Upload] Unexpected error reading character image metadata:', error)
@@ -80,58 +77,62 @@ export async function POST(request: NextRequest) {
       let characterRecord: Record<string, unknown> | null = null
       try {
         if (isUpdate) {
-          const updatePayload: Record<string, unknown> = {
-            image_url: characterUrl,
-            image_key: characterResult.key,
-            image_size: resolvedCharacterSize,
-            image_content_type: file.type || null,
-            updated_at: new Date().toISOString(),
-          }
+          const updateSql = `
+            UPDATE characters 
+            SET image_url = ?, image_key = ?, image_size = ?, image_content_type = ?, 
+                name = COALESCE(?, name), edit_prompt = COALESCE(?, edit_prompt), 
+                project_id = COALESCE(?, project_id), updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
+          `
+          
+          await queryD1(updateSql, [
+            characterUrl,
+            characterResult.key,
+            resolvedCharacterSize,
+            file.type || null,
+            characterName ?? null,
+            editPrompt ?? null,
+            projectId ?? null,
+            characterId,
+            userId
+          ])
 
-          if (characterName !== undefined) updatePayload.name = characterName ?? null
-          if (editPrompt !== undefined) updatePayload.edit_prompt = editPrompt ?? null
-          if (projectId !== undefined) updatePayload.project_id = projectId ?? null
-
-          const { data, error } = await supabase
-            .from('characters')
-            .update(updatePayload)
-            .eq('id', characterId)
-            .select()
-            .single()
-
-          if (error) {
-            console.warn('[Upload] Failed to update character metadata in Supabase:', error)
-          } else {
-            characterRecord = data
-          }
-        } else if (userId && characterName) {
+          // Fetch updated character
+          const updatedCharacter = await queryD1Single<Record<string, unknown>>(
+            `SELECT * FROM characters WHERE id = ?1 AND user_id = ?2`,
+            [characterId, userId]
+          )
+          characterRecord = updatedCharacter
+        } else if (characterName) {
           const now = new Date().toISOString()
-          const insertPayload = {
-            id: characterId,
-            user_id: userId,
-            project_id: projectId ?? null,
-            name: characterName,
-            description: null,
-            edit_prompt: editPrompt ?? null,
-            image_url: characterUrl,
-            image_key: characterResult.key,
-            image_size: resolvedCharacterSize,
-            image_content_type: file.type || null,
-            created_at: now,
-            updated_at: now,
-          }
+          const insertSql = `
+            INSERT INTO characters (
+              id, user_id, project_id, name, description, edit_prompt,
+              image_url, image_key, image_size, image_content_type, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+          
+          await queryD1(insertSql, [
+            characterId,
+            userId,
+            projectId ?? null,
+            characterName,
+            null,
+            editPrompt ?? null,
+            characterUrl,
+            characterResult.key,
+            resolvedCharacterSize,
+            file.type || null,
+            now,
+            now
+          ])
 
-          const { data, error } = await supabase
-            .from('characters')
-            .insert(insertPayload)
-            .select()
-            .single()
-
-          if (error) {
-            console.warn('[Upload] Failed to insert character metadata in Supabase:', error)
-          } else {
-            characterRecord = data
-          }
+          // Fetch inserted character
+          const insertedCharacter = await queryD1Single<Record<string, unknown>>(
+            `SELECT * FROM characters WHERE id = ?1 AND user_id = ?2`,
+            [characterId, userId]
+          )
+          characterRecord = insertedCharacter
         }
       } catch (error) {
         console.warn('[Upload] Character metadata persistence error:', error)
@@ -157,11 +158,10 @@ export async function POST(request: NextRequest) {
 
     // 기존 이미지가 있다면 삭제
     try {
-      const { data: existingCard } = await supabase
-        .from('cards')
-        .select('image_key')
-        .eq('id', frameId)
-        .single()
+      const existingCard = await queryD1Single<{ image_key?: string | null }>(
+        `SELECT image_key FROM cards WHERE id = ?1 AND user_id = ?2`,
+        [frameId, userId]
+      )
       
       if (existingCard?.image_key) {
         await deleteImageFromR2(existingCard.image_key)
@@ -191,6 +191,16 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
+    if (error instanceof D1ConfigurationError) {
+      console.error('[upload-image] D1 not configured', error)
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
+    }
+
+    if (error instanceof D1QueryError) {
+      console.error('[upload-image] D1 query failed', error)
+      return NextResponse.json({ error: 'Database query failed' }, { status: 500 })
+    }
+
     console.error('Upload error:', error)
     return NextResponse.json({
       error: 'Upload failed',

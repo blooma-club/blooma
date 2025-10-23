@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Film, Sparkles, FileText } from 'lucide-react'
-import { useUserStore } from '@/store/user'
+import { useUser } from '@clerk/nextjs'
 import { verifyProjectOwnership } from '@/lib/utils'
 
 export default function StoryboardPage() {
@@ -11,7 +11,10 @@ export default function StoryboardPage() {
   const projectParam = params?.id
   const projectId = Array.isArray(projectParam) ? projectParam[0] : projectParam
   const router = useRouter()
-  const { userId, isLoaded } = useUserStore()
+  const { user, isLoaded } = useUser()
+
+  // Clerk의 userId 추출
+  const userId = user?.id || null
 
   const [creating] = useState(false)
   const [checkingStoryboard, setCheckingStoryboard] = useState(true)
@@ -19,11 +22,15 @@ export default function StoryboardPage() {
 
   useEffect(() => {
     const checkStoryboard = async () => {
+      console.log('[STORYBOARD] Starting check:', { isLoaded, userId, projectId })
+      
       if (!isLoaded) {
+        console.log('[STORYBOARD] Clerk not loaded yet, waiting...')
         return
       }
 
       if (!projectId || !userId) {
+        console.log('[STORYBOARD] Missing projectId or userId:', { projectId, userId })
         setCheckingStoryboard(false)
         return
       }
@@ -47,12 +54,15 @@ export default function StoryboardPage() {
 
         // Check if there are any cards in this project
         // This indicates that there are storyboards for this project
+        console.log('[STORYBOARD] Checking for existing cards...')
         const cardsResponse = await fetch(
           `/api/projects/${encodeURIComponent(projectId)}/cards`,
           {
             credentials: 'include',
           }
         )
+
+        console.log('[STORYBOARD] Cards API response status:', cardsResponse.status)
 
         if (!cardsResponse.ok) {
           console.error('[STORYBOARD CHECK] Failed to check cards', cardsResponse.status)

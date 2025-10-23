@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useUserStore } from '@/store/user'
+import { useAuth } from '@clerk/nextjs'
 import { Edit3, Check, X, ArrowLeft } from 'lucide-react'
 import type { Project } from '@/types'
 
@@ -10,7 +10,7 @@ export default function ProjectHeader() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const id = params.id
-  const { userId, isLoaded } = useUserStore()
+  const { userId, isLoaded } = useAuth()
   const [title, setTitle] = useState<string>('New Project')
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')

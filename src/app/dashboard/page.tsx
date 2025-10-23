@@ -1,76 +1,30 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
 import AccountDropdown from '@/components/ui/AccountDropdown'
-import CreditStatus from '@/components/ui/CreditStatus'
 import ThemeToggle from '@/components/ui/theme-toggle'
-// import CreditDisplay from '@/components/ui/CreditDisplay'
-import { useUserStore } from '@/store/user'
+import { useProjects } from '@/lib/api'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { userId, isLoaded } = useUserStore()
-  const [projects, setProjects] = useState<Project[]>([])
+  const { user, isLoaded } = useUser()
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [projectsLoading, setProjectsLoading] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set())
-  const [projectsError, setProjectsError] = useState<string | null>(null)
-  const lastFetchedUserIdRef = useRef<string | null>(null)
 
-  const fetchProjects = useCallback(async () => {
-    if (!userId) {
-      return
-    }
+  // Clerk의 userId 추출
+  const userId = user?.id || null
 
-    setProjectsLoading(true)
-    setProjectsError(null)
-
-    try {
-      const response = await fetch('/api/projects', {
-        credentials: 'include',
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch projects')
-      }
-
-      setProjects(result.data || [])
-    } catch (error) {
-      console.error('Error fetching projects:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setProjectsError(`Failed to load projects: ${errorMessage}`)
-    } finally {
-      setProjectsLoading(false)
-    }
-  }, [userId])
-
-  useEffect(() => {
-    if (!isLoaded) return
-
-    if (!userId) {
-      setProjects([])
-      setProjectsError(null)
-      lastFetchedUserIdRef.current = null
-      return
-    }
-
-    // 동일 사용자에 대해 최초 1회만 자동 로드 (개발 모드 StrictMode 이중 실행 방지)
-    if (lastFetchedUserIdRef.current === userId) return
-    lastFetchedUserIdRef.current = userId
-    fetchProjects()
-  }, [isLoaded, userId, fetchProjects])
+  // SWR 훅 사용
+  const { projects, isLoading, createProject, deleteProject, updateProject } = useProjects()
 
   const handleCreateProject = async () => {
     if (!userId) {
@@ -80,30 +34,14 @@ export default function DashboardPage() {
 
     setCreatingProject(true)
     try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: 'New Project',
-          is_public: false,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      const projectData = {
+        title: 'New Project',
+        description: '',
+        is_public: false,
       }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create project')
-      }
-
-      const data = result.data
-      setProjects(prev => [data, ...prev])
-
+      
+      const data = await createProject(projectData)
+      
       // 프로젝트 생성 후 바로 스토리보드 페이지로 이동
       router.push(`/project/${data.id}/storyboard`)
     } catch (error) {
@@ -117,29 +55,7 @@ export default function DashboardPage() {
 
   const handleUpdateProject = async (projectId: string, projectData: ProjectInput) => {
     try {
-      const response = await fetch('/api/projects', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: projectId,
-          title: projectData.title,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update project')
-      }
-
-      // Update the project in the local state
-      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, ...result.data } : p)))
+      await updateProject(projectId, projectData)
     } catch (error) {
       console.error('Error updating project:', error)
       throw error
@@ -151,27 +67,7 @@ export default function DashboardPage() {
 
     setDeletingProjects(prev => new Set(prev).add(projectId))
     try {
-      const response = await fetch('/api/projects', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: projectId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete project')
-      }
-
-      setProjects(prev => prev.filter(p => p.id !== projectId))
+      await deleteProject(projectId)
     } catch (error) {
       console.error('Error deleting project:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -185,7 +81,7 @@ export default function DashboardPage() {
     }
   }
 
-  const filteredProjects = projects.filter(project =>
+  const filteredProjects = projects.filter((project: Project) =>
     project.title.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -208,14 +104,11 @@ export default function DashboardPage() {
           <span className="text-2xl font-bold text-white select-none ml-1">Blooma</span>
         </button>
 
-        {/* 오른쪽: 크레딧 상태 및 계정 설정 */}
+        {/* 오른쪽: 계정 설정 */}
         <div className="flex items-center gap-6">
           {/* 테마 토글 */}
           <ThemeToggle />
           
-          {/* 크레딧 상태 */}
-          <CreditStatus />
-
           {/* 계정 설정 드롭다운 */}
           <AccountDropdown />
         </div>
@@ -307,50 +200,6 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-        ) : projectsLoading ? (
-          <div className="text-center py-12">
-            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
-              <div className="text-neutral-400 mb-4">
-                <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-white mb-2">Loading projects...</h3>
-              <p className="text-neutral-300">Please wait while we fetch your projects.</p>
-            </div>
-          </div>
-        ) : projectsError ? (
-          <div className="text-center py-12">
-            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
-              <div className="text-red-400 mb-4">
-                <AlertCircle className="mx-auto h-12 w-12" />
-              </div>
-              <h3 className="text-lg font-medium text-white mb-2">Error loading projects</h3>
-              <p className="text-neutral-300 mb-4">{projectsError}</p>
-              <div className="space-y-2">
-                <Button
-                  variant="default"
-                  onClick={() => fetchProjects()}
-                  className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
-              </div>
-            </div>
-          </div>
         ) : !userId ? (
           <div className="text-center py-12">
             <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
@@ -401,9 +250,6 @@ export default function DashboardPage() {
                   ? 'Try a different search term.'
                   : 'Get started by creating your first project.'}
               </p>
-              <p className="text-red-400 mb-4">
-                DEBUG: projects={projects.length}, filtered={filteredProjects.length}, search="{searchTerm}"
-              </p>
               {!searchTerm && (
                 <Button
                   variant="default"
@@ -425,7 +271,7 @@ export default function DashboardPage() {
                 : 'grid-cols-1'
             }`}
           >
-            {filteredProjects.map(project => (
+            {filteredProjects.map((project: Project) => (
               <ProjectCard
                 key={project.id}
                 project={project}
@@ -435,6 +281,13 @@ export default function DashboardPage() {
                 isDeleting={deletingProjects.has(project.id)}
               />
             ))}
+            
+            {/* 백그라운드 동기화 표시 */}
+            {isLoading && projects.length > 0 && (
+              <div className="fixed top-4 right-4 text-xs text-blue-400 opacity-50 bg-neutral-800 px-2 py-1 rounded">
+                Background sync in progress
+              </div>
+            )}
           </div>
         )}
       </main>

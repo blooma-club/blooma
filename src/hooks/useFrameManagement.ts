@@ -2,11 +2,12 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
-import { useStoryboardStore } from '@/store/storyboard'
 import { createAndLinkCard } from '@/lib/cards'
 import { cardToFrame } from '@/lib/utils'
 import { clampCardWidth } from '@/lib/constants'
 import type { StoryboardFrame } from '@/types/storyboard'
+import { useCards } from '@/lib/api'
+import { Card } from '@/types'
 
 export const useFrameManagement = (
   projectId: string,
@@ -17,15 +18,14 @@ export const useFrameManagement = (
   const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
 
-  const setCards = useStoryboardStore(s => s.setCards)
-  const deleteCard = useStoryboardStore(s => s.deleteCard)
+  const { cards, updateCards, deleteCard } = useCards(projectId)
   const framesRef = useRef<StoryboardFrame[]>([])
 
   const handleAddFrame = useCallback(
     async (insertIndex?: number) => {
       if (!userId || !projectId) return
 
-      const allCards = useStoryboardStore.getState().cards[projectId] || []
+      const allCards = cards || []
       const targetIndex = Math.min(Math.max(insertIndex ?? allCards.length, 0), allCards.length)
 
       try {
@@ -57,7 +57,7 @@ export const useFrameManagement = (
           next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
         }))
 
-        setCards(projectId, reindexedCards)
+        await updateCards(reindexedCards)
         return reindexedCards.map((card, idx) => cardToFrame(card, idx))
       } catch (e) {
         console.error('❌ [STORYBOARD ADD FRAME] Failed to add frame:', e)
@@ -65,7 +65,7 @@ export const useFrameManagement = (
         throw new Error(`카드 생성에 실패했습니다: ${msg}`)
       }
     },
-    [userId, projectId, setCards]
+    [userId, projectId, updateCards]
   )
 
   const handleDeleteFrame = useCallback(
@@ -89,31 +89,23 @@ export const useFrameManagement = (
 
         await deleteCard(frameId)
 
-        const allCards = useStoryboardStore.getState().cards[projectId] || []
-        const sorted = allCards.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-        const reindexedCards = sorted.map((c, idx) => ({
+        const allCards = cards || []
+        const sorted = allCards.sort((a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        const reindexedCards = sorted.map((c: Card, idx: number) => ({
           ...c,
           order_index: idx,
           scene_number: idx + 1,
         }))
         
         if (reindexedCards.length > 0) {
-          await fetch('/api/cards', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              cards: reindexedCards.map(c => ({
-                id: c.id,
-                order_index: c.order_index,
-                scene_number: c.scene_number,
-              })),
-            }),
-          }).catch(() => {})
+          await updateCards(reindexedCards.map((c: Card) => ({
+            id: c.id,
+            order_index: c.order_index,
+            scene_number: c.scene_number,
+          })))
         }
 
-        return reindexedCards.map(card => cardToFrame(card))
+        return reindexedCards.map((card: Card) => cardToFrame(card))
       } catch (error) {
         console.error('❌ [DELETE FRAME] Error during deletion:', error)
         throw error
@@ -121,7 +113,7 @@ export const useFrameManagement = (
         setDeletingFrameId(null)
       }
     },
-    [userId, projectId, deletingFrameId, deleteCard]
+    [userId, projectId, deletingFrameId, deleteCard, cards, updateCards]
   )
 
   const handleReorderFrames = useCallback(
@@ -138,11 +130,11 @@ export const useFrameManagement = (
       }))
       framesRef.current = reorderedFrames
 
-      const storeState = useStoryboardStore.getState()
+      const storeState = { cards: { [projectId]: cards || [] } }
       const projectCards = storeState.cards[projectId] || []
       if (projectCards.length > 0) {
         const movedCards = arrayMove([...projectCards], fromIndex, toIndex)
-        const normalisedCards = movedCards.map((card, idx) => {
+        const normalisedCards = movedCards.map((card: Card, idx: number) => {
           const prevCard = movedCards[idx - 1]
           const nextCard = movedCards[idx + 1]
           return {
@@ -154,30 +146,18 @@ export const useFrameManagement = (
           }
         })
 
-        setCards(projectId, normalisedCards)
-
-        fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cards: normalisedCards.map(card => ({
-              id: card.id,
-              order_index: card.order_index,
-              scene_number: card.scene_number,
-              prev_card_id: card.prev_card_id,
-              next_card_id: card.next_card_id,
-            })),
-          }),
-        }).catch(error => {
-          console.error('[STORYBOARD] Failed to persist reordered cards:', error)
-        })
+        updateCards(normalisedCards.map((card: Card) => ({
+          id: card.id,
+          order_index: card.order_index,
+          scene_number: card.scene_number,
+          prev_card_id: card.prev_card_id,
+          next_card_id: card.next_card_id,
+        })))
       }
 
       return { reorderedFrames, newIndex: fromIndex === toIndex ? fromIndex : toIndex }
     },
-    [projectId, setCards]
+    [projectId, updateCards]
   )
 
   const handleGenerateVideo = useCallback(
@@ -230,9 +210,9 @@ export const useFrameManagement = (
           throw new Error('Video generation completed without returning a usable URL')
         }
 
-        const storeState = useStoryboardStore.getState()
+        const storeState = { cards: { [projectId]: cards || [] } }
         const existingCards = storeState.cards[projectId] || []
-        const updatedCards = existingCards.map(card =>
+        const updatedCards = existingCards.map((card: Card) =>
           card.id === frameId
             ? {
                 ...card,
@@ -245,7 +225,7 @@ export const useFrameManagement = (
               }
             : card
         )
-        setCards(projectId, updatedCards)
+        await updateCards(updatedCards)
 
         setVideoPreview({ frameId, url: videoUrl })
 
@@ -261,7 +241,7 @@ export const useFrameManagement = (
         setGeneratingVideoId(null)
       }
     },
-    [projectId, setCards, userId]
+    [projectId, updateCards, userId]
   )
 
   const handlePlayVideo = useCallback(

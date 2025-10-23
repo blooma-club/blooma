@@ -48,7 +48,6 @@ export default function VisualSettingsPanel({ selectedModel, setSelectedModel, m
           <section>
             <div className="font-medium mb-3 flex items-center justify-between">
               <span className="text-neutral-300">{modelSectionTitle}</span>
-              <span className="text-xs text-neutral-400 font-normal">{getModelInfo(selectedModel)?.cost || 0} credits</span>
             </div>
             <div className="space-y-3">
               <DropdownMenu>

@@ -8,9 +8,6 @@ export type D1UserRecord = {
   name?: string | null
   image_url?: string | null
   avatar_url?: string | null
-  credits?: number | null
-  credits_used?: number | null
-  credits_reset_date?: string | null
   subscription_tier?: string | null
   created_at?: string | null
   updated_at?: string | null
@@ -210,8 +207,6 @@ async function createD1User(
 ): Promise<D1UserRecord> {
   const nowDate = new Date()
   const now = nowDate.toISOString()
-  const creditsResetDate = computeNextCreditsResetDate(nowDate)
-  const defaultCredits = resolveDefaultCredits(process.env.CLERK_SYNC_DEFAULT_CREDITS)
 
   const columns = metadata.columns
   const insertColumns: string[] = []
@@ -241,21 +236,6 @@ async function createD1User(
   } else if (columns.has('avatar_url')) {
     insertColumns.push('avatar_url')
     values.push(profile.imageUrl ?? null)
-  }
-
-  if (columns.has('credits')) {
-    insertColumns.push('credits')
-    values.push(defaultCredits)
-  }
-
-  if (columns.has('credits_used')) {
-    insertColumns.push('credits_used')
-    values.push(0)
-  }
-
-  if (columns.has('credits_reset_date')) {
-    insertColumns.push('credits_reset_date')
-    values.push(creditsResetDate)
   }
 
   if (columns.has('subscription_tier')) {
@@ -310,20 +290,8 @@ function buildUserSelectColumns(metadata: UsersTableMetadata): string {
 
   if (columns.has('image_url')) {
     selectColumns.push('image_url')
-  } else if (columns.has('avatar_url')) {
+  } else   if (columns.has('avatar_url')) {
     selectColumns.push('avatar_url')
-  }
-
-  if (columns.has('credits')) {
-    selectColumns.push('credits')
-  }
-
-  if (columns.has('credits_used')) {
-    selectColumns.push('credits_used')
-  }
-
-  if (columns.has('credits_reset_date')) {
-    selectColumns.push('credits_reset_date')
   }
 
   if (columns.has('subscription_tier')) {
@@ -352,9 +320,6 @@ function normaliseUserRecord(row: Record<string, unknown>): D1UserRecord {
     name: toNullableString(record.name),
     image_url: imageUrl,
     avatar_url: toNullableString(record.avatar_url),
-    credits: toNullableNumber(record.credits),
-    credits_used: toNullableNumber(record.credits_used),
-    credits_reset_date: toNullableString(record.credits_reset_date),
     subscription_tier: toNullableString(record.subscription_tier),
     created_at: toNullableString(record.created_at),
     updated_at: toNullableString(record.updated_at),
@@ -388,24 +353,4 @@ function toNullableNumber(value: unknown): number | null {
     return Number.isNaN(parsed) ? null : parsed
   }
   return null
-}
-
-function computeNextCreditsResetDate(reference: Date): string {
-  const year = reference.getUTCFullYear()
-  const month = reference.getUTCMonth()
-  const reset = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0))
-  return reset.toISOString()
-}
-
-function resolveDefaultCredits(value?: string): number {
-  if (!value) {
-    return 100
-  }
-
-  const parsed = Number(value)
-  if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-    return parsed
-  }
-
-  return 100
 }

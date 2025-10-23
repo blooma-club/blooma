@@ -1,5 +1,4 @@
 import { ClerkProvider } from '@clerk/nextjs';
-import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
 import ToasterProvider from '@/components/ui/toast';
 import type { Metadata } from 'next';
 import { Instrument_Serif, Inter } from 'next/font/google';
@@ -46,10 +45,10 @@ export default function RootLayout({
   );
 
   const shellWithProviders = clerkPublishableKey ? (
-    <SupabaseProvider>
+    <>
       <ClerkSyncEffect />
       {appShell}
-    </SupabaseProvider>
+    </>
   ) : (
     appShell
   );
@@ -67,7 +66,6 @@ export default function RootLayout({
     </PublishableClerkProvider>
   );
 }
-
 function PublishableClerkProvider({ children }: { children: React.ReactNode }) {
   if (!clerkPublishableKey) {
     return <>{children}</>;
@@ -82,3 +80,4 @@ function PublishableClerkProvider({ children }: { children: React.ReactNode }) {
     </ClerkProvider>
   );
 }
+

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type ComponentProps } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CharacterWizard from '@/components/project/setup/CharacterWizard'
 import { FloatingHeader } from '@/components/storyboard/FloatingHeader'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
+import { useUser } from '@clerk/nextjs'
 
 type CharacterWizardProps = ComponentProps<typeof CharacterWizard>
 type CharacterWizardCharacter = NonNullable<CharacterWizardProps['initial']>[number]
@@ -37,7 +37,7 @@ const mapApiCharacter = (character: ApiCharacter): CharacterWizardCharacter => (
 export default function ProjectCharactersPage() {
   const params = useParams() as { id?: string; sbId?: string }
   const router = useRouter()
-  const { user } = useSupabase()
+  const { user } = useUser()
 
   const projectId = params?.id
   const storyboardId = params?.sbId
@@ -139,7 +139,7 @@ export default function ProjectCharactersPage() {
             title="Models"
             index={0}
             total={1}
-            currentView="storyboard"
+            currentView="models"
             onNavigateToCharacters={handleNavigateToCharacters}
             onNavigateToStoryboard={handleNavigateToStoryboard}
             onNavigateToEditor={handleNavigateToEditor}

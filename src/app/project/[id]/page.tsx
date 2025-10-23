@@ -2,7 +2,7 @@
 
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useRef } from 'react'
-import { useUserStore } from '@/store/user'
+import { useAuth } from '@clerk/nextjs'
 import { loadLastStoryboardId } from '@/lib/localStorage'
 
 // Project index: determine default destination based on existing storyboard data.
@@ -10,7 +10,7 @@ export default function ProjectIndexRedirect() {
   const router = useRouter()
   const params = useParams() as { id?: string }
   const id = params?.id
-  const { isLoaded } = useUserStore()
+  const { isLoaded } = useAuth()
   const hasRedirectedRef = useRef(false)
 
   useEffect(() => {

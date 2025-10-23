@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
+import { useClerk } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,7 @@ export function AuthForm() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { signIn, signUp, signInWithGoogle } = useSupabase()
+  const clerk = useClerk()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,9 +22,15 @@ export function AuthForm() {
 
     try {
       if (isSignUp) {
-        await signUp(email, password)
+        await clerk.client.signUp.create({
+          emailAddress: email,
+          password: password,
+        })
       } else {
-        await signIn(email, password)
+        await clerk.client.signIn.create({
+          identifier: email,
+          password: password,
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -38,7 +44,11 @@ export function AuthForm() {
     setError(null)
 
     try {
-      await signInWithGoogle()
+      await clerk.client.signIn.authenticateWithRedirect({
+        strategy: 'oauth_google',
+        redirectUrl: '/dashboard',
+        redirectUrlComplete: '/dashboard',
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed')
     } finally {

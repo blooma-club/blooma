@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
+import { useUser, useClerk } from '@clerk/nextjs'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,8 @@ import ThemeToggle from '@/components/ui/theme-toggle'
 
 export default function Home() {
   const router = useRouter()
-  const { user, signOut } = useSupabase()
+  const { user } = useUser()
+  const { signOut } = useClerk()
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -94,9 +95,9 @@ export default function Home() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center hover:opacity-80 transition-opacity cursor-pointer">
-                    {user.user_metadata?.avatar_url ? (
+                    {user.imageUrl ? (
                       <Image
-                        src={user.user_metadata.avatar_url}
+                        src={user.imageUrl}
                         alt="User Avatar"
                         width={32}
                         height={32}
@@ -106,7 +107,7 @@ export default function Home() {
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center">
                         <span className="text-xs text-white font-medium">
-                          {user.email?.charAt(0).toUpperCase()}
+                          {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
@@ -114,10 +115,10 @@ export default function Home() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-48 border-neutral-700" style={{ backgroundColor: 'hsl(var(--background))' }} align="end">
                   <div className="px-3 py-2 border-b border-neutral-700">
-                    <p className="text-sm text-neutral-300 truncate">{user.email}</p>
+                    <p className="text-sm text-neutral-300 truncate">{user.primaryEmailAddress?.emailAddress}</p>
                   </div>
                   <DropdownMenuItem
-                    onClick={signOut}
+                    onClick={() => signOut()}
                     className="text-white hover:bg-neutral-800 cursor-pointer"
                   >
                     Sign Out
@@ -140,11 +141,11 @@ export default function Home() {
           </h1>
 
           {/* 스토리보드 카드 그룹 */}
-          <div className="mt-10 w-full max-w-6xl relative px-4">
+          <div className="mt-10 w-full max-w-7xl relative px-4">
             <div className="group relative flex items-center justify-center gap-6 perspective-1500 transform-style-3d">
               {/* 왼쪽 카드 */}
               <div 
-                className="absolute left-0 w-96 rounded-xl shadow-2xl border-2 opacity-0 -translate-x-16 scale-90 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-95 hover:scale-100 cursor-pointer overflow-hidden"
+                className="absolute left-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
                 style={{ 
                   aspectRatio: '16/9',
                   backgroundColor: 'hsl(var(--card))',
@@ -153,11 +154,12 @@ export default function Home() {
                 }}
               >
                 <Image
-                  src="/styles/cinematic.jpg"
+                  src="https://cdn.midjourney.com/68322375-bdc6-4317-8729-379da55c1168/0_0.png"
                   alt="Opening Scene - Cinematic Style"
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 384px"
+                  sizes="(max-width: 768px) 100vw, 576px"
+                  unoptimized={true}
                 />
               </div>
 
@@ -183,7 +185,7 @@ export default function Home() {
 
               {/* 오른쪽 카드 */}
               <div 
-                className="absolute right-0 w-96 rounded-xl shadow-2xl border-2 opacity-0 translate-x-16 scale-90 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-hover:scale-95 hover:scale-100 cursor-pointer overflow-hidden"
+                className="absolute right-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
                 style={{ 
                   aspectRatio: '16/9',
                   backgroundColor: 'hsl(var(--card))',
@@ -192,11 +194,12 @@ export default function Home() {
                 }}
               >
                 <Image
-                  src="/styles/watercolor.jpg"
+                  src="https://cdn.midjourney.com/070505e5-43dd-48f8-9e49-93c319414bba/0_0.png"
                   alt="Action Scene - Watercolor Style"
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 384px"
+                  sizes="(max-width: 768px) 100vw, 576px"
+                  unoptimized={true}
                 />
               </div>
             </div>

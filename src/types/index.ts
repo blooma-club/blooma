@@ -6,9 +6,6 @@ export interface User {
   email: string
   name: string
   avatar_url?: string
-  credits: number // 사용 가능한 크레딧
-  credits_used: number // 이번 달 사용한 크레딧
-  credits_reset_date: string // 크레딧 리셋 날짜 (매월)
   subscription_tier: 'basic' | 'pro' | 'enterprise' // 구독 플랜
   created_at: string
   updated_at: string
@@ -102,8 +99,30 @@ export interface Version {
   created_at: string
 }
 
+// 캐릭터 타입 (D1용)
+export interface Character {
+  id: string
+  user_id: string
+  project_id?: string
+  name: string
+  description?: string
+  edit_prompt?: string
+  // R2 asset references
+  image_url?: string
+  image_key?: string
+  image_size?: number
+  image_content_type?: string
+  // Original reference image
+  original_image_url?: string
+  original_image_key?: string
+  original_image_size?: number
+  created_at?: string
+  updated_at?: string
+}
+
 // 하위 호환성을 위한 별칭 타입
 export type UserProfile = User
+export type SupabaseCharacter = Character // Supabase에서 D1으로 마이그레이션
 
 // 클라이언트 사이드 편의성 타입
 export interface ProjectWithCards extends Project {
@@ -210,7 +229,6 @@ export interface AiUsage {
   operation_type: 'text_generation' | 'image_generation' | 'script_generation' | 'image_edit'
   provider: 'openrouter' | 'fal-ai' | 'openai' | 'replicate'
   model_name?: string
-  credits_consumed: number
   input_tokens?: number
   output_tokens?: number
   image_count?: number
@@ -218,31 +236,6 @@ export interface AiUsage {
   error_message?: string
   metadata?: Record<string, unknown>
   created_at: string
-}
-
-// 크레딧 거래 내역 타입
-export interface CreditTransaction {
-  id: string
-  user_id: string
-  type: 'purchase' | 'usage' | 'refund' | 'bonus' | 'reset'
-  amount: number // 양수: 충전, 음수: 사용
-  description: string
-  ai_usage_id?: string // AI 사용과 연결된 경우
-  created_at: string
-}
-
-// 구독 플랜 설정 타입
-export interface SubscriptionPlan {
-  tier: 'basic' | 'pro' | 'enterprise'
-  monthly_credits: number
-  price_per_month: number
-  features: string[]
-  credit_prices: {
-    text_generation: number // 텍스트 생성 1회당 크레딧
-    image_generation: number // 이미지 생성 1회당 크레딧
-    script_generation: number // 스크립트 생성 1회당 크레딧
-    image_edit: number // 이미지 편집 1회당 크레딧
-  }
 }
 
 // ========== 스토리보드 플로우 분할 관련 타입 ==========

@@ -4,10 +4,9 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import type { Card, Storyboard } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
-import type { SupabaseCharacter } from '@/lib/supabase'
-import { useStoryboardStore } from '@/store/storyboard'
+import type { Character } from '@/types'
 import { useHydratedUIStore } from '@/store/ui'
-import { useUserStore } from '@/store/user'
+import { useAuth } from '@clerk/nextjs'
 import FrameEditModal from '@/components/storyboard/FrameEditModal'
 import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
 import FrameList from '@/components/storyboard/viewer/FrameList'
@@ -29,6 +28,7 @@ import LoadingGrid from '@/components/storyboard/LoadingGrid'
 import { useCardWidth } from '@/hooks/useCardWidth'
 import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
 import { useFrameManagement } from '@/hooks/useFrameManagement'
+import { useCards } from '@/lib/api'
 import { DEFAULT_RATIO, CARD_WIDTH_MIN, CARD_WIDTH_MAX, DEFAULT_CARD_WIDTH, clampCardWidth } from '@/lib/constants'
 
 // Stable empty array to avoid creating new [] in selectors (prevents getSnapshot loop warnings)
@@ -46,7 +46,7 @@ export default function StoryboardPage() {
   const router = useRouter()
   const projectId = params.id
   const sbId = params.sbId
-  const { userId, isLoaded } = useUserStore()
+  const { userId, isLoaded } = useAuth()
 
   // URL에서 frame 파라미터 및 view 파라미터 확인 (Editor 모드 진입 여부)
   const searchParams = new URLSearchParams(
@@ -66,7 +66,7 @@ export default function StoryboardPage() {
   const [ratio, setRatio] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
   // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
   const [showWidthControls, setShowWidthControls] = useState(false)
-  const [projectCharacters, setProjectCharacters] = useState<SupabaseCharacter[]>([])
+  const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
   const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit'>('generate')
 
   // View mode 상태: 'storyboard' | 'editor' | 'timeline' | 'models'
@@ -79,12 +79,19 @@ export default function StoryboardPage() {
   // Custom hooks
   const { cardWidth, setCardWidth, latestCardWidthRef, persistCardWidthTimeout, handleCardWidthChange, readStoredCardWidth, persistCardWidthLocally, schedulePersistCardWidth } = useCardWidth(projectId, setFrames)
   const { handleNavigateToStoryboard, handleNavigateToEditor, handleNavigateToTimeline, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index, setViewMode)
-  const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId, latestCardWidthRef)
+  const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
 
-  // Zustand store 연결
-  const setStoryboard = useStoryboardStore(s => s.setStoryboard)
-  const cards = useStoryboardStore(s => s.cards[projectId] || EMPTY_CARDS)
-  const setCards = useStoryboardStore(s => s.setCards)
+  // SWR 훅 사용
+  const { cards: queryCards, updateCards, isLoading: cardsLoading } = useCards(projectId!)
+
+  // SWR 데이터를 프레임으로 변환
+  useEffect(() => {
+    if (queryCards.length > 0) {
+      const frames = queryCards.map((card: Card, idx: number) => cardToFrame(card, idx))
+      setFrames(frames)
+      framesRef.current = frames
+    }
+  }, [queryCards])
 
 
   // 안정적인 이미지 업데이트 콜백
@@ -106,7 +113,7 @@ export default function StoryboardPage() {
 
       // 데이터베이스에 저장
       try {
-        const card = cards.find(c => c.id === frameId)
+        const card = queryCards.find((c: Card) => c.id === frameId)
         if (!card) return
 
         // 단일 이미지 URL 방식으로 저장
@@ -123,29 +130,16 @@ export default function StoryboardPage() {
           if (metadata.type) updateData.image_type = metadata.type
         }
 
-        const response = await fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cards: [
-              {
-                id: frameId,
-                ...updateData,
-              },
-            ],
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to save image URL to database')
-        }
+        // SWR 업데이트
+        await updateCards([{
+          id: frameId,
+          ...updateData,
+        }])
       } catch (error) {
         console.error('Failed to save image URL to database:', error)
       }
     },
-    [cards]
+    [queryCards, updateCards]
   )
 
   useEffect(() => {
@@ -162,6 +156,11 @@ export default function StoryboardPage() {
 
   // 근본적 해결: 실제 데이터 변경 시그니처 기반 동기화
   const lastSyncSignatureRef = useRef<string>('')
+
+  // SWR 로딩 상태를 UI 로딩에 반영
+  useEffect(() => {
+    setLoading(cardsLoading)
+  }, [cardsLoading])
 
   useEffect(() => {
     if (!projectId) {
@@ -215,11 +214,11 @@ export default function StoryboardPage() {
   }, [projectId, userId, isLoaded])
 
   useEffect(() => {
-    if (!projectId) return
+    if (!projectId || !queryCards.length) return
 
     // 실제 데이터 변경 시그니처 생성 (ID, 제목, 씬 번호 기반)
-    const currentSignature = cards
-      .map(card => `${card.id}:${card.order_index ?? ''}`)
+    const currentSignature = queryCards
+      .map((card: Card) => `${card.id}:${card.order_index ?? ''}`)
       .sort()
       .join('|')
 
@@ -229,7 +228,7 @@ export default function StoryboardPage() {
     }
 
     // order_index 기준 정렬 후 프레임으로 변환 (타이틀 기반 중복 제거 제거)
-    const orderedCards = [...cards].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    const orderedCards = [...queryCards].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
 
     // cards를 frames로 변환 - 메타데이터 완전 통합
     const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
@@ -244,210 +243,91 @@ export default function StoryboardPage() {
 
     setFrames(syncedFrames)
     lastSyncSignatureRef.current = currentSignature
-  }, [cards, projectId])
+  }, [queryCards, projectId])
 
   // viewportWidth 제거에 따라 resize 리스너도 제거
 
-  // Initial data load from Cloudflare D1
+  // 접근 권한 확인만 수행 (데이터 로딩은 React Query가 담당)
   useEffect(() => {
-    if (!sbId || !projectId) {
-
+    if (!sbId || !projectId || !isLoaded || !userId) {
       return
     }
 
-    if (!isLoaded) {
-      return
-    }
-
-    if (!userId) {
-      setFrames([])
-      // status UI 제거
-      setError('로그인이 필요합니다. 다시 로그인해 주세요.')
-      setLoading(false)
-      return
-    }
-
-
-
-    // Verify that sbId matches projectId in the new architecture
     if (sbId !== projectId) {
       console.warn('[STORYBOARD] Warning: sbId does not match projectId', { sbId, projectId })
     }
 
-    const loadStoryboardData = async () => {
-      setLoading(true)
-      setError(null) // Clear any previous errors
-
+    let cancelled = false
+    ;(async () => {
       try {
-
         const ownershipResult = await verifyProjectOwnership(projectId, userId)
-
         if (!ownershipResult.isOwner) {
-          console.error(
-            '[STORYBOARD] Project ownership verification failed:',
-            ownershipResult.error
-          )
-          throw new Error(ownershipResult.error || 'You do not have access to this project')
-        }
-
-
-
-        const cardsResponse = await fetch(
-          `/api/cards?project_id=${encodeURIComponent(projectId)}`,
-          {
-            credentials: 'include',
-          }
-        )
-
-        const cardsResult = (await cardsResponse.json().catch(() => ({}))) as {
-          data?: Card[]
-          error?: string
-        }
-
-        if (!cardsResponse.ok) {
-          const message =
-            typeof cardsResult?.error === 'string'
-              ? cardsResult.error
-              : 'Failed to fetch cards for project'
-          throw new Error(message)
-        }
-
-        const cardsData = Array.isArray(cardsResult?.data) ? (cardsResult.data as Card[]) : []
-
-
-
-        if (cardsData.length > 0) {
-          const widthFromCards = cardsData.reduce<number | null>((acc, card) => {
-            if (acc !== null) return acc
-            if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
-              return clampCardWidth(card.card_width)
-            }
-            return acc
-          }, null)
-
-          const storedWidth = readStoredCardWidth()
-          const resolvedCardWidth = clampCardWidth(
-            widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH
-          )
-          latestCardWidthRef.current = resolvedCardWidth
-          setCardWidth(resolvedCardWidth)
-          persistCardWidthLocally(resolvedCardWidth)
-
-          const cardsWithWidth = cardsData.map(card => {
-            if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
-              const normalized = clampCardWidth(card.card_width)
-              return normalized === card.card_width ? card : { ...card, card_width: normalized }
-            }
-            return { ...card, card_width: resolvedCardWidth }
-          })
-
-          setCards(projectId, cardsWithWidth)
-
-          const initialFrames = cardsWithWidth.map((card, index) => cardToFrame(card, index))
-          setFrames(initialFrames)
-
-
-          const derivedTitle = cardsData[0]?.title
-            ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}`
-            : 'Storyboard'
-          setSbTitle(derivedTitle)
-
-          const readyCount = cardsData.filter(card => card.storyboard_status === 'ready').length
-          // status UI 제거
-
-          try {
-            const storyboardPayload: Storyboard = {
-              id: sbId,
-              user_id: userId,
-              project_id: projectId,
-              title: derivedTitle,
-              description: undefined,
-              is_public: false,
-              created_at: cardsData[0]?.created_at || new Date().toISOString(),
-              updated_at: cardsData[0]?.updated_at || new Date().toISOString(),
-            }
-            setStoryboard(storyboardPayload)
-          } catch (storeError) {
-            console.warn('[STORYBOARD] Failed to update storyboard store:', storeError)
-          }
+          const message = ownershipResult.error || 'You do not have access to this project'
+          if (!cancelled) setError(message)
         } else {
-
-          const storedWidth = readStoredCardWidth() ?? DEFAULT_CARD_WIDTH
-          const normalizedWidth = clampCardWidth(storedWidth)
-          latestCardWidthRef.current = normalizedWidth
-          setCardWidth(normalizedWidth)
-          persistCardWidthLocally(normalizedWidth)
-          setCards(projectId, [])
-          setFrames([])
-          setSbTitle('New Storyboard')
-          // status UI 제거
-
-          try {
-            const storyboardPayload: Storyboard = {
-              id: sbId,
-              user_id: userId,
-              project_id: projectId,
-              title: 'New Storyboard',
-              description: undefined,
-              is_public: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }
-            setStoryboard(storyboardPayload)
-          } catch (storeError) {
-            console.warn('[STORYBOARD] Failed to update storyboard store:', storeError)
-          }
+          if (!cancelled) setError(null)
         }
-
-        setLoading(false)
-
-      } catch (error) {
-        console.error('[STORYBOARD] Failed to load storyboard:', error)
-
-        let errorMessage = '스토리보드를 불러올 수 없습니다.'
-
-        if (error && typeof error === 'object') {
-          if ('message' in error && error.message && typeof error.message === 'string') {
-            errorMessage = error.message
-          }
-          if ('code' in error && error.code) {
-            errorMessage += ` [코드: ${error.code}]`
-          }
-          if ('details' in error && error.details) {
-            errorMessage += ` [세부사항: ${error.details}]`
-          }
-          if ('hint' in error && error.hint) {
-            errorMessage += ` [힌트: ${error.hint}]`
-          }
-        }
-
-        if (typeof errorMessage === 'string' && errorMessage.includes('Failed to fetch')) {
-          errorMessage =
-            '스토리보드 데이터를 불러오는 동안 네트워크 오류가 발생했습니다. 연결을 확인한 후 다시 시도해 주세요.'
-        }
-
-        const serialisedError =
-          error instanceof Error
-            ? { message: error.message, name: error.name, stack: error.stack }
-            : error
-        console.error('[STORYBOARD] Full error object:', serialisedError)
-
-        setError(errorMessage)
-        setLoading(false)
+      } catch (e) {
+        if (!cancelled) setError('스토리보드를 불러올 수 없습니다.')
       }
-    }
+    })()
 
-    loadStoryboardData()
-  }, [
-    sbId,
-    projectId,
-    userId,
-    isLoaded,
-    setStoryboard,
-    setCards,
-    readStoredCardWidth,
-    persistCardWidthLocally,
-  ])
+    return () => {
+      cancelled = true
+    }
+  }, [sbId, projectId, userId, isLoaded])
+
+  // 쿼리 결과를 로컬 프레임/스토어와 동기화
+  useEffect(() => {
+    const cardsData = Array.isArray(queryCards) ? queryCards : []
+    if (!projectId) return
+
+    if (cardsData.length > 0) {
+      const widthFromCards = cardsData.reduce<number | null>((acc, card) => {
+        if (acc !== null) return acc
+        if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
+          return clampCardWidth(card.card_width)
+        }
+        return acc
+      }, null)
+
+      const storedWidth = readStoredCardWidth()
+      const resolvedCardWidth = clampCardWidth(widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH)
+      latestCardWidthRef.current = resolvedCardWidth
+      setCardWidth(resolvedCardWidth)
+      persistCardWidthLocally(resolvedCardWidth)
+
+      const cardsWithWidth = cardsData.map(card => {
+        if (typeof card.card_width === 'number' && Number.isFinite(card.card_width)) {
+          const normalized = clampCardWidth(card.card_width)
+          return normalized === card.card_width ? card : { ...card, card_width: normalized }
+        }
+        return { ...card, card_width: resolvedCardWidth }
+      })
+
+      // SWR에서 자동으로 처리되므로 제거
+      // setCards(projectId, cardsWithWidth)
+      const initialFrames = cardsWithWidth.map((card: Card, index: number) => cardToFrame(card, index))
+      setFrames(initialFrames)
+
+      const derivedTitle = cardsData[0]?.title
+        ? `Storyboard: ${cardsData[0].title.replace(/^Scene \d+:?\s*/, '')}`
+        : 'Storyboard'
+      setSbTitle(derivedTitle)
+
+    } else {
+      const storedWidth = readStoredCardWidth() ?? DEFAULT_CARD_WIDTH
+      const normalizedWidth = clampCardWidth(storedWidth)
+      latestCardWidthRef.current = normalizedWidth
+      setCardWidth(normalizedWidth)
+      persistCardWidthLocally(normalizedWidth)
+      // SWR에서 자동으로 처리되므로 제거
+      // setCards(projectId, [])
+      setFrames([])
+      setSbTitle('New Storyboard')
+
+    }
+  }, [projectId, sbId, userId, queryCards])
 
 
 
@@ -460,8 +340,8 @@ export default function StoryboardPage() {
         prev.map(frame => (frame.id === frameId ? { ...frame, ...updates } : frame))
       )
 
-      // Also update cards in the store
-      const card = cards.find(c => c.id === frameId)
+      // Also update cards in SWR
+      const card = queryCards.find((c: Card) => c.id === frameId)
       if (card) {
         // Update card with timeline data
         const updatedCard = { ...card }
@@ -471,10 +351,7 @@ export default function StoryboardPage() {
         if (updates.voiceOverUrl !== undefined) updatedCard.voiceOverUrl = updates.voiceOverUrl
         if (updates.voiceOverText !== undefined) updatedCard.voiceOverText = updates.voiceOverText
 
-        setCards(
-          projectId,
-          cards.map(c => (c.id === frameId ? updatedCard : c))
-        )
+        await updateCards([updatedCard])
       }
 
       // Save to API
@@ -498,7 +375,7 @@ export default function StoryboardPage() {
         console.error('Error saving timeline data:', error)
       }
     },
-    [cards, projectId, setCards]
+    [queryCards, updateCards]
   )
 
 
@@ -519,7 +396,7 @@ export default function StoryboardPage() {
       const requestPrompt = buildPromptWithCharacterMentions(trimmedPrompt, mentionMatches)
       const mentionImageUrls = Array.from(new Set(mentionMatches.flatMap(match => match.imageUrls)))
 
-      const currentCardsSnapshot = useStoryboardStore.getState().cards[projectId] || []
+      const currentCardsSnapshot = queryCards || []
       let inserted: Card | null = null
 
       try {
@@ -555,7 +432,7 @@ export default function StoryboardPage() {
       }
 
       const cardsAfterInsert = [...currentCardsSnapshot, insertedWithPrompt]
-      setCards(projectId, cardsAfterInsert)
+
       setFrames(prev => [...prev, cardToFrame(insertedWithPrompt, prev.length)])
 
       try {
@@ -610,8 +487,8 @@ export default function StoryboardPage() {
           throw new Error(updatePayload?.error || '생성된 이미지를 저장하지 못했습니다.')
         }
 
-        const refreshedCards = useStoryboardStore.getState().cards[projectId] || cardsAfterInsert
-        const mergedCards = refreshedCards.map(card =>
+        const refreshedCards = queryCards || cardsAfterInsert
+        const mergedCards = refreshedCards.map((card: Card) =>
           card.id === insertedWithPrompt.id
             ? {
                 ...card,
@@ -622,7 +499,6 @@ export default function StoryboardPage() {
               }
             : card
         )
-        setCards(projectId, mergedCards)
         setFrames(prev =>
           prev.map(frame =>
             frame.id === insertedWithPrompt.id
@@ -637,8 +513,8 @@ export default function StoryboardPage() {
           )
         )
       } catch (error) {
-        const refreshedCards = useStoryboardStore.getState().cards[projectId] || cardsAfterInsert
-        const erroredCards = refreshedCards.map(card =>
+        const refreshedCards = queryCards || cardsAfterInsert
+        const erroredCards = refreshedCards.map((card: Card) =>
           card.id === insertedWithPrompt.id
             ? {
                 ...card,
@@ -646,7 +522,6 @@ export default function StoryboardPage() {
               }
             : card
         )
-        setCards(projectId, erroredCards)
         setFrames(prev =>
           prev.map(frame =>
             frame.id === insertedWithPrompt.id
@@ -662,7 +537,7 @@ export default function StoryboardPage() {
           : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
       }
     },
-    [userId, projectId, setCards, ratio, projectCharacters]
+    [userId, projectId, ratio, projectCharacters]
   )
 
   // 비디오 관련 핸들러 (커스텀 훅에서 가져옴)
@@ -837,7 +712,7 @@ export default function StoryboardPage() {
                 }}
                 deletingFrameId={deletingFrameId}
                 loading={loading}
-                cardsLength={cards.length}
+                cardsLength={queryCards.length}
                 onGenerateVideo={async (frameId) => {
                   try {
                     await handleGenerateVideo(frameId, frames)
@@ -1100,7 +975,7 @@ export default function StoryboardPage() {
             if (hasSelection) {
               const targetFrame = frames[index]
               const targetCardId = targetFrame.id
-              const targetCard = (cards || []).find(c => c.id === targetCardId)
+              const targetCard = (queryCards || []).find((c: Card) => c.id === targetCardId)
 
               const prevImage = targetCard?.image_url || targetFrame.imageUrl
               const existingHistory = Array.isArray(targetCard?.image_urls) ? targetCard!.image_urls! : []
@@ -1127,13 +1002,13 @@ export default function StoryboardPage() {
                 throw new Error(payload?.error || '이미지 업데이트 저장 실패')
               }
 
-              const refreshedCards = useStoryboardStore.getState().cards[projectId] || cards
-              const mergedCards = refreshedCards.map(card =>
+              const refreshedCards = queryCards
+              const mergedCards = refreshedCards.map((card: Card) =>
                 card.id === targetCardId
                   ? { ...card, image_url: imageUrl, image_urls: newHistory, storyboard_status: 'ready' }
                   : card
               )
-              setCards(projectId, mergedCards)
+              await updateCards(mergedCards)
               setFrames(prev => prev.map(f => (f.id === targetCardId ? { ...f, imageUrl, status: 'ready' } : f)))
               return
             }
