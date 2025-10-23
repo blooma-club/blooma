@@ -96,8 +96,15 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
 }) => {
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
-  const gridTemplateColumns = `repeat(auto-fit, minmax(${normalizedCardWidth}px, ${normalizedCardWidth}px))`
   const [activeId, setActiveId] = useState<string | null>(null)
+  const gridTemplateColumns = useMemo(() => {
+    // 드래그 중에는 고정된 컬럼 수로 레이아웃 완전 고정
+    if (activeId) {
+      return `repeat(${Math.max(frames.length, 1)}, ${normalizedCardWidth}px)`
+    }
+    // 평상시에는 반응형 그리드
+    return `repeat(auto-fill, ${normalizedCardWidth}px)`
+  }, [activeId, frames.length, normalizedCardWidth])
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -315,6 +322,8 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
     width: `${cardWidth}px`,
     maxWidth: `${cardWidth}px`,
     minWidth: `${cardWidth}px`,
+    // 드래그 중에는 투명하게 만들어서 그리드 레이아웃 유지
+    opacity: isDragging ? 0.3 : 1,
   }
 
   return (
@@ -346,7 +355,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
-        videoUrl={frame.videoUrl}
+        videoUrl={(frame as any)?.videoUrl}
         onGenerateVideo={onGenerateVideo}
         onPlayVideo={onPlayVideo}
         isGeneratingVideo={isGeneratingVideo}

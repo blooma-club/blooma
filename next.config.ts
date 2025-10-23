@@ -104,14 +104,17 @@ const nextConfig: NextConfig = {
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  webpack: (config) => {
-    config.resolve = config.resolve || {}
-    config.resolve.alias = {
-      ...(config.resolve.alias ?? {}),
-      punycode: require.resolve('punycode/'),
-    }
-    return config
-  },
+  // Webpack 설정은 Turbopack을 사용하지 않을 때만 적용
+  ...(process.env.NODE_ENV === 'production' && {
+    webpack: (config) => {
+      config.resolve = config.resolve || {}
+      config.resolve.alias = {
+        ...(config.resolve.alias ?? {}),
+        punycode: require.resolve('punycode/'),
+      }
+      return config
+    },
+  }),
 }
 
 export default nextConfig

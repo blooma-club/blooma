@@ -35,15 +35,6 @@ const ALLOWED_KEYS = new Set([
   'image_prompt',
   'storyboard_status',
   'shot_description',
-  // Timeline fields
-  'duration',
-  'audio_url',
-  'voice_over_url',
-  'voice_over_text',
-  'start_time',
-  'video_url',
-  'video_key',
-  'video_prompt',
 ])
 
 const JSON_COLUMNS = new Set(['image_urls'])
@@ -54,7 +45,7 @@ const INTEGER_COLUMNS = new Set([
   'scene_number',
   'card_width',
 ])
-const FLOAT_COLUMNS = new Set(['duration', 'start_time'])
+const FLOAT_COLUMNS = new Set([])
 
 class CardValidationError extends Error {
   constructor(message: string) {
@@ -91,14 +82,6 @@ type CardRow = {
   storyboard_status?: string | null
   shot_description?: string | null
   card_width?: number | string | null
-  duration?: number | string | null
-  audio_url?: string | null
-  voice_over_url?: string | null
-  voice_over_text?: string | null
-  start_time?: number | string | null
-  video_url?: string | null
-  video_key?: string | null
-  video_prompt?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -465,7 +448,7 @@ function transformValueForDb(key: string, value: unknown): unknown {
     return Math.trunc(parsed)
   }
 
-  if (FLOAT_COLUMNS.has(key)) {
+  if (FLOAT_COLUMNS.has(key as never)) {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) {
       return null
@@ -521,8 +504,6 @@ function normalizeCardRow(row: CardRow): Record<string, unknown> {
     order_index: parseNullableInteger(row.order_index),
     scene_number: parseNullableInteger(row.scene_number),
     card_width: parseNullableInteger(row.card_width),
-    duration: parseNullableNumber(row.duration),
-    start_time: parseNullableNumber(row.start_time),
   }
 }
 

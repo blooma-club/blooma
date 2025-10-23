@@ -51,15 +51,6 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     imagePrompt: card.image_prompt || '',
     status: (card.storyboard_status as 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error') || 'ready',
     imageUrl: getImageUrlFromCard(card),
-    // Timeline fields (mapping from snake_case to camelCase)
-    duration: card.duration ?? snakeCaseCard.duration ?? 3,
-    audioUrl: card.audioUrl ?? snakeCaseCard.audio_url,
-    voiceOverUrl: card.voiceOverUrl ?? snakeCaseCard.voice_over_url,
-    voiceOverText: card.voiceOverText ?? snakeCaseCard.voice_over_text,
-    startTime: card.startTime ?? snakeCaseCard.start_time,
-    videoUrl: card.videoUrl ?? snakeCaseCard.video_url,
-    videoKey: card.videoKey ?? snakeCaseCard.video_key,
-    videoPrompt: card.videoPrompt ?? snakeCaseCard.video_prompt,
     cardWidth: typeof card.card_width === 'number' ? card.card_width : undefined,
   };
 }

@@ -10,10 +10,8 @@ interface FloatingHeaderProps {
   title: string
   index: number
   total: number
-  currentView: 'models' | 'storyboard' | 'editor' | 'timeline'
+  currentView: 'models' | 'storyboard'
   onNavigateToStoryboard: () => void
-  onNavigateToEditor: () => void
-  onNavigateToTimeline: () => void
   onNavigateToCharacters?: () => void
   aspectRatio?: StoryboardAspectRatio
   onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
@@ -32,8 +30,6 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   total,
   currentView,
   onNavigateToStoryboard,
-  onNavigateToEditor,
-  onNavigateToTimeline,
   onNavigateToCharacters,
   aspectRatio,
   onAspectRatioChange,
@@ -72,10 +68,6 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
       ? [{ value: 'models' as const, label: 'Models', onSelect: onNavigateToCharacters }]
       : []),
     { value: 'storyboard' as const, label: 'Storyboard', onSelect: onNavigateToStoryboard },
-    { value: 'editor' as const, label: 'Editor', onSelect: onNavigateToEditor },
-    ...(onNavigateToTimeline
-      ? [{ value: 'timeline' as const, label: 'Timeline', onSelect: onNavigateToTimeline }]
-      : []),
   ]
   const selectedView =
     navigationOptions.find(option => option.value === currentView)?.value ??

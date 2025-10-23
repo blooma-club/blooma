@@ -18,7 +18,7 @@ export const useFrameManagement = (
   const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
 
-  const { cards, updateCards, deleteCard } = useCards(projectId)
+  const { cards, updateCards, deleteCard, mutate } = useCards(projectId)
   const framesRef = useRef<StoryboardFrame[]>([])
 
   const handleAddFrame = useCallback(
@@ -28,7 +28,37 @@ export const useFrameManagement = (
       const allCards = cards || []
       const targetIndex = Math.min(Math.max(insertIndex ?? allCards.length, 0), allCards.length)
 
+      // 1) Optimistic add (temp card)
+      const tempId = `temp-${Date.now()}`
+      const widthForCard = clampCardWidth(latestCardWidthRef.current)
+      mutate((prev: any) => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        const tempCard: any = {
+          id: tempId,
+          project_id: projectId,
+          user_id: userId,
+          type: 'card',
+          title: 'New Scene',
+          content: '',
+          order_index: targetIndex,
+          scene_number: targetIndex + 1,
+          card_width: widthForCard,
+          storyboard_status: 'generating',
+        }
+        const merged = [...base]
+        merged.splice(targetIndex, 0, tempCard)
+        const reindexed = merged.map((c: any, idx: number, arr: any[]) => ({
+          ...c,
+          order_index: idx,
+          scene_number: idx + 1,
+          prev_card_id: idx > 0 ? arr[idx - 1].id : undefined,
+          next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
+        }))
+        return { data: reindexed }
+      }, false)
+
       try {
+        // 2) Server create
         const inserted = await createAndLinkCard(
           {
             userId: userId,
@@ -40,32 +70,58 @@ export const useFrameManagement = (
           'STORYBOARD'
         )
 
-        const widthForCard = clampCardWidth(latestCardWidthRef.current)
         const normalizedInserted =
           typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
             ? { ...inserted, card_width: clampCardWidth(inserted.card_width) }
             : { ...inserted, card_width: widthForCard }
 
-        const mergedCards = [...allCards]
-        mergedCards.splice(targetIndex, 0, normalizedInserted)
+        // 3) Replace temp with real, reindex, then persist order
+        let afterReplace: any[] = []
+        mutate((prev: any) => {
+          const base = Array.isArray(prev?.data) ? prev.data : []
+          const idx = base.findIndex((c: any) => c.id === tempId)
+          const merged = [...base]
+          if (idx >= 0) {
+            merged[idx] = normalizedInserted
+          } else {
+            merged.splice(targetIndex, 0, normalizedInserted)
+          }
+          const reindexed = merged.map((c: any, i: number, arr: any[]) => ({
+            ...c,
+            order_index: i,
+            scene_number: i + 1,
+            prev_card_id: i > 0 ? arr[i - 1].id : undefined,
+            next_card_id: i < arr.length - 1 ? arr[i + 1].id : undefined,
+          }))
+          afterReplace = reindexed
+          return { data: reindexed }
+        }, false)
 
-        const reindexedCards = mergedCards.map((card, idx, arr) => ({
-          ...card,
-          order_index: idx,
-          scene_number: idx + 1,
-          prev_card_id: idx > 0 ? arr[idx - 1].id : undefined,
-          next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
-        }))
+        // Persist ordering (id, order_index, scene_number, prev/next)
+        await updateCards(
+          afterReplace.map((c: any) => ({
+            id: c.id,
+            order_index: c.order_index,
+            scene_number: c.scene_number,
+            prev_card_id: c.prev_card_id,
+            next_card_id: c.next_card_id,
+          }))
+        )
 
-        await updateCards(reindexedCards)
-        return reindexedCards.map((card, idx) => cardToFrame(card, idx))
+        return afterReplace.map((card: any, idx: number) => cardToFrame(card, idx))
       } catch (e) {
+        // Rollback temp card
+        mutate((prev: any) => {
+          const base = Array.isArray(prev?.data) ? prev.data : []
+          const next = base.filter((c: any) => c.id !== tempId)
+          return { data: next }
+        }, false)
         console.error('❌ [STORYBOARD ADD FRAME] Failed to add frame:', e)
         const msg = e instanceof Error ? e.message : '알 수 없는 오류'
         throw new Error(`카드 생성에 실패했습니다: ${msg}`)
       }
     },
-    [userId, projectId, updateCards]
+    [userId, projectId, updateCards, mutate, cards, latestCardWidthRef]
   )
 
   const handleDeleteFrame = useCallback(
@@ -75,22 +131,11 @@ export const useFrameManagement = (
       setDeletingFrameId(frameId)
 
       try {
-        const delRes = await fetch('/api/cards', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ cardIds: [frameId] }),
-        })
-        if (!delRes.ok) {
-          const msg = await delRes.text().catch(() => 'Delete failed')
-          throw new Error(msg)
-        }
-
+        // 단일 경로: 훅의 deleteCard가 낙관적 업데이트 + 서버 반영 처리
         await deleteCard(frameId)
 
         const allCards = cards || []
-        const sorted = allCards.sort((a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        const sorted = [...allCards].sort((a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0))
         const reindexedCards = sorted.map((c: Card, idx: number) => ({
           ...c,
           order_index: idx,
@@ -247,11 +292,12 @@ export const useFrameManagement = (
   const handlePlayVideo = useCallback(
     (frameId: string, frames: StoryboardFrame[]) => {
       const frame = frames.find(f => f.id === frameId)
-      if (!frame || !frame.videoUrl) {
+      const url = (frame as any)?.videoUrl as string | undefined
+      if (!frame || !url) {
         throw new Error('No video available yet for this scene. Generate one first.')
       }
 
-      setVideoPreview({ frameId, url: frame.videoUrl })
+      setVideoPreview({ frameId, url })
     },
     []
   )

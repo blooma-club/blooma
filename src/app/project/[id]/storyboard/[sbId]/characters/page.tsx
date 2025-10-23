@@ -115,19 +115,9 @@ export default function ProjectCharactersPage() {
     router.replace(`/project/${projectId}/storyboard/${projectId}`)
   }, [projectId, router])
 
-  const handleNavigateToEditor = useCallback(() => {
-    if (!projectId || !storyboardId) return
-    router.push(`/project/${projectId}/storyboard/${storyboardId}/?frame=1`)
-  }, [projectId, router, storyboardId])
-
   const handleNavigateToCharacters = useCallback(() => {
     if (!projectId || !storyboardId) return
     router.push(`/project/${projectId}/storyboard/${storyboardId}/characters`)
-  }, [projectId, router, storyboardId])
-
-  const handleNavigateToTimeline = useCallback(() => {
-    if (!projectId || !storyboardId) return
-    router.push(`/project/${projectId}/storyboard/${storyboardId}/timeline`)
   }, [projectId, router, storyboardId])
 
   return (
@@ -142,8 +132,6 @@ export default function ProjectCharactersPage() {
             currentView="models"
             onNavigateToCharacters={handleNavigateToCharacters}
             onNavigateToStoryboard={handleNavigateToStoryboard}
-            onNavigateToEditor={handleNavigateToEditor}
-            onNavigateToTimeline={handleNavigateToTimeline}
             layout="inline"
             containerClassName="mx-auto w-full sm:w-auto"
             className="mx-auto w-full max-w-[1040px] sm:pr-16"

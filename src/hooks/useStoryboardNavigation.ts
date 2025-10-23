@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 export const useStoryboardNavigation = (
   projectId: string, 
   index: number, 
-  onViewModeChange?: (mode: 'storyboard' | 'editor' | 'timeline' | 'models') => void
+  onViewModeChange?: (mode: 'storyboard' | 'models') => void
 ) => {
   const router = useRouter()
 
@@ -14,18 +14,6 @@ export const useStoryboardNavigation = (
     const newUrl = `/project/${projectId}/storyboard/${projectId}`
     router.replace(newUrl, { scroll: false })
     onViewModeChange?.('storyboard')
-  }, [projectId, router, onViewModeChange])
-
-  const handleNavigateToEditor = useCallback(() => {
-    const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${index + 1}`
-    router.replace(newUrl, { scroll: false })
-    onViewModeChange?.('editor')
-  }, [projectId, index, router, onViewModeChange])
-
-  const handleNavigateToTimeline = useCallback(() => {
-    const newUrl = `/project/${projectId}/storyboard/${projectId}?view=timeline`
-    router.replace(newUrl, { scroll: false })
-    onViewModeChange?.('timeline')
   }, [projectId, router, onViewModeChange])
 
   const handleNavigateToCharacters = useCallback(() => {
@@ -42,8 +30,6 @@ export const useStoryboardNavigation = (
 
   return {
     handleNavigateToStoryboard,
-    handleNavigateToEditor,
-    handleNavigateToTimeline,
     handleNavigateToCharacters,
     handleOpenFrame,
   }

@@ -121,10 +121,11 @@ export const useCards = (projectId: string) => {
   const cards = data?.data || []
   
   const deleteCard = async (cardId: string) => {
-    const originalCards = cards
-    
-    // 즉시 제거
-    mutateCards({ data: cards.filter((c: any) => c.id !== cardId) }, false)
+    // 즉시 제거 - 함수형 mutate로 최신 캐시 기반 처리
+    mutateCards((prev: any) => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return { data: base.filter((c: any) => c.id !== cardId) }
+    }, false)
     
     try {
       await fetch('/api/cards', {
@@ -134,17 +135,19 @@ export const useCards = (projectId: string) => {
         credentials: 'include'
       })
     } catch {
-      mutateCards({ data: originalCards }, false)
+      // 실패 시 서버에서 재검증
+      await mutateCards()
       throw new Error('삭제 실패')
     }
   }
   
   const updateCard = async (cardId: string, updates: Partial<Card>) => {
-    // 즉시 업데이트
-    const optimisticCards = cards.map((c: any) => 
-      c.id === cardId ? { ...c, ...updates } : c
-    )
-    mutateCards({ data: optimisticCards }, false)
+    // 즉시 업데이트 (함수형 mutate)
+    mutateCards((prev: any) => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      const next = base.map((c: any) => (c.id === cardId ? { ...c, ...updates } : c))
+      return { data: next }
+    }, false)
     
     try {
       await fetch('/api/cards', {
@@ -154,18 +157,21 @@ export const useCards = (projectId: string) => {
         credentials: 'include'
       })
     } catch {
-      mutateCards() // 실패시 서버에서 다시 로드
+      await mutateCards() // 실패시 서버에서 다시 로드
       throw new Error('업데이트 실패')
     }
   }
 
   const updateCards = async (cardsToUpdate: Partial<Card>[]) => {
-    // 즉시 업데이트
-    const optimisticCards = cards.map((c: any) => {
-      const update = cardsToUpdate.find((u: any) => u.id === c.id)
-      return update ? { ...c, ...update } : c
-    })
-    mutateCards({ data: optimisticCards }, false)
+    // 즉시 업데이트 (함수형 mutate)
+    mutateCards((prev: any) => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      const next = base.map((c: any) => {
+        const update = cardsToUpdate.find((u: any) => u.id === c.id)
+        return update ? { ...c, ...update } : c
+      })
+      return { data: next }
+    }, false)
     
     try {
       await fetch('/api/cards', {
@@ -175,10 +181,10 @@ export const useCards = (projectId: string) => {
         credentials: 'include'
       })
     } catch {
-      mutateCards() // 실패시 서버에서 다시 로드
+      await mutateCards() // 실패시 서버에서 다시 로드
       throw new Error('업데이트 실패')
     }
   }
   
-  return { cards, isLoading, deleteCard, updateCard, updateCards }
+  return { cards, isLoading, deleteCard, updateCard, updateCards, mutate: mutateCards }
 }
