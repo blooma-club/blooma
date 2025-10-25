@@ -41,6 +41,13 @@ export function getImageUrlFromCard(card: Card): string | undefined {
 // Card를 StoryboardFrame으로 변환하는 함수
 export function cardToFrame(card: Card, index?: number): StoryboardFrame {
   const snakeCaseCard = card as Card & CardSnakeCaseFields
+  const rawHistory = (snakeCaseCard.image_urls ?? []) as unknown
+  const normalizedHistory = Array.isArray(rawHistory)
+    ? rawHistory.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : typeof rawHistory === 'string'
+      ? [rawHistory]
+      : []
+
   return {
     id: card.id,
     scene: card.scene_number || (index !== undefined ? index + 1 : 1),
@@ -52,6 +59,7 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     status: (card.storyboard_status as 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error') || 'ready',
     imageUrl: getImageUrlFromCard(card),
     cardWidth: typeof card.card_width === 'number' ? card.card_width : undefined,
+    imageHistory: Array.from(new Set(normalizedHistory)),
   };
 }
 

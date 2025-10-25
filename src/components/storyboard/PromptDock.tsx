@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React from 'react'
 import clsx from 'clsx'
@@ -63,7 +63,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
 
   // 현재 선택된 모델이 유효한지 확인하고 필요시 업데이트
   const selectedModel = models.find(m => m.id === modelId) || models[0]
-  
+
   // 모델이 유효하지 않으면 첫 번째 모델로 업데이트
   React.useEffect(() => {
     if (!selectedModel && models.length > 0) {
@@ -89,7 +89,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
     textarea.style.height = 'auto'
     const scrollHeight = textarea.scrollHeight
     const maxHeight = 128 // max-h-32 (8rem = 128px)
-    
+
     if (scrollHeight > maxHeight) {
       textarea.style.height = `${maxHeight}px`
     } else {
@@ -117,29 +117,29 @@ export const PromptDock: React.FC<PromptDockProps> = ({
 
     setSubmitting(true)
     setError(null)
-    
+
     // 디버깅을 위한 로그 추가
     console.log('[PromptDock] Submitting with:', {
       prompt: trimmed,
       modelId,
       aspectRatio: selectedRatio,
       currentMode,
-      referenceImageUrl
+      referenceImageUrl,
     })
-    
+
     try {
       // Submit behavior varies by mode; for now both call same endpoint (UI distinction)
-      const requestBody: any = { 
-        prompt: trimmed, 
-        modelId, 
-        aspectRatio: selectedRatio 
+      const requestBody: any = {
+        prompt: trimmed,
+        modelId,
+        aspectRatio: selectedRatio,
       }
-      
+
       // Edit 모드일 때 레퍼런스 이미지 추가
       if (currentMode === 'edit' && referenceImageUrl) {
         requestBody.image_url = referenceImageUrl
       }
-      
+
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,7 +148,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
       const json = await res.json().catch(() => ({}))
       if (!res.ok || !json?.success || !json?.imageUrl) {
         let errorMsg = json?.error || `Failed to generate image (HTTP ${res.status})`
-        
+
         // 특정 에러에 대한 더 명확한 메시지 제공
         if (res.status === 404) {
           const modelName = selectedModel?.name || modelId
@@ -160,7 +160,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
         } else if (res.status >= 500) {
           errorMsg = 'Server error. Please try again later.'
         }
-        
+
         throw new Error(errorMsg)
       }
       await onCreateFrame(json.imageUrl as string)
@@ -168,7 +168,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
     } catch (e) {
       const msg = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다'
       setError(msg)
-      
+
       // 에러 발생 시 토스트로도 표시
       showToast({
         title: 'Image generation failed',
@@ -204,18 +204,18 @@ export const PromptDock: React.FC<PromptDockProps> = ({
       {/* 메인 입력 컨테이너 */}
       <div className="pointer-events-auto relative">
         {/* 배경 그라데이션과 블러 효과 */}
-        <div 
+        <div
           className="absolute inset-0 rounded-2xl blur-xl"
           style={{ backgroundColor: `hsl(var(--glow-bg) / 0.1)` }}
         ></div>
-        <div 
+        <div
           className="absolute inset-0 backdrop-blur-xl rounded-2xl border"
-          style={{ 
+          style={{
             backgroundColor: `hsl(var(--glow-bg) / 0.05)`,
-            borderColor: `hsl(var(--glow-border) / 0.1)`
+            borderColor: `hsl(var(--glow-border) / 0.1)`,
           }}
         ></div>
-        
+
         {/* 실제 컨텐츠 */}
         <div className="relative bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 shadow-xl p-4 md:p-5">
           <div className="flex flex-col gap-3 md:gap-4">
@@ -225,7 +225,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
               <div className="flex items-center gap-3 min-w-0">
                 <Tabs
                   value={currentMode}
-                  onValueChange={(v) => {
+                  onValueChange={v => {
                     const next = v as 'generate' | 'edit'
                     if (!isControlled) setInternalMode(next)
                     onModeChange?.(next)
@@ -233,15 +233,15 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                   className="flex-shrink-0"
                 >
                   <TabsList className="bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300 h-9 md:h-10 gap-1 p-1 border border-neutral-200/50 dark:border-neutral-700/50">
-                    <TabsTrigger 
-                      value="generate" 
+                    <TabsTrigger
+                      value="generate"
                       className="data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-900 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 px-2.5 py-1.5 rounded-md transition-colors data-[state=active]:border-b-2 data-[state=active]:border-blue-500 dark:data-[state=active]:border-blue-400"
                       title="Generate new image"
                     >
                       <Plus className="h-4 w-4" />
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="edit" 
+                    <TabsTrigger
+                      value="edit"
                       className="data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-900 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 px-2.5 py-1.5 rounded-md transition-colors data-[state=active]:border-b-2 data-[state=active]:border-purple-500 dark:data-[state=active]:border-purple-400"
                       title="Edit current image"
                     >
@@ -249,27 +249,29 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
-                
+
                 {typeof selectedShotNumber === 'number' && (
-                  <span className={clsx(
-                    'px-2.5 py-1.5 rounded-md border text-xs font-medium flex-shrink-0 whitespace-nowrap',
-                    currentMode === 'edit'
-                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/40'
-                      : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
-                  )}>
+                  <span
+                    className={clsx(
+                      'px-2.5 py-1.5 rounded-md border text-xs font-medium flex-shrink-0 whitespace-nowrap',
+                      currentMode === 'edit'
+                        ? 'bg-purple-500/15 text-purple-300 border-purple-500/40'
+                        : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+                    )}
+                  >
                     {currentMode === 'edit' ? 'Editing' : 'Shot'} {selectedShotNumber}
                   </span>
                 )}
               </div>
-              
+
               {/* 오른쪽: 모델과 비율 선택 */}
               <div className="flex items-center gap-2 flex-shrink-0">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className={clsx(
-                        baseControlTriggerClass, 
+                        baseControlTriggerClass,
                         'min-w-[120px] md:min-w-[140px]',
                         'border-neutral-700/50 hover:border-neutral-600/70'
                       )}
@@ -286,7 +288,9 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                         key={m.id}
                         onClick={() => {
                           // 모델이 유효하지 않으면 첫 번째 모델로 자동 선택
-                          const validModelId = models.find(model => model.id === m.id) ? m.id : models[0]?.id
+                          const validModelId = models.find(model => model.id === m.id)
+                            ? m.id
+                            : models[0]?.id
                           if (validModelId) {
                             setModelId(validModelId)
                           }
@@ -304,8 +308,8 @@ export const PromptDock: React.FC<PromptDockProps> = ({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className={clsx(
                         baseControlTriggerClass,
                         'min-w-[90px] md:min-w-[100px]',
@@ -339,7 +343,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
 
             {/* 중간: 프롬프트 입력 영역 */}
             <div className="group relative isolate">
-              <div 
+              <div
                 className="absolute inset-0 rounded-lg opacity-0 transition-opacity duration-300 group-focus-within:opacity-100"
                 style={{ backgroundColor: `hsl(var(--glow-bg) / 0.15)` }}
               ></div>
@@ -358,7 +362,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                     scrollbarWidth: 'thin',
                     scrollbarColor: 'rgba(255,255,255,0.2) transparent',
                     minHeight: '1.75rem',
-                    maxHeight: '8rem'
+                    maxHeight: '8rem',
                   }}
                 />
                 <Button
@@ -376,12 +380,10 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                 >
                   {submitting ? (
                     <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white/80"></div>
+                  ) : currentMode === 'edit' ? (
+                    <Edit3 className="h-4 w-4" />
                   ) : (
-                    currentMode === 'edit' ? (
-                      <Edit3 className="h-4 w-4" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )
+                    <Plus className="h-4 w-4" />
                   )}
                 </Button>
               </div>
@@ -393,7 +395,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                 <p className="text-xs text-red-300">{error}</p>
               </div>
             )}
-
           </div>
         </div>
       </div>
@@ -402,5 +403,3 @@ export const PromptDock: React.FC<PromptDockProps> = ({
 }
 
 export default PromptDock
-
-

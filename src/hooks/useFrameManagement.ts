@@ -166,43 +166,44 @@ export const useFrameManagement = (
       if (!projectId) return
       if (fromIndex === toIndex) return
 
-      const currentFrames = framesRef.current
-      if (!currentFrames.length) return
+      const sortedCards = [...(cards || [])].sort(
+        (a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0)
+      )
+      if (!sortedCards.length) return
 
-      const reorderedFrames = arrayMove(currentFrames, fromIndex, toIndex).map((frame, idx) => ({
-        ...frame,
-        scene: idx + 1,
-      }))
-      framesRef.current = reorderedFrames
+      const movedCards = arrayMove(sortedCards, fromIndex, toIndex)
+      const normalisedCards = movedCards.map((card: Card, idx: number, arr: Card[]) => {
+        const prevCard = arr[idx - 1]
+        const nextCard = arr[idx + 1]
+        return {
+          ...card,
+          order_index: idx,
+          scene_number: idx + 1,
+          prev_card_id: prevCard ? prevCard.id : null,
+          next_card_id: nextCard ? nextCard.id : null,
+        }
+      })
 
-      const storeState = { cards: { [projectId]: cards || [] } }
-      const projectCards = storeState.cards[projectId] || []
-      if (projectCards.length > 0) {
-        const movedCards = arrayMove([...projectCards], fromIndex, toIndex)
-        const normalisedCards = movedCards.map((card: Card, idx: number) => {
-          const prevCard = movedCards[idx - 1]
-          const nextCard = movedCards[idx + 1]
-          return {
-            ...card,
-            order_index: idx,
-            scene_number: idx + 1,
-            prev_card_id: prevCard ? prevCard.id : null,
-            next_card_id: nextCard ? nextCard.id : null,
-          }
-        })
+      const optimisticFrames = normalisedCards.map((card: Card, idx: number) =>
+        cardToFrame(card, idx)
+      )
+      framesRef.current = optimisticFrames
 
-        updateCards(normalisedCards.map((card: Card) => ({
+      mutate({ data: normalisedCards }, false)
+
+      void updateCards(
+        normalisedCards.map((card: Card) => ({
           id: card.id,
           order_index: card.order_index,
           scene_number: card.scene_number,
           prev_card_id: card.prev_card_id,
           next_card_id: card.next_card_id,
-        })))
-      }
+        }))
+      )
 
-      return { reorderedFrames, newIndex: fromIndex === toIndex ? fromIndex : toIndex }
+      return { reorderedFrames: optimisticFrames, newIndex: toIndex }
     },
-    [projectId, updateCards]
+    [projectId, cards, mutate, updateCards]
   )
 
   const handleGenerateVideo = useCallback(

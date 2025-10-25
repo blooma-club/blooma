@@ -28,8 +28,8 @@ export const ProjectCard = ({
   const [isHovered, setIsHovered] = useState(false)
 
   const handleGoToProjectSetup = () => {
-    // 카드가 있든 없든 모두 스토리보드 페이지로 이동
-    router.push(`/project/${project.id}/storyboard`)
+    // 프로젝트 인덱스를 통해 적절한 페이지로 라우팅
+    router.push(`/project/${project.id}`)
   }
 
   const formatDate = (dateString?: string) => {

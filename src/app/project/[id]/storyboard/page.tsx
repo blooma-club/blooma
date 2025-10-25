@@ -1,312 +1,638 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
+import type { Card, Storyboard } from '@/types'
 import { useParams, useRouter } from 'next/navigation'
-import { Film, Sparkles, FileText } from 'lucide-react'
-import { useUser } from '@clerk/nextjs'
-import { verifyProjectOwnership } from '@/lib/utils'
+import type { Character } from '@/types'
+import { useHydratedUIStore } from '@/store/ui'
+import { useAuth } from '@clerk/nextjs'
+import FrameEditModal from '@/components/storyboard/FrameEditModal'
+import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
+import FrameList from '@/components/storyboard/viewer/FrameList'
+import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
+import FloatingHeader from '@/components/storyboard/FloatingHeader'
+import PromptDock from '@/components/storyboard/PromptDock'
+import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
+import { createAndLinkCard } from '@/lib/cards'
+import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
+import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
+import EmptyStoryboardState from '@/components/storyboard/EmptyStoryboardState'
+import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
+import LoadingGrid from '@/components/storyboard/LoadingGrid'
+import { useCardWidth } from '@/hooks/useCardWidth'
+import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
+import { useFrameManagement } from '@/hooks/useFrameManagement'
+import { useCards } from '@/lib/api'
+import { DEFAULT_RATIO, CARD_WIDTH_MIN, CARD_WIDTH_MAX, DEFAULT_CARD_WIDTH, clampCardWidth } from '@/lib/constants'
+
+// Removed legacy local caches; SWR가 카드 데이터를 관리합니다.
+type CardImageUpdate = Partial<
+  Pick<
+    Card,
+    'image_url' | 'image_urls' | 'selected_image_url' | 'image_key' | 'image_size' | 'image_type'
+  >
+>
 
 export default function StoryboardPage() {
-  const params = useParams()
-  const projectParam = params?.id
-  const projectId = Array.isArray(projectParam) ? projectParam[0] : projectParam
+  const params = useParams<{ id: string }>()
   const router = useRouter()
-  const { user, isLoaded } = useUser()
+  const projectId = params.id
+  const { userId, isLoaded } = useAuth()
 
-  // Clerk의 userId 추출
-  const userId = user?.id || null
+  const [index, setIndex] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
+  const [ratio, setRatio] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
+  // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
+  const [showWidthControls, setShowWidthControls] = useState(false)
+  const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
+  const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit'>('generate')
 
-  const [creating] = useState(false)
-  const [checkingStoryboard, setCheckingStoryboard] = useState(true)
-  const [accessError, setAccessError] = useState<string | null>(null)
+  // View mode 상태: 'storyboard' | 'models'
+  const [viewMode, setViewMode] = useState<'storyboard' | 'models'>('storyboard')
+  // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
+  const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
 
-  useEffect(() => {
-    const checkStoryboard = async () => {
-      console.log('[STORYBOARD] Starting check:', { isLoaded, userId, projectId })
-      
-      if (!isLoaded) {
-        console.log('[STORYBOARD] Clerk not loaded yet, waiting...')
-        return
+  // Custom hooks
+  const { cardWidth, setCardWidth, latestCardWidthRef, persistCardWidthTimeout, handleCardWidthChange, readStoredCardWidth, persistCardWidthLocally, schedulePersistCardWidth } = useCardWidth(projectId)
+  const { handleNavigateToStoryboard, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index, setViewMode)
+  const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
+
+  // SWR 훅 사용 (SWR이 캐싱/동기화 관리)
+  const { cards: queryCards, updateCards, isLoading: cardsLoading } = useCards(projectId!)
+
+
+  // 안정적인 이미지 업데이트 콜백
+  // 통일된 카드 패치 함수
+  const patchCards = useCallback(async (patches: Partial<Card>[]) => {
+    await updateCards(patches)
+  }, [updateCards])
+
+  const handleImageUpdated = useCallback(
+    async (
+      frameId: string,
+      newUrl: string,
+      metadata?: { key?: string; size?: number; type?: string }
+    ) => {
+      if (newUrl.startsWith('blob:') || newUrl.startsWith('data:')) return
+
+      const updateData: CardImageUpdate = {
+        image_url: newUrl,
+        image_urls: [newUrl],
+        selected_image_url: 0,
       }
-
-      if (!projectId || !userId) {
-        console.log('[STORYBOARD] Missing projectId or userId:', { projectId, userId })
-        setCheckingStoryboard(false)
-        return
-      }
+      if (metadata?.key) updateData.image_key = metadata.key
+      if (metadata?.size) updateData.image_size = metadata.size
+      if (metadata?.type) updateData.image_type = metadata.type
 
       try {
-        // First verify that the user owns this project
-        console.log('[STORYBOARD] Verifying project ownership:', projectId, 'for user:', userId)
-        const ownershipResult = await verifyProjectOwnership(projectId, userId)
+        await patchCards([{ id: frameId, ...updateData } as Partial<Card>])
+      } catch (error) {
+        console.error('Failed to save image URL to database:', error)
+      }
+    },
+    [patchCards]
+  )
 
-        if (!ownershipResult.isOwner) {
-          console.error(
-            '[STORYBOARD] Project ownership verification failed:',
-            ownershipResult.error
-          )
-          setAccessError(ownershipResult.error || 'You do not have access to this project')
-          setCheckingStoryboard(false)
-          return
-        }
+  // framesRef는 derived.frames 기준으로만 유지 (상단 effect에서 처리)
 
-        console.log('[STORYBOARD] Project ownership verified successfully')
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && persistCardWidthTimeout.current !== null) {
+        window.clearTimeout(persistCardWidthTimeout.current)
+      }
+    }
+  }, [])
 
-        // Check if there are any cards in this project
-        // This indicates that there are storyboards for this project
-        console.log('[STORYBOARD] Checking for existing cards...')
-        const cardsResponse = await fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/cards`,
+  // 파생 데이터 파이프라인: 카드 폭 + 프레임/타이틀
+  const resolvedCardWidth = useMemo(() => {
+    const firstWithWidth = queryCards.find((c: Card) => typeof c.card_width === 'number' && Number.isFinite(c.card_width))
+    const widthFromCards = firstWithWidth?.card_width as number | undefined
+    const storedWidth = readStoredCardWidth()
+    return clampCardWidth(widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH)
+  }, [queryCards, readStoredCardWidth])
+
+  useEffect(() => {
+    latestCardWidthRef.current = resolvedCardWidth
+    setCardWidth(resolvedCardWidth)
+    persistCardWidthLocally(resolvedCardWidth)
+  }, [resolvedCardWidth, setCardWidth, persistCardWidthLocally])
+
+  const derived = useMemo(() => {
+      const orderedCards = [...queryCards].sort((a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    const frames = orderedCards.map((card, idx) => {
+      const baseFrame = cardToFrame(card, idx)
+      const normalizedWidth = typeof baseFrame.cardWidth === 'number' && Number.isFinite(baseFrame.cardWidth)
+        ? clampCardWidth(baseFrame.cardWidth)
+        : resolvedCardWidth
+      return { ...baseFrame, cardWidth: normalizedWidth }
+    })
+    const title = orderedCards.length > 0
+      ? `Storyboard: ${(orderedCards[0].title ?? '').replace(/^Scene \d+:?\s*/, '') || 'Untitled'}`
+      : 'New Storyboard'
+    return { frames, title }
+  }, [queryCards, resolvedCardWidth])
+
+  useEffect(() => {
+    framesRef.current = derived.frames
+  }, [derived.frames])
+
+  // 별도 loading state 제거: cardsLoading 직접 사용
+
+  useEffect(() => {
+    if (!projectId || !userId) {
+      setProjectCharacters([])
+      return
+    }
+
+    let cancelled = false
+
+    const loadCharacters = async () => {
+      try {
+        const response = await fetch(
+          `/api/characters?project_id=${encodeURIComponent(projectId)}`,
           {
             credentials: 'include',
           }
         )
 
-        console.log('[STORYBOARD] Cards API response status:', cardsResponse.status)
-
-        if (!cardsResponse.ok) {
-          console.error('[STORYBOARD CHECK] Failed to check cards', cardsResponse.status)
-          throw new Error('Failed to check existing storyboards')
+        if (!response.ok) {
+          throw new Error(`Failed to load characters: ${response.status}`)
         }
 
-        const cardsPayload: { hasCards?: boolean; count?: number } =
-          await cardsResponse.json().catch(() => ({}))
+        const payload = await response.json().catch(() => ({}))
+        const characters = Array.isArray(payload?.characters) ? payload.characters : []
 
-        console.log(
-          '[STORYBOARD CHECK] Found cards:',
-          typeof cardsPayload.count === 'number' ? cardsPayload.count : 0
-        )
-
-        if (cardsPayload.hasCards) {
-          console.log('[STORYBOARD CHECK] Navigating to project storyboard view')
-          router.replace(`/project/${projectId}/storyboard/${projectId}`)
-          // 리디렉션 중이므로 checkingStoryboard를 false로 설정하지 않음
-          return
+        if (!cancelled) {
+          setProjectCharacters(characters)
         }
-
-        // 스토리보드가 없으면 Setup 페이지 표시
-        console.log('[STORYBOARD CHECK] No storyboards found, showing setup')
-        setCheckingStoryboard(false)
       } catch (error) {
-        console.error('Failed to check storyboards:', error)
-        // Check if it's an access error
-        if (error instanceof Error && error.message.includes('access')) {
-          setAccessError(error.message)
-        } else {
-          // Other errors - show creation options
-          setAccessError(null)
+        if (!cancelled) {
+          console.warn('[StoryboardPage] Failed to load project characters:', error)
+          setProjectCharacters([])
         }
-        setCheckingStoryboard(false)
       }
     }
 
-    checkStoryboard()
-  }, [projectId, userId, router, isLoaded])
+    loadCharacters()
 
-  const navigateToSetup = () => {
-    router.push(`/project/${projectId}/setup`)
-  }
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, userId])
 
-  const navigateToStoryboard = () => {
-    router.push(`/project/${projectId}/storyboard/${projectId}`)
-  }
+  // 시그니처 기반 동기화 제거: derived 파이프라인으로 대체됨
 
-  // 스토리보드 확인 중
-  if (checkingStoryboard) {
-    return (
-      <div className="w-full h-full min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="text-center">
-          <div className="mb-4">
-            <svg
-              className="mx-auto h-12 w-12 animate-spin text-neutral-400"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          </div>
-          <div className="text-neutral-300 text-lg font-medium">Loading storyboard...</div>
-          <div className="text-neutral-500 text-sm mt-2">
-            Please wait while we check your project
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // viewportWidth 제거에 따라 resize 리스너도 제거
 
-  // 액세스 에러 시 표시
-  if (accessError) {
-    return (
-      <div className="w-full h-full min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/10 rounded-full mb-4">
-              <svg
-                className="w-8 h-8 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
-            <p className="text-neutral-300 mb-4">{accessError}</p>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="inline-flex items-center px-4 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white rounded-lg transition-colors"
-            >
-              Return to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // 접근 권한 확인: 최초 1회 또는 주요 식별자 변경 시
+  useEffect(() => {
+    if (!projectId || !userId) return
 
-  // 스토리보드가 없으면 생성 옵션 표시
+    let cancelled = false
+    ;(async () => {
+      try {
+        const ownershipResult = await verifyProjectOwnership(projectId, userId)
+        if (!cancelled) {
+          setError(ownershipResult.isOwner ? null : (ownershipResult.error || 'You do not have access to this project'))
+        }
+      } catch (e) {
+        if (!cancelled) setError('스토리보드를 불러올 수 없습니다.')
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [projectId, userId])
+
+  // 쿼리 결과 동기화는 derived 파이프라인으로 대체
+
+
+
+  // 네비게이션 핸들러 (커스텀 훅에서 가져옴)
+
+
+  // 프레임 관리 핸들러 (커스텀 훅에서 가져옴)
+
+  const handleGenerateSceneFromPrompt = useCallback(
+    async (promptText: string) => {
+      if (!userId || !projectId) {
+        throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.')
+      }
+
+      const trimmedPrompt = promptText.trim()
+      if (!trimmedPrompt) {
+        throw new Error('생성할 씬에 대한 설명을 입력해 주세요.')
+      }
+
+      const mentionMatches = resolveCharacterMentions(trimmedPrompt, projectCharacters)
+      const requestPrompt = buildPromptWithCharacterMentions(trimmedPrompt, mentionMatches)
+      const mentionImageUrls = Array.from(new Set(mentionMatches.flatMap(match => match.imageUrls)))
+
+      const currentCardsSnapshot = queryCards || []
+      let inserted: Card | null = null
+
+      try {
+        inserted = await createAndLinkCard(
+          {
+            userId,
+            projectId: projectId,
+            currentCards: currentCardsSnapshot,
+            cardWidth: latestCardWidthRef.current,
+          },
+          'TIMELINE_GENERATE'
+        )
+      } catch (error) {
+        throw error instanceof Error
+          ? new Error(error.message)
+          : new Error('씬을 생성할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+      }
+
+      if (!inserted) {
+        throw new Error('새로운 씬이 정상적으로 생성되지 않았습니다.')
+      }
+
+      const normalizedWidth = clampCardWidth(latestCardWidthRef.current)
+      const insertedWithPrompt: Card = {
+        ...inserted,
+        card_width:
+          typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
+            ? clampCardWidth(inserted.card_width)
+            : normalizedWidth,
+        shot_description: trimmedPrompt,
+        image_prompt: trimmedPrompt,
+        storyboard_status: 'generating',
+      }
+
+      const cardsAfterInsert = [...currentCardsSnapshot, insertedWithPrompt]
+
+      try {
+        const generationPayload: Record<string, unknown> = {
+          prompt: requestPrompt,
+          aspectRatio: ratio,
+        }
+        if (mentionImageUrls.length > 0) {
+          generationPayload.imageUrls = mentionImageUrls
+        }
+
+        const response = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(generationPayload),
+        })
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          imageUrl?: string
+          error?: string
+        }
+
+        if (!response.ok || !payload?.imageUrl) {
+          throw new Error(payload?.error || '이미지를 생성할 수 없습니다.')
+        }
+
+        const generatedImageUrl = payload.imageUrl
+
+        const updateResponse = await fetch('/api/cards', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            cards: [
+              {
+                id: insertedWithPrompt.id,
+                image_url: generatedImageUrl,
+                image_prompt: trimmedPrompt,
+                shot_description: trimmedPrompt,
+                storyboard_status: 'ready',
+              },
+            ],
+          }),
+        })
+
+        const updatePayload = (await updateResponse.json().catch(() => ({}))) as {
+          error?: string
+        }
+
+        if (!updateResponse.ok) {
+          throw new Error(updatePayload?.error || '생성된 이미지를 저장하지 못했습니다.')
+        }
+
+        // SWR로 카드가 업데이트되면 derived를 통해 반영됨
+      } catch (error) {
+        // 오류 상태는 카드 업데이트 후 SWR을 통해 반영됨
+        throw error instanceof Error
+          ? error
+          : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
+      }
+    },
+    [userId, projectId, ratio, projectCharacters]
+  )
+
+  // 비디오 관련 핸들러 (커스텀 훅에서 가져옴)
+
+  useEffect(() => {
+    if (!videoPreview) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setVideoPreview(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [videoPreview])
+
+  // 현재 프레임 안정적 참조
+  const currentFrame = useMemo(() => derived.frames[index] || null, [derived.frames, index])
+
+  // 공통 프레임 조작 핸들러
+  const handleFrameDeleteLocal = useCallback(async (frameId: string) => {
+    try {
+      const newFrames = await handleDeleteFrame(frameId)
+      if (newFrames) {
+        setIndex(prev => (newFrames.length === 0 ? 0 : Math.min(prev, newFrames.length - 1)))
+      }
+    } catch (error) {
+      console.error('Failed to delete frame:', error)
+    }
+  }, [handleDeleteFrame])
+
+  const handleFrameAddLocal = useCallback(async (insertIndex?: number) => {
+    try {
+      const newFrames = await handleAddFrame(insertIndex)
+      if (newFrames) {
+        setIndex(insertIndex ?? newFrames.length - 1)
+      }
+    } catch (error) {
+      console.error('Failed to add frame:', error)
+    }
+  }, [handleAddFrame])
+  
+  const canShowWidthControlsPanel =
+    viewMode === 'storyboard' && (!isClient || storyboardViewMode === 'grid')
+
+  // 카드 선택 취소 함수
+  const handleDeselectCard = useCallback(() => {
+    setIndex(-1) // 선택 해제
+  }, [])
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      <div className="max-w-4xl mx-auto text-center">
-        {/* 메인 아이콘 */}
-        <div className="mb-12">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-neutral-900 rounded-2xl mb-6">
-            <Film className="w-12 h-12 text-neutral-400" />
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-4">Create Your Content</h1>
-          <p className="text-xl text-neutral-300 max-w-2xl mx-auto leading-relaxed">
-            Start creating your visual content. You can generate content with AI assistance or build
-            it manually from scratch.
-          </p>
-        </div>
+    <div>
+      <div className="w-full px-4">
+        {/* Header 라인: FloatingHeader + ViewModeToggle */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1280px]">
+          {/* FloatingHeader */}
+          <FloatingHeader
+            title={derived.title}
+            index={index}
+            total={derived.frames.length}
+            currentView={viewMode}
+            onNavigateToStoryboard={handleNavigateToStoryboard}
+            onNavigateToCharacters={handleNavigateToCharacters}
+            isWidthPanelOpen={showWidthControls}
+            onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
+            layout="inline"
+            containerClassName="mx-auto w-full sm:w-auto"
+            className="mx-auto w-full max-w-[1040px] sm:pr-16"
+          />
 
-        {/* 옵션 카드들 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-12">
-          {/* AI 생성 옵션 */}
-          <div className="group relative">
-            <button
-              onClick={navigateToSetup}
-              className="w-full p-8 bg-neutral-900 border-2 border-neutral-800 hover:border-blue-500 rounded-2xl transition-all duration-300 hover:bg-neutral-800 hover:scale-105 text-left"
-            >
-              <div className="flex items-center justify-center w-16 h-16 bg-blue-500/10 rounded-xl mb-6 group-hover:bg-blue-500/20 transition-colors">
-                <Sparkles className="w-8 h-8 text-blue-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Start with AI</h3>
-              <p className="text-neutral-400 leading-relaxed">
-                Let AI help you create professional visual content with smart suggestions and
-                automated generation from your script.
-              </p>
-              <div className="mt-6 inline-flex items-center text-blue-400 font-medium">
-                <span>Get Started</span>
-                <svg
-                  className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
-            </button>
-          </div>
-
-          {/* 빈 스토리보드 옵션 */}
-          <div className="group relative">
-            <button
-              onClick={navigateToStoryboard}
-              disabled={creating}
-              className={`w-full p-8 border-2 rounded-2xl transition-all duration-300 text-left ${
-                creating
-                  ? 'bg-neutral-900 border-neutral-800 cursor-not-allowed opacity-50'
-                  : 'bg-neutral-900 border-neutral-800 hover:border-neutral-600 hover:bg-neutral-800 hover:scale-105'
-              }`}
-            >
+          {canShowWidthControlsPanel && (
+            <>
               <div
-                className={`flex items-center justify-center w-16 h-16 rounded-xl mb-6 transition-colors ${
-                  creating ? 'bg-neutral-800' : 'bg-neutral-800 group-hover:bg-neutral-700'
-                }`}
+                className="hidden sm:absolute sm:block sm:-translate-y-1/2 relative z-[60]"
+                style={{ top: '80px', left: 'calc(50% - min(100%, 65rem) / 2 - 13.5rem)' }}
               >
-                {creating ? (
-                  <svg
-                    className="w-6 h-6 animate-spin text-neutral-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                ) : (
-                  <FileText className="w-8 h-8 text-neutral-400" />
-                )}
+                <StoryboardWidthControls
+                  visible={showWidthControls}
+                  cardWidthMin={CARD_WIDTH_MIN}
+                  cardWidthMax={CARD_WIDTH_MAX}
+                  normalizedCardWidth={clampCardWidth(cardWidth)}
+                  onCardWidthChange={handleCardWidthChange}
+                  aspectRatio={ratio}
+                  onAspectRatioChange={setRatio}
+                  onClose={() => setShowWidthControls(false)}
+                  className="mx-auto sm:mx-0"
+                />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">
-                {creating ? 'Creating...' : 'Manual Creation'}
-              </h3>
-              <p className="text-neutral-400 leading-relaxed">
-                {creating
-                  ? 'Setting up your content workspace...'
-                  : 'Start with a blank canvas and create your content manually. Full creative control over your project.'}
-              </p>
-              {!creating && (
-                <div className="mt-6 inline-flex items-center text-neutral-300 font-medium">
-                  <span>Start Empty</span>
-                  <svg
-                    className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+              {showWidthControls ? (
+                <div className="mt-4 sm:hidden">
+                  <StoryboardWidthControls
+                    visible={showWidthControls}
+                    cardWidthMin={CARD_WIDTH_MIN}
+                    cardWidthMax={CARD_WIDTH_MAX}
+                    normalizedCardWidth={clampCardWidth(cardWidth)}
+                    onCardWidthChange={handleCardWidthChange}
+                    aspectRatio={ratio}
+                    onAspectRatioChange={setRatio}
+                    onClose={() => setShowWidthControls(false)}
+                  />
                 </div>
-              )}
-            </button>
-          </div>
+              ) : null}
+            </>
+          )}
+
+          {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
+          {viewMode === 'storyboard' && (
+            <div className="absolute top-0 right-0 pointer-events-auto">
+              <div className="bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-3 py-3">
+                <ViewModeToggle
+                  viewMode={isClient ? storyboardViewMode : 'grid'}
+                  onSetGrid={() => setStoryboardViewMode('grid')}
+                  onSetList={() => setStoryboardViewMode('list')}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 하단 도움말 */}
-        <div className="text-neutral-500 text-sm">
-          <p>Your content will be created and you&apos;ll be taken to the editor automatically</p>
-        </div>
+        {/* 스토리보드 뷰 */}
+        {viewMode === 'storyboard' && (
+          <>
+            {/* Error message */}
+            {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
+
+            {/* 콘텐츠 렌더링 */}
+            {derived.frames.length === 0 && cardsLoading && (
+              <LoadingGrid 
+                cardsLength={0} 
+                aspectRatio={ratio}
+                cardWidth={cardWidth}
+              />
+            )}
+
+            {derived.frames.length === 0 && !cardsLoading && (
+              <EmptyStoryboardState 
+                onCreateFirstCard={async () => {
+                  try {
+                    const newFrames = await handleAddFrame()
+                    if (newFrames) { setIndex(0) }
+                  } catch (error) {
+                    console.error('Failed to create first card:', error)
+                  }
+                }} 
+              />
+            )}
+
+            {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
+              <FrameGrid
+                frames={derived.frames}
+                onFrameOpen={(frameIndex) => {
+                  setIndex(frameIndex)
+                }}
+                onFrameEdit={frameId => {
+                  const frameData = derived.frames.find(f => f.id === frameId)
+                  if (frameData) setEditingFrame(frameData)
+                }}
+                onFrameDelete={handleFrameDeleteLocal}
+                onAddFrame={handleFrameAddLocal}
+                deletingFrameId={deletingFrameId}
+                loading={cardsLoading}
+                cardsLength={queryCards.length}
+                onGenerateVideo={async (frameId) => {
+                  try {
+                    await handleGenerateVideo(frameId, derived.frames)
+                    // Update frames with video data
+                    // derived 기반이라 setFrames 필요 없음
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Failed to generate video')
+                  }
+                }}
+                onPlayVideo={(frameId) => {
+                  try {
+                    handlePlayVideo(frameId, derived.frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'No video available')
+                  }
+                }}
+                generatingVideoId={generatingVideoId}
+                aspectRatio={ratio}
+                cardWidth={cardWidth}
+                selectedFrameId={index >= 0 ? derived.frames[index]?.id : undefined}
+                onBackgroundClick={handleDeselectCard}
+                onReorder={(fromIndex, toIndex) => {
+                  const result = handleReorderFrames(fromIndex, toIndex)
+                  if (result) {
+                    setIndex(result.newIndex)
+                  }
+                }}
+              />
+            )}
+
+            {derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
+              <FrameList
+                frames={derived.frames}
+                onFrameEdit={(frameIndex) => {
+                  setIndex(frameIndex)
+                }}
+                onFrameEditMetadata={frameId => {
+                  const frameData = derived.frames.find(f => f.id === frameId)
+                  if (frameData) setEditingFrame(frameData)
+                }}
+                onFrameDelete={handleFrameDeleteLocal}
+                onAddFrame={handleFrameAddLocal}
+                deletingFrameId={deletingFrameId}
+                onGenerateVideo={async (frameId) => {
+                  try {
+                    await handleGenerateVideo(frameId, derived.frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Failed to generate video')
+                  }
+                }}
+                onPlayVideo={(frameId) => {
+                  try {
+                    handlePlayVideo(frameId, derived.frames)
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'No video available')
+                  }
+                }}
+                generatingVideoId={generatingVideoId}
+                aspectRatio={ratio}
+                selectedFrameId={index >= 0 ? derived.frames[index]?.id : undefined}
+              />
+            )}
+          </>
+        )}
+
+        {/* 프레임 편집 모달 */}
+        {editingFrame && (
+          <FrameEditModal
+            frame={editingFrame}
+            projectId={projectId}
+            onClose={() => setEditingFrame(null)}
+            onSaved={() => {
+              // SWR에 의해 자동 반영되므로 모달만 닫음
+              setEditingFrame(null)
+            }}
+          />
+        )}
       </div>
+
+      {/* 하단 고정 프롬프트 입력 바 */}
+      {!editingFrame && (
+        <PromptDock
+          projectId={projectId}
+          aspectRatio={ratio}
+          onAspectRatioChange={setRatio}
+          selectedShotNumber={
+            index >= 0 && derived.frames[index]
+              ? derived.frames[index].scene || index + 1
+              : undefined
+          }
+          mode={promptDockMode}
+          onModeChange={setPromptDockMode}
+          referenceImageUrl={
+            index >= 0 && derived.frames[index] ? derived.frames[index].imageUrl : undefined
+          }
+          onCreateFrame={async (imageUrl: string) => {
+            try {
+              const hasSelection = index >= 0 && Boolean(derived.frames[index])
+              if (hasSelection) {
+                const targetFrame = derived.frames[index]
+                const targetCardId = targetFrame.id
+                const targetCard = (queryCards || []).find((c: Card) => c.id === targetCardId)
+
+                const prevImage = targetCard?.image_url || targetFrame.imageUrl
+                const existingHistory = Array.isArray(targetCard?.image_urls) ? targetCard!.image_urls! : []
+                const newHistory = prevImage ? [...existingHistory, prevImage] : existingHistory
+
+                await patchCards([
+                  {
+                    id: targetCardId,
+                    image_url: imageUrl,
+                    image_urls: newHistory,
+                    selected_image_url: 0,
+                    storyboard_status: 'ready',
+                  } as Partial<Card>,
+                ])
+                return
+              }
+
+              const newFrames = await handleAddFrame()
+              if (newFrames && newFrames.length) {
+                // derived로 반영됨
+              }
+            } catch (e) {
+              console.error('Failed to apply generated image:', e)
+            }
+          }}
+        />
+      )}
+
+
+      {videoPreview && (
+        <VideoPreviewModal 
+          url={videoPreview.url} 
+          onClose={() => setVideoPreview(null)} 
+        />
+      )}
     </div>
   )
 }

@@ -11,18 +11,18 @@ export const useStoryboardNavigation = (
   const router = useRouter()
 
   const handleNavigateToStoryboard = useCallback(() => {
-    const newUrl = `/project/${projectId}/storyboard/${projectId}`
+    const newUrl = `/project/${projectId}/storyboard`
     router.replace(newUrl, { scroll: false })
     onViewModeChange?.('storyboard')
   }, [projectId, router, onViewModeChange])
 
   const handleNavigateToCharacters = useCallback(() => {
-    router.push(`/project/${projectId}/storyboard/${projectId}/characters`)
+    router.push(`/project/${projectId}/storyboard/characters`)
   }, [projectId, router])
 
   const handleOpenFrame = useCallback(
     (frameIndex: number) => {
-      const newUrl = `/project/${projectId}/storyboard/${projectId}?frame=${frameIndex + 1}`
+      const newUrl = `/project/${projectId}/storyboard?frame=${frameIndex + 1}`
       router.replace(newUrl, { scroll: false })
     },
     [projectId, router]

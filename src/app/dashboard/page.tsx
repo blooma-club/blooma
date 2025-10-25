@@ -42,8 +42,8 @@ export default function DashboardPage() {
       
       const data = await createProject(projectData)
       
-      // 프로젝트 생성 후 바로 스토리보드 페이지로 이동
-      router.push(`/project/${data.id}/storyboard`)
+      // 프로젝트 생성 후 프로젝트 인덱스로 이동 (리디렉션 처리)
+      router.push(`/project/${data.id}`)
     } catch (error) {
       console.error('Error creating project:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

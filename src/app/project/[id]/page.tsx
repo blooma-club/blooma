@@ -3,7 +3,7 @@
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { loadLastStoryboardId } from '@/lib/localStorage'
+import { loadDraftFromLocal, loadLastStoryboardId } from '@/lib/localStorage'
 
 // Project index: determine default destination based on existing storyboard data.
 export default function ProjectIndexRedirect() {
@@ -21,14 +21,21 @@ export default function ProjectIndexRedirect() {
 
     // storyboard ID가 이미 생성되었는지 확인
     const lastSbId = loadLastStoryboardId(id)
-    
     if (lastSbId) {
       // sbId가 있으면 편집기로 직접 이동
-      router.replace(`/project/${id}/storyboard/${lastSbId}`)
-    } else {
-      // sbId가 없으면 생성 옵션 페이지로 이동
       router.replace(`/project/${id}/storyboard`)
+      return
     }
+
+    const savedDraft = loadDraftFromLocal(id)
+    if (savedDraft) {
+      // 스크립트 편집을 진행 중이라면 셋업 단계로 이동
+      router.replace(`/project/${id}/setup`)
+      return
+    }
+
+    // sbId가 없고 드래프트도 없으면 생성 옵션 페이지로 이동
+    router.replace(`/project/${id}/storyboard/start`)
   }, [id, isLoaded, router])
 
   return (

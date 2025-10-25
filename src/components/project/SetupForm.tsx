@@ -389,7 +389,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         clearSavedDraft()
         saveLastStoryboardId(newProjectId, newProjectId)
 
-        const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard/${encodeURIComponent(newProjectId)}?view=editor`
+        const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard?view=editor`
         console.log('[SETUP] Navigating directly to editor:', newUrl)
 
         router.replace(newUrl)

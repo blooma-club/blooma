@@ -2,6 +2,7 @@
 export interface StoryboardFrame {
   id: string
   imageUrl?: string
+  imageHistory?: string[]
   scene: number
   shotDescription: string
   shot: string

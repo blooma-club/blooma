@@ -35,12 +35,11 @@ const mapApiCharacter = (character: ApiCharacter): CharacterWizardCharacter => (
 })
 
 export default function ProjectCharactersPage() {
-  const params = useParams() as { id?: string; sbId?: string }
+  const params = useParams<{ id?: string }>()
   const router = useRouter()
   const { user } = useUser()
 
   const projectId = params?.id
-  const storyboardId = params?.sbId
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -112,13 +111,13 @@ export default function ProjectCharactersPage() {
 
   const handleNavigateToStoryboard = useCallback(() => {
     if (!projectId) return
-    router.replace(`/project/${projectId}/storyboard/${projectId}`)
+    router.replace(`/project/${projectId}/storyboard`)
   }, [projectId, router])
 
   const handleNavigateToCharacters = useCallback(() => {
-    if (!projectId || !storyboardId) return
-    router.push(`/project/${projectId}/storyboard/${storyboardId}/characters`)
-  }, [projectId, router, storyboardId])
+    if (!projectId) return
+    router.push(`/project/${projectId}/storyboard/characters`)
+  }, [projectId, router])
 
   return (
     <div>

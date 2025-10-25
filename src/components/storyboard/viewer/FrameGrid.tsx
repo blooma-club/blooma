@@ -97,14 +97,10 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const gridTemplateColumns = useMemo(() => {
-    // 드래그 중에는 고정된 컬럼 수로 레이아웃 완전 고정
-    if (activeId) {
-      return `repeat(${Math.max(frames.length, 1)}, ${normalizedCardWidth}px)`
-    }
-    // 평상시에는 반응형 그리드
-    return `repeat(auto-fill, ${normalizedCardWidth}px)`
-  }, [activeId, frames.length, normalizedCardWidth])
+  const gridTemplateColumns = useMemo(
+    () => `repeat(auto-fill, ${normalizedCardWidth}px)`,
+    [normalizedCardWidth]
+  )
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
