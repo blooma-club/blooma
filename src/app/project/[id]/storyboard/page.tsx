@@ -13,7 +13,7 @@ import FrameList from '@/components/storyboard/viewer/FrameList'
 import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import PromptDock from '@/components/storyboard/PromptDock'
-import { cardToFrame, verifyProjectOwnership } from '@/lib/utils'
+import { cardToFrame } from '@/lib/utils'
 import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
@@ -186,24 +186,6 @@ export default function StoryboardPage() {
 
   // viewportWidth 제거에 따라 resize 리스너도 제거
 
-  // 접근 권한 확인: 최초 1회 또는 주요 식별자 변경 시
-  useEffect(() => {
-    if (!projectId || !userId) return
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const ownershipResult = await verifyProjectOwnership(projectId, userId)
-        if (!cancelled) {
-          setError(ownershipResult.isOwner ? null : (ownershipResult.error || 'You do not have access to this project'))
-        }
-      } catch (e) {
-        if (!cancelled) setError('스토리보드를 불러올 수 없습니다.')
-      }
-    })()
-
-    return () => { cancelled = true }
-  }, [projectId, userId])
 
   // 쿼리 결과 동기화는 derived 파이프라인으로 대체
 

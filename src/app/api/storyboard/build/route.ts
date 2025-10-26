@@ -18,10 +18,6 @@ type ScriptModelRow = {
   script_title?: string | null
 }
 
-type ProjectOwnerRow = {
-  user_id: string
-}
-
 type InsertedCardLog = {
   id: string
   project_id: string
@@ -128,19 +124,6 @@ async function fetchScriptModel(
   }
 }
 
-async function ensureProjectOwnership(projectId: string, userId: string) {
-  const row = await queryD1Single<ProjectOwnerRow>(
-    `SELECT user_id
-     FROM projects
-     WHERE id = ?1
-     LIMIT 1`,
-    [projectId],
-  )
-
-  if (!row || row.user_id !== userId) {
-    throw new ResponseError('Project not found or access denied', 403)
-  }
-}
 
 async function insertCards(cards: PersistedCardInput[]) {
   if (cards.length === 0) {
@@ -279,8 +262,6 @@ export async function POST(req: Request) {
 
     const topTitle = scriptTitle || extractTitle(scriptContent)
     const scriptWithoutTitle = topTitle ? stripTitle(scriptContent) : scriptContent
-
-    await ensureProjectOwnership(projectId, userId)
 
     const sb = await createStoryboard({
       projectId,

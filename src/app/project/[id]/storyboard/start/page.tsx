@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Film, Sparkles, FileText } from 'lucide-react'
 import { useUser } from '@clerk/nextjs'
-import { verifyProjectOwnership } from '@/lib/utils'
 import { loadDraftFromLocal, saveLastStoryboardId } from '@/lib/localStorage'
 
 export default function StoryboardPage() {
@@ -37,22 +36,6 @@ export default function StoryboardPage() {
       }
 
       try {
-        // First verify that the user owns this project
-        console.log('[STORYBOARD] Verifying project ownership:', projectId, 'for user:', userId)
-        const ownershipResult = await verifyProjectOwnership(projectId, userId)
-
-        if (!ownershipResult.isOwner) {
-          console.error(
-            '[STORYBOARD] Project ownership verification failed:',
-            ownershipResult.error
-          )
-          setAccessError(ownershipResult.error || 'You do not have access to this project')
-          setCheckingStoryboard(false)
-          return
-        }
-
-        console.log('[STORYBOARD] Project ownership verified successfully')
-
         // Check if there are any cards in this project
         // This indicates that there are storyboards for this project
         console.log('[STORYBOARD] Checking for existing cards...')

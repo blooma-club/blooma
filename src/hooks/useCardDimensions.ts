@@ -41,7 +41,7 @@ export const useCardDimensions = (cardWidth: number, containerWidth: number) => 
   }, [containerMaxWidth, containerStep, containerWidth, normalizedCardWidth])
   
   const gridTemplateColumns = useMemo(
-    () => `repeat(auto-fit, minmax(${normalizedCardWidth}px, ${normalizedCardWidth}px))`,
+    () => `repeat(auto-fit, minmax(${normalizedCardWidth}px, 1fr))`,
     [normalizedCardWidth]
   )
 

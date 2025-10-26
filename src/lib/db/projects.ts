@@ -63,12 +63,6 @@ export class ProjectNotFoundError extends Error {
   }
 }
 
-export class ProjectOwnershipError extends Error {
-  constructor() {
-    super('Not authorized to modify this project')
-    this.name = 'ProjectOwnershipError'
-  }
-}
 
 export async function listProjectsForUser(userId: string): Promise<Project[]> {
   try {
@@ -125,10 +119,6 @@ export async function updateProjectForUser(
     throw new ProjectNotFoundError()
   }
 
-  if (existing.user_id !== userId) {
-    throw new ProjectOwnershipError()
-  }
-
   const now = new Date().toISOString()
 
   try {
@@ -159,10 +149,6 @@ export async function deleteProjectForUser(userId: string, projectId: string): P
   const existing = await getProjectById(projectId)
   if (!existing) {
     throw new ProjectNotFoundError()
-  }
-
-  if (existing.user_id !== userId) {
-    throw new ProjectOwnershipError()
   }
 
   try {
@@ -206,10 +192,6 @@ export async function duplicateProjectForUser(
   const existing = await getProjectById(projectId)
   if (!existing) {
     throw new ProjectNotFoundError()
-  }
-
-  if (existing.user_id !== userId) {
-    throw new ProjectOwnershipError()
   }
 
   const now = new Date().toISOString()

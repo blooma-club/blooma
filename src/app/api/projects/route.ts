@@ -8,7 +8,6 @@ import {
   updateProjectForUser,
   D1ProjectsTableError,
   ProjectNotFoundError,
-  ProjectOwnershipError,
 } from '@/lib/db/projects'
 import { D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
 
@@ -96,10 +95,6 @@ export async function DELETE(request: NextRequest) {
 function handleError(error: unknown): NextResponse {
   if (error instanceof ProjectNotFoundError) {
     return NextResponse.json({ error: error.message }, { status: 404 })
-  }
-
-  if (error instanceof ProjectOwnershipError) {
-    return NextResponse.json({ error: error.message }, { status: 403 })
   }
 
   if (error instanceof D1ConfigurationError) {

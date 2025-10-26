@@ -98,7 +98,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
   const [activeId, setActiveId] = useState<string | null>(null)
   const gridTemplateColumns = useMemo(
-    () => `repeat(auto-fill, ${normalizedCardWidth}px)`,
+    () => `repeat(auto-fit, minmax(${normalizedCardWidth}px, 1fr))`,
     [normalizedCardWidth]
   )
   const sensors = useSensors(
@@ -315,9 +315,6 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
     transition,
     zIndex: isDragging ? 15 : undefined,
     touchAction: 'none',
-    width: `${cardWidth}px`,
-    maxWidth: `${cardWidth}px`,
-    minWidth: `${cardWidth}px`,
     // 드래그 중에는 투명하게 만들어서 그리드 레이아웃 유지
     opacity: isDragging ? 0.3 : 1,
   }
@@ -366,3 +363,4 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
     </div>
   )
 }
+
