@@ -18,6 +18,34 @@ type CardPreviewRow = {
   selected_image_url?: unknown
 }
 
+type CardCloneRow = {
+  id: string
+  type?: string | null
+  title?: string | null
+  content?: string | null
+  user_input?: string | null
+  image_url?: string | null
+  image_urls?: string | null
+  selected_image_url?: number | string | null
+  image_key?: string | null
+  image_size?: number | string | null
+  image_type?: string | null
+  order_index?: number | string | null
+  next_card_id?: string | null
+  prev_card_id?: string | null
+  scene_number?: number | string | null
+  shot_type?: string | null
+  angle?: string | null
+  background?: string | null
+  mood_lighting?: string | null
+  dialogue?: string | null
+  sound?: string | null
+  image_prompt?: string | null
+  storyboard_status?: string | null
+  shot_description?: string | null
+  card_width?: number | string | null
+}
+
 export class D1ProjectsTableError extends Error {
   details?: unknown
 
@@ -171,6 +199,68 @@ export async function deleteProjectForUser(userId: string, projectId: string): P
   }
 }
 
+export async function duplicateProjectForUser(
+  userId: string,
+  projectId: string,
+): Promise<Project> {
+  const existing = await getProjectById(projectId)
+  if (!existing) {
+    throw new ProjectNotFoundError()
+  }
+
+  if (existing.user_id !== userId) {
+    throw new ProjectOwnershipError()
+  }
+
+  const now = new Date().toISOString()
+  const newProjectId = randomUUID()
+  const title = generateDuplicateTitle(existing.title)
+  const description = existing.description ?? null
+  const isPublic =
+    typeof existing.is_public === 'number'
+      ? existing.is_public
+      : existing.is_public
+        ? 1
+        : 0
+
+  try {
+    await queryD1(
+      `INSERT INTO projects (id, user_id, title, description, is_public, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
+      [newProjectId, userId, title, description, isPublic, now],
+    )
+  } catch (error) {
+    if (error instanceof D1ProjectsTableError) {
+      throw error
+    }
+    throw new D1ProjectsTableError('Unable to duplicate project in Cloudflare D1', error)
+  }
+
+  try {
+    await duplicateProjectCards(userId, projectId, newProjectId, now)
+  } catch (error) {
+    try {
+      await queryD1(`DELETE FROM projects WHERE id = ?1`, [newProjectId])
+    } catch {
+      // If cleanup fails, log and continue throwing the original error.
+      console.error('[duplicateProjectForUser] Failed to clean up project after error', error)
+    }
+
+    if (error instanceof D1ProjectsTableError) {
+      throw error
+    }
+
+    throw new D1ProjectsTableError('Unable to duplicate project cards in Cloudflare D1', error)
+  }
+
+  const created = await getProjectById(newProjectId)
+  if (!created) {
+    throw new D1ProjectsTableError('Project was duplicated but could not be re-fetched from D1')
+  }
+
+  return enrichProjectRow(created, userId)
+}
+
 async function getProjectById(projectId: string): Promise<ProjectRow | null> {
   try {
     return await queryD1Single<ProjectRow>(
@@ -281,6 +371,113 @@ function isMissingSchemaResource(error: D1QueryError): boolean {
     const lower = message.toLowerCase()
     return lower.includes('no such table') || lower.includes('no such column')
   })
+}
+
+async function duplicateProjectCards(
+  userId: string,
+  sourceProjectId: string,
+  targetProjectId: string,
+  timestamp: string,
+): Promise<void> {
+  const cards = await queryD1<CardCloneRow>(
+    `SELECT id, type, title, content, user_input, image_url, image_urls, selected_image_url,
+            image_key, image_size, image_type, order_index, next_card_id, prev_card_id,
+            scene_number, shot_type, angle, background, mood_lighting, dialogue, sound,
+            image_prompt, storyboard_status, shot_description, card_width
+       FROM cards
+      WHERE project_id = ?1
+        AND user_id = ?2
+      ORDER BY order_index ASC, datetime(created_at) ASC`,
+    [sourceProjectId, userId],
+  )
+
+  if (cards.length === 0) {
+    return
+  }
+
+  const idMap = new Map<string, string>()
+  for (const card of cards) {
+    idMap.set(card.id, randomUUID())
+  }
+
+  for (const card of cards) {
+    const newCardId = idMap.get(card.id)
+    if (!newCardId) {
+      continue
+    }
+
+    const params = [
+      newCardId,
+      targetProjectId,
+      userId,
+      card.type ?? null,
+      card.title ?? null,
+      card.content ?? null,
+      card.user_input ?? null,
+      card.image_url ?? null,
+      card.image_urls ?? null,
+      parseNullableNumber(card.selected_image_url),
+      card.image_key ?? null,
+      parseNullableNumber(card.image_size),
+      card.image_type ?? null,
+      parseNullableNumber(card.order_index),
+      card.next_card_id ? idMap.get(card.next_card_id) ?? null : null,
+      card.prev_card_id ? idMap.get(card.prev_card_id) ?? null : null,
+      parseNullableNumber(card.scene_number),
+      card.shot_type ?? null,
+      card.angle ?? null,
+      card.background ?? null,
+      card.mood_lighting ?? null,
+      card.dialogue ?? null,
+      card.sound ?? null,
+      card.image_prompt ?? null,
+      card.storyboard_status ?? null,
+      card.shot_description ?? null,
+      parseNullableNumber(card.card_width),
+      timestamp,
+      timestamp,
+    ]
+
+    await queryD1(
+      `INSERT INTO cards (
+         id, project_id, user_id, type, title, content, user_input,
+         image_url, image_urls, selected_image_url, image_key, image_size, image_type,
+         order_index, next_card_id, prev_card_id, scene_number, shot_type, angle,
+         background, mood_lighting, dialogue, sound, image_prompt, storyboard_status,
+         shot_description, card_width, created_at, updated_at
+       ) VALUES (
+         ?1, ?2, ?3, ?4, ?5, ?6, ?7,
+         ?8, ?9, ?10, ?11, ?12, ?13,
+         ?14, ?15, ?16, ?17, ?18, ?19,
+         ?20, ?21, ?22, ?23, ?24, ?25, ?26,
+         ?27, ?28, ?29
+       )`,
+      params,
+    )
+  }
+}
+
+function generateDuplicateTitle(original: string): string {
+  if (!original || original.trim().length === 0) {
+    return 'Untitled Project (Copy)'
+  }
+
+  const trimmed = original.trim()
+  return trimmed.endsWith('(Copy)') ? `${trimmed} 2` : `${trimmed} (Copy)`
+}
+
+function parseNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 function resolvePreviewImage(card: CardPreviewRow): string | null {

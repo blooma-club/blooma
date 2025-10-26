@@ -26,7 +26,8 @@ export function parseScript(raw: string): ParsedScene[] {
   normalized = normalized.replace(/\*\*/g, '')
   // Support variants: Shot 1, Shot #1 (preferred), and legacy Scene 1, Scene #1, 씬 1
   // More permissive: optional punctuation after label, optional numeric id
-  const headerRegex = /(^|\n)\s*(?:Shot|SHOT|Scene|SCENE|씬)\s*[:#-]?\s*(\d+)?\b([^\n]*)/g
+  const headerRegex =
+    /(^|\n)\s*(?:Shot|SHOT|Scene|SCENE|씬)\b(?!\s*(?:Description|DESCRIPTION|Desc|DESC|description|desc))\s*[:#-]?\s*(\d+)?\b([^\n]*)/g
   type Idx = { idx: number; label: string; full?: string }
   const indices: Idx[] = []
   let m: RegExpExecArray | null
@@ -34,6 +35,12 @@ export function parseScript(raw: string): ParsedScene[] {
     // Build a safe label from captured groups; regex only defines up to m[3]
     const fullLabel = `${m[2] || ''} ${m[3] || ''}`.trim()
     indices.push({ idx: m.index + (m[1] ? m[1].length : 0), label: fullLabel, full: m[0] })
+  }
+  for (let i = indices.length - 1; i >= 0; i--) {
+    const header = (indices[i].full || indices[i].label || '').trim()
+    if (/^shot\s+description\b/i.test(header) || /^scene\s+description\b/i.test(header)) {
+      indices.splice(i, 1)
+    }
   }
   // Fallback to legacy pattern
   if (indices.length === 0) {
@@ -87,8 +94,8 @@ export function parseScript(raw: string): ParsedScene[] {
     const start = indices[i].idx
     const end = i + 1 < indices.length ? indices[i + 1].idx : normalized.length
     const block = normalized.slice(start, end).trim()
-  const headerRaw = indices[i].full || indices[i].label || ''
-  const numMatch = headerRaw.match(/(?:Shot|SHOT|Scene|SCENE|씬)\s*#?\s*(\d+)/)
+    const headerRaw = indices[i].full || indices[i].label || ''
+    const numMatch = headerRaw.match(/(?:Shot|SHOT|Scene|SCENE|씬)\s*#?\s*(\d+)/)
     const sceneNumber = numMatch ? Number(numMatch[1]) : undefined
     const shotDescriptionRaw = extract('Shot Description', block) || extract('Description', block) || ''
     const shotDescription = shotDescriptionRaw.trim()

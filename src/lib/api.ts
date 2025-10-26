@@ -1,4 +1,4 @@
-import useSWR, { mutate } from 'swr'
+import useSWR from 'swr'
 import { useAuth } from '@clerk/nextjs'
 import type { Project, ProjectInput, Card } from '@/types'
 
@@ -11,7 +11,7 @@ const fetcher = async (url: string) => {
 // 프로젝트 관리
 export const useProjects = () => {
   const { userId } = useAuth()
-  const { data, error, isLoading, mutate: mutateProjects } = useSWR(
+  const { data, isLoading, mutate: mutateProjects } = useSWR(
     userId ? '/api/projects' : null, 
     fetcher,
     {
@@ -21,7 +21,7 @@ export const useProjects = () => {
     }
   )
   
-  const projects = data?.data || []
+  const projects: Project[] = Array.isArray(data?.data) ? data.data : []
   
   const createProject = async (projectData: ProjectInput) => {
     const tempId = 'temp-' + Date.now()
@@ -101,14 +101,49 @@ export const useProjects = () => {
       throw new Error('업데이트 실패')
     }
   }
+
+  const duplicateProject = async (projectId: string) => {
+    const response = await fetch(`/api/projects/${projectId}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to duplicate')
+    }
+
+    const result = await response.json()
+    const duplicated = result?.data as Project | undefined
+    if (!duplicated) {
+      throw new Error('Duplicate response missing project data')
+    }
+
+    mutateProjects(
+      (prev: { data: Project[] } | undefined) => {
+        const currentData: Project[] = Array.isArray(prev?.data) ? prev.data : []
+        const base = currentData.slice()
+        const index = base.findIndex(project => project.id === projectId)
+        if (index === -1) {
+          return { data: [duplicated, ...base] }
+        }
+
+        base.splice(index + 1, 0, duplicated)
+        return { data: base }
+      },
+      false,
+    )
+
+    return duplicated
+  }
   
-  return { projects, isLoading, createProject, deleteProject, updateProject }
+  return { projects, isLoading, createProject, deleteProject, updateProject, duplicateProject }
 }
 
 // 카드 관리
 export const useCards = (projectId: string) => {
   const { userId } = useAuth()
-  const { data, error, isLoading, mutate: mutateCards } = useSWR(
+  const { data, isLoading, mutate: mutateCards } = useSWR(
     userId && projectId ? `/api/cards?project_id=${projectId}` : null,
     fetcher,
     {

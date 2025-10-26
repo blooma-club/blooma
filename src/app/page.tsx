@@ -12,10 +12,60 @@ import {
 import Image from 'next/image'
 import ThemeToggle from '@/components/ui/theme-toggle'
 
+const FALLBACK_USER = {
+  isLoaded: true,
+  isSignedIn: false,
+  isSignedOut: true,
+  user: null,
+  // Provide a stable noop to satisfy the Clerk hook contract when auth is disabled.
+  setActive: async () => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[clerk] setActive called without a configured ClerkProvider.')
+    }
+  },
+} as ReturnType<typeof useUser>
+
+const FALLBACK_SIGN_OUT: ReturnType<typeof useClerk>['signOut'] = async () => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[clerk] signOut called without a configured ClerkProvider.')
+  }
+}
+
+let warnedAboutMissingClerk = false
+function useOptionalUser() {
+  try {
+    return useUser()
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production' && !warnedAboutMissingClerk) {
+      console.warn(
+        '[clerk] Falling back to an unauthenticated state because ClerkProvider is not available. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable authentication.',
+        error
+      )
+      warnedAboutMissingClerk = true
+    }
+    return FALLBACK_USER
+  }
+}
+
+function useOptionalSignOut() {
+  try {
+    return useClerk().signOut
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production' && !warnedAboutMissingClerk) {
+      console.warn(
+        '[clerk] Falling back to a noop signOut because ClerkProvider is not available. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable authentication.',
+        error
+      )
+      warnedAboutMissingClerk = true
+    }
+    return FALLBACK_SIGN_OUT
+  }
+}
+
 export default function Home() {
   const router = useRouter()
-  const { user } = useUser()
-  const { signOut } = useClerk()
+  const { user } = useOptionalUser()
+  const signOut = useOptionalSignOut()
 
   return (
     <div className="flex flex-col min-h-screen">

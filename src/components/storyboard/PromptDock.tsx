@@ -2,7 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { ArrowUp, Sparkles, ChevronDown, RefreshCw, Plus, Edit3 } from 'lucide-react'
+import { ChevronDown, Plus, Edit3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -29,19 +29,17 @@ type PromptDockProps = {
   referenceImageUrl?: string
 }
 
-const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16']
-
-export const PromptDock: React.FC<PromptDockProps> = ({
-  projectId,
-  aspectRatio = '16:9',
-  onAspectRatioChange,
-  onCreateFrame,
-  selectedShotNumber,
-  className,
-  mode,
-  onModeChange,
-  referenceImageUrl,
-}) => {
+export const PromptDock: React.FC<PromptDockProps> = props => {
+  const {
+    projectId,
+    aspectRatio = '16:9',
+    onCreateFrame,
+    selectedShotNumber,
+    className,
+    mode,
+    onModeChange,
+    referenceImageUrl,
+  } = props
   const [internalMode, setInternalMode] = React.useState<'generate' | 'edit'>('generate')
   const isControlled = typeof mode !== 'undefined'
   const currentMode = isControlled ? (mode as 'generate' | 'edit') : internalMode
@@ -53,7 +51,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
   const { push: showToast } = useToast()
 
   const [prompt, setPrompt] = React.useState('')
-  const [selectedRatio, setSelectedRatio] = React.useState<StoryboardAspectRatio>(aspectRatio)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -71,9 +68,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
     }
   }, [selectedModel, models])
 
-  React.useEffect(() => {
-    setSelectedRatio(aspectRatio)
-  }, [aspectRatio])
   React.useEffect(() => {
     if (isControlled && mode) {
       setInternalMode(mode)
@@ -122,7 +116,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
     console.log('[PromptDock] Submitting with:', {
       prompt: trimmed,
       modelId,
-      aspectRatio: selectedRatio,
+      aspectRatio,
       currentMode,
       referenceImageUrl,
     })
@@ -132,7 +126,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
       const requestBody: any = {
         prompt: trimmed,
         modelId,
-        aspectRatio: selectedRatio,
+        aspectRatio,
       }
 
       // Edit 모드일 때 레퍼런스 이미지 추가
@@ -219,7 +213,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
         {/* 실제 컨텐츠 */}
         <div className="relative bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 shadow-xl p-4 md:p-5">
           <div className="flex flex-col gap-3 md:gap-4">
-            {/* 상단: 모드 탭, 배지, 모델/비율 선택 */}
+            {/* 상단: 모드 탭, 배지, 모델 선택 */}
             <div className="flex items-center justify-between gap-3">
               {/* 왼쪽: 탭과 배지 */}
               <div className="flex items-center gap-3 min-w-0">
@@ -264,7 +258,7 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                 )}
               </div>
 
-              {/* 오른쪽: 모델과 비율 선택 */}
+              {/* 오른쪽: 모델 선택 */}
               <div className="flex items-center gap-2 flex-shrink-0">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -301,39 +295,6 @@ export const PromptDock: React.FC<PromptDockProps> = ({
                         )}
                       >
                         {m.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={clsx(
-                        baseControlTriggerClass,
-                        'min-w-[90px] md:min-w-[100px]',
-                        'border-neutral-700/50 hover:border-neutral-600/70'
-                      )}
-                    >
-                      <span className="text-xs md:text-sm font-medium">{selectedRatio}</span>
-                      <ChevronDown className="h-3 w-3 opacity-60 flex-shrink-0" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-44 rounded-lg border border-neutral-200/60 dark:border-neutral-800/60 bg-white/95 dark:bg-neutral-900/95 p-1 backdrop-blur-xl z-[80]">
-                    {ASPECT_RATIO_OPTIONS.map(r => (
-                      <DropdownMenuItem
-                        key={r}
-                        onClick={() => {
-                          setSelectedRatio(r)
-                          onAspectRatioChange?.(r)
-                        }}
-                        className={clsx(
-                          'rounded-md px-2.5 py-1.5 text-xs text-neutral-700 dark:text-neutral-100 transition-colors focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-800 dark:focus:text-neutral-100',
-                          selectedRatio === r && 'bg-neutral-200/60 dark:bg-neutral-700/60'
-                        )}
-                      >
-                        {r}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>

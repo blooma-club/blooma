@@ -30,7 +30,7 @@ interface FrameGridProps {
   onFrameOpen: (frameIndex: number) => void
   onFrameEdit: (frameId: string) => void
   onFrameDelete: (frameId: string) => void
-  onAddFrame: (insertIndex?: number) => void
+  onAddFrame: (insertIndex?: number, duplicateFrameId?: string) => void
   deletingFrameId?: string | null
   loading?: boolean
   cardsLength?: number
@@ -220,8 +220,8 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onOpen={() => onFrameOpen(index)}
                   onEdit={() => onFrameEdit(frame.id)}
                   onDelete={() => onFrameDelete(frame.id)}
-                  onAddBefore={() => onAddFrame(index)}
-                  onAddAfter={() => onAddFrame(index + 1)}
+                  onAddBefore={() => onAddFrame(index, frame.id)}
+                  onAddAfter={() => onAddFrame(index + 1, frame.id)}
                   onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
                   onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
                   isGeneratingVideo={generatingVideoId === frame.id}
@@ -261,7 +261,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
               sceneNumber={frames.findIndex(frame => frame.id === activeFrame.id) + 1}
               imageUrl={activeFrame.imageUrl}
               status={activeFrame.status}
-              imageFit="cover"
+              imageFit="contain"
               aspectRatio={aspectRatio}
             />
           </div>
@@ -346,7 +346,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         sceneNumber={index + 1}
         imageUrl={frame.imageUrl}
         status={frame.status}
-        imageFit="cover"
+        imageFit="contain"
         deleting={deleting}
         onOpen={onOpen}
         onEdit={onEdit}

@@ -19,12 +19,20 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [creatingProject, setCreatingProject] = useState(false)
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set())
+  const [duplicatingProjects, setDuplicatingProjects] = useState<Set<string>>(new Set())
 
   // Clerk의 userId 추출
   const userId = user?.id || null
 
   // SWR 훅 사용
-  const { projects, isLoading, createProject, deleteProject, updateProject } = useProjects()
+  const {
+    projects,
+    isLoading,
+    createProject,
+    deleteProject,
+    updateProject,
+    duplicateProject,
+  } = useProjects()
 
   const handleCreateProject = async () => {
     if (!userId) {
@@ -74,6 +82,28 @@ export default function DashboardPage() {
       alert(`Failed to delete project: ${errorMessage}`)
     } finally {
       setDeletingProjects(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(projectId)
+        return newSet
+      })
+    }
+  }
+
+  const handleDuplicateProject = async (projectId: string) => {
+    if (!userId) {
+      alert('Please sign in to duplicate a project')
+      return
+    }
+
+    setDuplicatingProjects(prev => new Set(prev).add(projectId))
+    try {
+      await duplicateProject(projectId)
+    } catch (error) {
+      console.error('Error duplicating project:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Failed to duplicate project: ${errorMessage}`)
+    } finally {
+      setDuplicatingProjects(prev => {
         const newSet = new Set(prev)
         newSet.delete(projectId)
         return newSet
@@ -278,7 +308,9 @@ export default function DashboardPage() {
                 viewMode={viewMode}
                 onDelete={handleDeleteProject}
                 onUpdate={handleUpdateProject}
+                onDuplicate={handleDuplicateProject}
                 isDeleting={deletingProjects.has(project.id)}
+                isDuplicating={duplicatingProjects.has(project.id)}
               />
             ))}
             

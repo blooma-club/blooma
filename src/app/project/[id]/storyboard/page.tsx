@@ -365,9 +365,9 @@ export default function StoryboardPage() {
     }
   }, [handleDeleteFrame])
 
-  const handleFrameAddLocal = useCallback(async (insertIndex?: number) => {
+  const handleFrameAddLocal = useCallback(async (insertIndex?: number, duplicateFrameId?: string) => {
     try {
-      const newFrames = await handleAddFrame(insertIndex)
+      const newFrames = await handleAddFrame(insertIndex, duplicateFrameId)
       if (newFrames) {
         setIndex(insertIndex ?? newFrames.length - 1)
       }

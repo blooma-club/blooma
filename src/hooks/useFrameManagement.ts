@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
 import { createAndLinkCard } from '@/lib/cards'
-import { cardToFrame } from '@/lib/utils'
+import { cardToFrame, getImageUrlFromCard } from '@/lib/utils'
 import { clampCardWidth } from '@/lib/constants'
 import type { StoryboardFrame } from '@/types/storyboard'
 import { useCards } from '@/lib/api'
@@ -22,7 +22,7 @@ export const useFrameManagement = (
   const framesRef = useRef<StoryboardFrame[]>([])
 
   const handleAddFrame = useCallback(
-    async (insertIndex?: number) => {
+    async (insertIndex?: number, duplicateCardId?: string) => {
       if (!userId || !projectId) return
 
       const allCards = cards || []
@@ -76,7 +76,7 @@ export const useFrameManagement = (
             : { ...inserted, card_width: widthForCard }
 
         // 3) Replace temp with real, reindex, then persist order
-        let afterReplace: any[] = []
+        let afterReplace: Card[] = []
         mutate((prev: any) => {
           const base = Array.isArray(prev?.data) ? prev.data : []
           const idx = base.findIndex((c: any) => c.id === tempId)
@@ -92,23 +92,89 @@ export const useFrameManagement = (
             scene_number: i + 1,
             prev_card_id: i > 0 ? arr[i - 1].id : undefined,
             next_card_id: i < arr.length - 1 ? arr[i + 1].id : undefined,
-          }))
+          })) as Card[]
           afterReplace = reindexed
           return { data: reindexed }
         }, false)
 
-        // Persist ordering (id, order_index, scene_number, prev/next)
-        await updateCards(
-          afterReplace.map((c: any) => ({
-            id: c.id,
-            order_index: c.order_index,
-            scene_number: c.scene_number,
-            prev_card_id: c.prev_card_id,
-            next_card_id: c.next_card_id,
-          }))
-        )
+        const insertedCardId = normalizedInserted.id
+        let duplicateFields: Partial<Card> | null = null
 
-        return afterReplace.map((card: any, idx: number) => cardToFrame(card, idx))
+        if (duplicateCardId) {
+          const sourceCard = (cards || []).find(card => card.id === duplicateCardId)
+          const sourceFrame = framesRef.current.find(frame => frame.id === duplicateCardId) || null
+
+          const rawHistory = sourceCard?.image_urls
+          const historyFromCard = Array.isArray(rawHistory)
+            ? rawHistory.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+            : []
+          const historyFromFrame =
+            Array.isArray(sourceFrame?.imageHistory)
+              ? sourceFrame.imageHistory.filter(url => typeof url === 'string' && url.trim().length > 0)
+              : []
+          const duplicateHistory = historyFromCard.length
+            ? [...historyFromCard]
+            : historyFromFrame.length
+              ? [...historyFromFrame]
+              : []
+
+          const duplicateImageUrl =
+            (sourceCard ? getImageUrlFromCard(sourceCard) : undefined) ?? sourceFrame?.imageUrl
+
+          if (duplicateImageUrl) {
+            if (!duplicateHistory.includes(duplicateImageUrl)) {
+              duplicateHistory.unshift(duplicateImageUrl)
+            }
+
+            const selectedIndex = duplicateHistory.indexOf(duplicateImageUrl)
+
+            duplicateFields = {
+              image_url: duplicateImageUrl,
+              image_urls: duplicateHistory,
+              storyboard_status: sourceCard?.storyboard_status ?? sourceFrame?.status ?? 'ready',
+            }
+
+            if (selectedIndex >= 0) {
+              duplicateFields.selected_image_url = selectedIndex
+            }
+
+            if (sourceCard?.image_key) {
+              duplicateFields.image_key = sourceCard.image_key
+            }
+            if (typeof sourceCard?.image_size === 'number') {
+              duplicateFields.image_size = sourceCard.image_size
+            }
+            if (sourceCard?.image_type) {
+              duplicateFields.image_type = sourceCard.image_type
+            }
+          }
+        }
+
+        if (duplicateFields && insertedCardId) {
+          afterReplace = afterReplace.map(card =>
+            card.id === insertedCardId ? { ...card, ...duplicateFields } : card
+          )
+        }
+
+        const updates = afterReplace.map((card, idx, arr) => {
+          const baseUpdate: Partial<Card> = {
+            id: card.id,
+            order_index: idx,
+            scene_number: idx + 1,
+            prev_card_id: idx > 0 ? arr[idx - 1].id : undefined,
+            next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : undefined,
+          }
+
+          if (duplicateFields && card.id === insertedCardId) {
+            Object.assign(baseUpdate, duplicateFields)
+          }
+
+          return baseUpdate
+        })
+
+        await updateCards(updates)
+
+        return afterReplace.map((card, idx) => cardToFrame(card, idx))
       } catch (e) {
         // Rollback temp card
         mutate((prev: any) => {

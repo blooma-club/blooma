@@ -12,7 +12,7 @@ interface FrameListProps {
   onFrameEdit: (frameIndex: number) => void
   onFrameEditMetadata: (frameId: string) => void
   onFrameDelete: (frameId: string) => void
-  onAddFrame: (insertIndex?: number) => void
+  onAddFrame: (insertIndex?: number, duplicateFrameId?: string) => void
   deletingFrameId?: string | null
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
@@ -66,7 +66,7 @@ export const FrameList: React.FC<FrameListProps> = ({
       <div className="w-full max-w-[2000px] space-y-4">
         {frames.length > 0 && (
           <BetweenInsertRow
-            onAdd={() => onAddFrame(0)}
+            onAdd={() => onAddFrame(0, frames[0]?.id)}
             label="Add scene at the beginning"
           />
         )}
@@ -131,7 +131,7 @@ export const FrameList: React.FC<FrameListProps> = ({
               </div>
             </div>
             <BetweenInsertRow
-              onAdd={() => onAddFrame(i + 1)}
+              onAdd={() => onAddFrame(i + 1, frame.id)}
               label={`Add scene after scene ${i + 1}`}
             />
           </React.Fragment>

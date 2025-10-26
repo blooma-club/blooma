@@ -1,7 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useCallback, useEffect, useMemo } from 'react'
 import Image from 'next/image'
+import { DndProvider, useDrag, useDrop } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -13,15 +15,27 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 import { getImageGenerationModels, getModelInfo } from '@/lib/fal-ai'
+import { parseScript } from '@/lib/scriptParser'
+import { usePreviewScenesStore } from '@/store/previewScenes'
+import type { SceneEntry } from '@/store/previewScenes'
+import type { Character as CharacterModel } from './character-wizard/types'
 
-type Character = {
-  id: string
-  imageUrl?: string
+const CHARACTER_DRAG_TYPE = 'preview-character'
+
+type DraggedCharacterItem = {
+  type: typeof CHARACTER_DRAG_TYPE
+  character: CharacterModel
+}
+
+const createHandleFromName = (name?: string) => {
+  if (!name) return undefined
+  const compact = name.replace(/[^a-z0-9]+/gi, '').toLowerCase()
+  return compact ? `@${compact}` : undefined
 }
 
 type Props = {
   script: string
-  characters: Character[]
+  characters: CharacterModel[]
   onBack?: () => void
   onEditScript?: () => void
   onEditCharacters?: () => void
@@ -60,279 +74,466 @@ export default function PreviewPanel({
 
   const selectedStyle = stylePresets.find(entry => entry.id === visualStyle)
   const scriptLineCount = script?.trim() ? script.split('\n').filter(Boolean).length : 0
+  const parsedScenes = useMemo(() => parseScript(script || ''), [script])
+  const scenes = usePreviewScenesStore(state => state.scenes)
+  const initializeScenes = usePreviewScenesStore(state => state.initializeScenes)
+  const assignCharacterToScene = usePreviewScenesStore(state => state.assignCharacterToScene)
+  const removeCharacterFromScene = usePreviewScenesStore(state => state.removeCharacterFromScene)
+  const selectedModelInfo = useMemo(() => getModelInfo(selectedModel), [selectedModel])
+
+  useEffect(() => {
+    if (!script?.trim()) {
+      initializeScenes([])
+      return
+    }
+
+    const seeds = parsedScenes.map((scene, index) => {
+      const headerLine = scene.raw.split('\n')[0]?.trim() ?? ''
+      const fallbackTitle = scene.sceneNumber ? `Scene ${scene.sceneNumber}` : `Scene ${index + 1}`
+
+      let title = fallbackTitle
+      let description = scene.shotDescription.trim() || undefined
+
+      if (headerLine) {
+        let headerTitle = headerLine
+        let headerDescription: string | undefined
+
+        const colonIndex = headerLine.indexOf(':')
+        if (colonIndex >= 0) {
+          headerTitle = headerLine.slice(0, colonIndex).trim() || headerTitle
+          headerDescription = headerLine.slice(colonIndex + 1).trim() || undefined
+        } else {
+          const hyphenMatch = headerLine.match(/\s[-–—]\s/)
+          if (hyphenMatch && hyphenMatch.index !== undefined) {
+            headerTitle = headerLine.slice(0, hyphenMatch.index).trim() || headerTitle
+            headerDescription =
+              headerLine.slice(hyphenMatch.index + hyphenMatch[0].length).trim() || undefined
+          }
+        }
+
+        if (headerTitle) {
+          title = headerTitle
+        }
+        if (headerDescription) {
+          description = headerDescription
+        }
+      }
+
+      return {
+        id: `scene-${scene.sceneNumber ?? index + 1}-${index}`,
+        order: index,
+        title,
+        raw: scene.raw,
+        description,
+      }
+    })
+    initializeScenes(seeds)
+  }, [initializeScenes, parsedScenes, script])
+
+  const handleCharacterDrop = useCallback(
+    (sceneId: string, character: CharacterModel) => {
+      if (!character) return
+      assignCharacterToScene(sceneId, {
+        characterId: character.id,
+        characterName: character.name,
+        characterHandle: createHandleFromName(character.name),
+        characterImageUrl: character.imageUrl,
+        modelId: selectedModel,
+        modelLabel: selectedModelInfo?.name ?? selectedModel,
+      })
+    },
+    [assignCharacterToScene, selectedModel, selectedModelInfo]
+  )
+
+  const handleRemoveCharacter = useCallback(
+    (sceneId: string, characterId: string) => {
+      removeCharacterFromScene(sceneId, characterId)
+    },
+    [removeCharacterFromScene]
+  )
 
   return (
-    <div className="space-y-6 text-white">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <section className="space-y-6">
-          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-neutral-500">
-                  Generated script
-                </p>
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6 text-white">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <section className="space-y-6">
+            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-neutral-500">
+                    Generated script
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Drag a model card onto the matching script section to reference it during
+                    generation.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onEditScript}
+                    className="rounded-full border border-neutral-700 bg-neutral-900/90 px-4 text-xs text-white hover:bg-neutral-800"
+                  >
+                    Edit
+                  </Button>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
+                <span>{scriptLineCount} lines</span>
+                <span>{script.length} characters</span>
+              </div>
+              <div
+                className="mt-4 max-h-[420px] overflow-y-auto rounded-2xl p-5 text-sm leading-relaxed text-neutral-200"
+                aria-label="Script content"
+                tabIndex={0}
+              >
+                {script?.trim() ? (
+                  scenes.length > 0 ? (
+                    <div className="space-y-4">
+                      {scenes.map(scene => (
+                        <ScriptSceneDropZone
+                          key={scene.id}
+                          scene={scene}
+                          onDrop={handleCharacterDrop}
+                          onRemove={handleRemoveCharacter}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap">{script}</pre>
+                  )
+                ) : (
+                  'No script yet.'
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+              <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Models</p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onEditScript}
-                  className="rounded-full border border-neutral-700 bg-neutral-900/90 px-4 text-xs text-white hover:bg-neutral-800"
-                >
-                  Edit
-                </Button>
-
-                <Button
-                  type="button"
                   onClick={onEditCharacters}
-                  className="rounded-full bg-white px-4 text-xs font-semibold text-black hover:bg-neutral-200"
+                  className="rounded-full border border-neutral-700 bg-neutral-900/80 px-4 text-xs text-white hover:bg-neutral-800"
                 >
-                  Select
+                  Edit models
                 </Button>
               </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
-              <span>{scriptLineCount} lines</span>
-              <span>{script.length} characters</span>
-            </div>
-            <div
-              className="mt-4 max-h-[420px] overflow-y-auto rounded-2xl border border-neutral-800/80 bg-neutral-950/70 p-5 text-sm leading-relaxed text-neutral-200"
-              aria-label="Script content"
-              tabIndex={0}
-            >
-              {script?.trim() ? script : 'No script yet.'}
-            </div>
-          </div>
 
-          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
-            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Models</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onEditCharacters}
-                className="rounded-full border border-neutral-700 bg-neutral-900/80 px-4 text-xs text-white hover:bg-neutral-800"
-              >
-                Edit models
-              </Button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {characters && characters.length > 0 ? (
-                characters.map((character, index) => (
-                  <div
-                    key={character.id || index}
-                    className="overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-950"
-                  >
-                    <div className="relative w-full pb-[150%]">
-                      {character.imageUrl ? (
-                        <Image
-                          src={character.imageUrl}
-                          alt={`character-${index}`}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
-                          No image
-                        </div>
-                      )}
-                    </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {characters && characters.length > 0 ? (
+                  characters.map(character => (
+                    <DraggableCharacterCard key={character.id} character={character} />
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-neutral-700/80 bg-neutral-900/70 p-6 text-center text-xs text-neutral-400">
+                    No models yet. Select to configure characters before generating the storyboard.
                   </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed border-neutral-700/80 bg-neutral-900/70 p-6 text-center text-xs text-neutral-400">
-                  No models yet. Select to configure characters before generating the storyboard.
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <aside className="space-y-6">
-          <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Visual settings</h3>
-            </div>
-            <div className="mt-4 space-y-6 text-[13px]">
-              <section>
-                <div className="mb-2 flex items-center justify-between text-sm font-medium">
-                  <span className="text-neutral-300">AI model</span>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+          <aside className="space-y-6">
+            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-900 p-6 shadow-[0_20px_45px_-25px_rgba(0,0,0,0.6)]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Visual settings</h3>
+              </div>
+              <div className="mt-4 space-y-6 text-[13px]">
+                <section>
+                  <div className="mb-2 flex items-center justify-between text-sm font-medium">
+                    <span className="text-neutral-300">AI model</span>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
+                      >
+                        <span>{getModelInfo(selectedModel)?.name || selectedModel}</span>
+                        <svg
+                          className="h-4 w-4 text-neutral-500"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M6 8l4 4 4-4"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      sideOffset={4}
+                      className="w-64 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
+                    >
+                      <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
+                        Select AI model
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={selectedModel}
+                        onValueChange={value => setSelectedModel(value)}
+                      >
+                        {getImageGenerationModels().map(model => (
+                          <DropdownMenuRadioItem
+                            key={model.id}
+                            value={model.id}
+                            className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
+                          >
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-neutral-400">{model.description}</span>
+                            </div>
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </section>
+
+                <section>
+                  <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
+                    <span>Aspect ratio</span>
+                    <span className="text-xs text-neutral-500">{ratio}</span>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
+                      >
+                        <span>{ratio}</span>
+                        <svg
+                          className="fixed h-4 w-4 text-neutral-500"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M6 8l4 4 4-4"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      sideOffset={4}
+                      className="w-48 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
+                    >
+                      <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
+                        Select aspect ratio
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={ratio}
+                        onValueChange={value => setRatio(value as typeof ratio)}
+                      >
+                        {(['9:16', '3:4', '1:1', '4:3', '16:9'] as const).map(option => (
+                          <DropdownMenuRadioItem
+                            key={option}
+                            value={option}
+                            className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="flex-shrink-0 border border-neutral-400 rounded-[2px] bg-neutral-800"
+                                style={{
+                                  aspectRatio: option.includes(':')
+                                    ? `${option.split(':')[0]} / ${option.split(':')[1]}`
+                                    : '1 / 1',
+
+                                  // Fixed visual height for consistency
+                                  height: '20px',
+                                  width: 'auto',
+                                }}
+                              />
+                              <span>{option}</span>
+                            </div>
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </section>
+
+                <section>
+                  <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
+                    <span>Visual style</span>
                     <button
                       type="button"
-                      className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
+                      className="text-xs text-neutral-300 underline-offset-4 hover:underline"
+                      onClick={onOpenStyleGallery}
                     >
-                      <span>{getModelInfo(selectedModel)?.name || selectedModel}</span>
-                      <svg
-                        className="h-4 w-4 text-neutral-500"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M6 8l4 4 4-4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      Change
                     </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    sideOffset={4}
-                    className="w-64 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
-                  >
-                    <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
-                      Select AI model
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={selectedModel}
-                      onValueChange={value => setSelectedModel(value)}
-                    >
-                      {getImageGenerationModels().map(model => (
-                        <DropdownMenuRadioItem
-                          key={model.id}
-                          value={model.id}
-                          className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
-                        >
-                          <div className="flex flex-col gap-1">
-                            <span className="font-medium">{model.name}</span>
-                            <span className="text-xs text-neutral-400">{model.description}</span>
-                          </div>
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </section>
-
-              <section>
-                <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
-                  <span>Aspect ratio</span>
-                  <span className="text-xs text-neutral-500">{ratio}</span>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
-                    >
-                      <span>{ratio}</span>
-                      <svg
-                        className="fixed h-4 w-4 text-neutral-500"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M6 8l4 4 4-4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    sideOffset={4}
-                    className="w-48 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
-                  >
-                    <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
-                      Select aspect ratio
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={ratio}
-                      onValueChange={value => setRatio(value as typeof ratio)}
-                    >
-                      {(['9:16', '3:4', '1:1', '4:3', '16:9'] as const).map(option => (
-                        <DropdownMenuRadioItem
-                          key={option}
-                          value={option}
-                          className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="flex-shrink-0 border border-neutral-400 rounded-[2px] bg-neutral-800"
-                              style={{
-                                aspectRatio: option.includes(':')
-                                  ? `${option.split(':')[0]} / ${option.split(':')[1]}`
-                                  : '1 / 1',
-
-                                // Fixed visual height for consistency
-                                height: '20px',
-                                width: 'auto',
-                              }}
-                            />
-                            <span>{option}</span>
-                          </div>
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </section>
-
-              <section>
-                <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">
-                  <span>Visual style</span>
+                  </div>
                   <button
                     type="button"
-                    className="text-xs text-neutral-300 underline-offset-4 hover:underline"
                     onClick={onOpenStyleGallery}
+                    className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-neutral-700 text-left transition hover:border-neutral-500"
                   >
-                    Change
+                    <div className="relative w-full pb-[75%]">
+                      <Image
+                        src={selectedStyle?.img || '/styles/photo.jpg'}
+                        alt={selectedStyle?.label || 'Selected style'}
+                        fill
+                        className="object-cover"
+                      />
+                      <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 text-[10px] uppercase tracking-[0.18em] text-white">
+                        Selected
+                      </span>
+                    </div>
+                    <div className="bg-black/70 px-3 py-2 text-xs font-medium text-white">
+                      {selectedStyle?.label || 'Photo realistic'}
+                    </div>
                   </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={onOpenStyleGallery}
-                  className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-neutral-700 text-left transition hover:border-neutral-500"
-                >
-                  <div className="relative w-full pb-[75%]">
-                    <Image
-                      src={selectedStyle?.img || '/styles/photo.jpg'}
-                      alt={selectedStyle?.label || 'Selected style'}
-                      fill
-                      className="object-cover"
-                    />
-                    <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 text-[10px] uppercase tracking-[0.18em] text-white">
-                      Selected
-                    </span>
-                  </div>
-                  <div className="bg-black/70 px-3 py-2 text-xs font-medium text-white">
-                    {selectedStyle?.label || 'Photo realistic'}
-                  </div>
-                </button>
-              </section>
+                </section>
+              </div>
             </div>
-          </div>
-        </aside>
-      </div>
+          </aside>
+        </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onBack}
-          className="h-12 rounded-full border border-neutral-700 bg-neutral-900/90 px-6 text-sm text-white transition hover:bg-neutral-800"
-        >
-          Back
-        </Button>
-        <Button
-          type="button"
-          onClick={onGenerateStoryboard}
-          disabled={generating || !script?.trim() || characters.length === 0}
-          className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-        >
-          {generating ? 'Generating image...' : 'Generate image'}
-        </Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onBack}
+            className="h-12 rounded-full border border-neutral-700 bg-neutral-900/90 px-6 text-sm text-white transition hover:bg-neutral-800"
+          >
+            Back
+          </Button>
+          <Button
+            type="button"
+            onClick={onGenerateStoryboard}
+            disabled={generating || !script?.trim() || characters.length === 0}
+            className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+          >
+            {generating ? 'Generating image...' : 'Generate image'}
+          </Button>
+        </div>
+      </div>
+    </DndProvider>
+  )
+}
+
+type ScriptSceneDropZoneProps = {
+  scene: SceneEntry
+  onDrop: (sceneId: string, character: CharacterModel) => void
+  onRemove: (sceneId: string, characterId: string) => void
+}
+
+const ScriptSceneDropZone: React.FC<ScriptSceneDropZoneProps> = ({ scene, onDrop, onRemove }) => {
+  const [{ isOver, canDrop }, dropRef] = useDrop<DraggedCharacterItem>(
+    () => ({
+      accept: CHARACTER_DRAG_TYPE,
+      drop: item => {
+        if (item?.character) {
+          onDrop(scene.id, item.character)
+        }
+      },
+      collect: monitor => ({
+        isOver: monitor.isOver({ shallow: true }),
+        canDrop: monitor.canDrop(),
+      }),
+    }),
+    [onDrop, scene.id]
+  )
+
+  const dropActive = isOver && canDrop
+
+  return (
+    <div
+      ref={dropRef}
+      className={`rounded-xl p-4 transition ${
+        dropActive
+          ? 'bg-neutral-950/60 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.8)]'
+          : 'hover:bg-neutral-950/20'
+      }`}
+    >
+      <pre className="mt-4 whitespace-pre-wrap text-sm text-neutral-200">{scene.raw}</pre>
+
+      {scene.metadata.length > 0 ? (
+        <div className="mt-4 space-y-2 border-t border-neutral-800/80 pt-3">
+          {scene.metadata.map(entry => (
+            <div
+              key={`${scene.id}-${entry.characterId}`}
+              className="flex items-start justify-between gap-3 rounded-lg border border-neutral-800/80 bg-neutral-900/70 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-white">{entry.characterName}</p>
+                <p className="truncate text-[11px] text-neutral-400">{entry.modelLabel}</p>
+                {entry.characterHandle ? (
+                  <p className="truncate text-[11px] text-neutral-500">{entry.characterHandle}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(scene.id, entry.characterId)}
+                className="rounded-md border border-neutral-700 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-neutral-300 transition hover:border-neutral-500 hover:text-white hover:bg-neutral-800"
+              >
+                Clear
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+type DraggableCharacterCardProps = {
+  character: CharacterModel
+}
+
+const DraggableCharacterCard: React.FC<DraggableCharacterCardProps> = ({ character }) => {
+  const [{ isDragging }, dragRef] = useDrag<DraggedCharacterItem>(
+    () => ({
+      type: CHARACTER_DRAG_TYPE,
+      item: { type: CHARACTER_DRAG_TYPE, character },
+      collect: monitor => ({
+        isDragging: monitor.isDragging(),
+      }),
+    }),
+    [character]
+  )
+
+  return (
+    <div
+      ref={dragRef}
+      role="button"
+      tabIndex={0}
+      aria-label={`Drag ${character.name} onto the script`}
+      className={`overflow-hidden rounded-xl border bg-neutral-950 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+        isDragging
+          ? 'border-neutral-500 opacity-60'
+          : 'border-neutral-800/80 hover:border-neutral-700'
+      }`}
+      style={{ cursor: 'grab' }}
+    >
+      <div className="relative w-full pb-[150%]">
+        {character.imageUrl ? (
+          <Image src={character.imageUrl} alt={character.name} fill className="object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
+            No image
+          </div>
+        )}
+        <div className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white">
+          Drag onto script
+        </div>
+      </div>
+      <div className="border-t border-neutral-800/70 bg-neutral-900/80 px-3 py-2 text-center text-xs font-medium text-white">
+        {character.name}
       </div>
     </div>
   )

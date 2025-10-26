@@ -23,14 +23,14 @@ if (r2Base) {
   } catch (e) {
     console.warn('[next.config] Invalid R2_PUBLIC_BASE_URL:', r2Base)
   }
-} else {
-  // Fallback: add known static hostname (from current error) so dev works even if env var missing
-  remotePatterns.push({
-    protocol: 'https',
-    hostname: 'pub-c28b43de22c5c20c8555e0c8f27ff352.r2.dev',
-    pathname: '/**'
-  })
 }
+
+// Always allow public R2 buckets hosted on Cloudflare's r2.dev domain for previews.
+remotePatterns.push({
+  protocol: 'https',
+  hostname: '*.r2.dev',
+  pathname: '/**'
+})
 
 // Add Google OAuth avatar images and AI service domains
 remotePatterns.push(

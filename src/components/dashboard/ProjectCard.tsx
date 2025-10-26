@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Project, type ProjectInput } from '@/types'
-import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
+import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
@@ -12,7 +12,9 @@ interface ProjectCardProps {
   viewMode: 'grid' | 'list'
   onDelete: (projectId: string) => void
   onUpdate: (projectId: string, projectData: ProjectInput) => Promise<void>
+  onDuplicate: (projectId: string) => Promise<void>
   isDeleting?: boolean
+  isDuplicating?: boolean
 }
 
 export const ProjectCard = ({
@@ -20,7 +22,9 @@ export const ProjectCard = ({
   viewMode,
   onDelete,
   onUpdate,
+  onDuplicate,
   isDeleting = false,
+  isDuplicating = false,
 }: ProjectCardProps) => {
   const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -94,6 +98,18 @@ export const ProjectCard = ({
           <button
             onClick={e => {
               e.stopPropagation()
+              setIsMenuOpen(false)
+              onDuplicate(project.id).catch(() => {})
+            }}
+            disabled={isDuplicating}
+            className="flex w-full items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Copy className={`h-4 w-4 mr-2 ${isDuplicating ? 'animate-pulse' : ''}`} />
+            {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+          </button>
+          <button
+            onClick={e => {
+              e.stopPropagation()
               onDelete(project.id)
               setIsMenuOpen(false)
             }}
@@ -127,7 +143,7 @@ export const ProjectCard = ({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {isDeleting && (
+        {(isDeleting || isDuplicating) && (
           <div className="absolute inset-0 bg-neutral-900/70 flex items-center justify-center z-10 rounded-lg">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
           </div>
@@ -219,7 +235,7 @@ export const ProjectCard = ({
   // 리스트 뷰 렌더링
   const renderListView = () => (
     <div className="relative group cursor-pointer" onClick={handleGoToProjectSetup}>
-      {isDeleting && (
+      {(isDeleting || isDuplicating) && (
         <div className="absolute inset-0 bg-neutral-900/70 flex items-center justify-center z-10 rounded-lg">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>

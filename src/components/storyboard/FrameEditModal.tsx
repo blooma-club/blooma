@@ -4,8 +4,14 @@ import React, { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import type { StoryboardFrame } from '@/types/storyboard'
 import type { Card, Character } from '@/types'
-import { buildCharacterSnippet, getCharacterMentionSlug } from '@/lib/characterMentions'
+import {
+  buildCharacterSnippet,
+  getCharacterMentionSlug,
+  resolveCharacterMentions,
+  buildPromptWithCharacterMentions,
+} from '@/lib/characterMentions'
 import { useCards } from '@/lib/api'
+import { DEFAULT_MODEL, getModelsForMode } from '@/lib/fal-ai'
 
 type EditTab = 'edit' | 'details' | 'history'
 type ToolId = 'bananaReplacement' | 'colorAdjust' | 'lightingFix' | 'cleanup'
@@ -52,12 +58,35 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
   const { cards, updateCards } = useCards(projectId)
   const [characters, setCharacters] = useState<Character[]>([])
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(false)
+  const models = useMemo(() => getModelsForMode('generate'), [])
+  const [selectedModelId, setSelectedModelId] = useState<string>(
+    models.find(model => model.id === DEFAULT_MODEL)?.id ?? models[0]?.id ?? DEFAULT_MODEL
+  )
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null)
+  const [generationWarning, setGenerationWarning] = useState<string | null>(null)
+  const selectedModel = useMemo(
+    () => models.find(model => model.id === selectedModelId),
+    [models, selectedModelId]
+  )
+
+  useEffect(() => {
+    if (models.length === 0) return
+    const found = models.some(model => model.id === selectedModelId)
+    if (!found) {
+      setSelectedModelId(models[0].id)
+    }
+  }, [models, selectedModelId])
 
   useEffect(() => {
     setDraft({ ...frame, imageHistory: frame.imageHistory ?? [] })
     setActiveTab('details')
     setSelectedTool('bananaReplacement')
     setBananaToolSettings(DEFAULT_BANANA_SETTINGS)
+    setGenerationError(null)
+    setGenerationMessage(null)
+    setGenerationWarning(null)
   }, [frame])
 
   useEffect(() => {
@@ -152,6 +181,85 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
         imageHistory: Array.from(new Set(mergedHistory)),
       }
     })
+  }
+
+  const handleRegenerateImage = async () => {
+    const prompt = draft.imagePrompt?.trim()
+    if (!prompt) {
+      setGenerationError('Add an image prompt before regenerating.')
+      setGenerationMessage(null)
+      setGenerationWarning(null)
+      return
+    }
+
+    setIsGeneratingImage(true)
+    setGenerationError(null)
+    setGenerationMessage(null)
+    setGenerationWarning(null)
+
+    try {
+      const mentionMatches = resolveCharacterMentions(prompt, characters)
+      const requestPrompt = buildPromptWithCharacterMentions(prompt, mentionMatches)
+      const mentionImageUrls = Array.from(
+        new Set(mentionMatches.flatMap(match => match.imageUrls))
+      )
+
+      const payload: Record<string, unknown> = {
+        prompt: requestPrompt,
+        modelId: selectedModelId || DEFAULT_MODEL,
+      }
+
+      if (mentionImageUrls.length > 0) {
+        payload.imageUrls = mentionImageUrls
+      }
+
+      if (draft.imageUrl) {
+        payload.image_url = draft.imageUrl
+      }
+
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const json = (await response.json().catch(() => ({}))) as {
+        imageUrl?: string
+        error?: string
+        warning?: string
+      }
+
+      if (!response.ok || !json?.imageUrl) {
+        const errorMessage = json?.error || 'Failed to regenerate image.'
+        throw new Error(errorMessage)
+      }
+
+      setDraft(prev => {
+        const previousImage = prev.imageUrl
+        const existingHistory = Array.isArray(prev.imageHistory) ? prev.imageHistory : []
+        const nextHistory = previousImage
+          ? [previousImage, ...existingHistory.filter(url => url !== previousImage)]
+          : existingHistory
+
+        return {
+          ...prev,
+          imageUrl: json.imageUrl,
+          imageHistory: Array.from(new Set(nextHistory)),
+        }
+      })
+
+      if (json.warning) {
+        setGenerationWarning(json.warning)
+      }
+
+      setGenerationMessage('Image regenerated successfully.')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unexpected error while regenerating image.'
+      setGenerationError(message)
+    } finally {
+      setIsGeneratingImage(false)
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -432,11 +540,36 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                         className="w-full resize-y rounded border border-gray-600 bg-gray-800 px-2 py-1.5 text-xs font-mono text-white focus:border-gray-500 focus:outline-none"
                       />
                     </Field>
-                    {characterPromptSnippets.length > 0 && (
-                      <div className="space-y-2 rounded border border-gray-700 bg-gray-900/60 p-3">
-                        <div className="text-xs font-medium text-gray-200">Project characters</div>
-                        <p className="text-[11px] text-gray-400">
-                          Click to insert an @mention that links the character image to your prompt.
+                    <Field
+                      label="Generation Model"
+                      help={
+                        selectedModel
+                          ? `${selectedModel.description} (${selectedModel.quality} quality)`
+                          : 'Choose the AI model used when regenerating this frame.'
+                      }
+                    >
+                      <select
+                        value={selectedModelId}
+                        onChange={event => setSelectedModelId(event.target.value)}
+                        className="w-full rounded border border-gray-600 bg-gray-800 px-2 py-1.5 text-xs text-white focus:border-gray-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={models.length === 0}
+                      >
+                        {models.length > 0 ? (
+                          models.map(model => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No models available</option>
+                        )}
+                      </select>
+                    </Field>
+                {characterPromptSnippets.length > 0 && (
+                  <div className="space-y-2 rounded border border-gray-700 bg-gray-900/60 p-3">
+                    <div className="text-xs font-medium text-gray-200">Project characters</div>
+                    <p className="text-[11px] text-gray-400">
+                      Click to insert an @mention that links the character image to your prompt.
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {characterPromptSnippets.map(character => (
@@ -534,6 +667,14 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                 )}
               </div>
 
+              {(generationError || generationMessage || generationWarning) && activeTab === 'details' ? (
+                <div className="mt-2 space-y-1 text-xs">
+                  {generationMessage && <p className="text-emerald-400">{generationMessage}</p>}
+                  {generationWarning && <p className="text-amber-300">{generationWarning}</p>}
+                  {generationError && <p className="text-red-400">{generationError}</p>}
+                </div>
+              ) : null}
+
               <div className="mt-4 flex justify-end gap-2 border-t border-gray-700 pt-4">
                 <button
                   type="button"
@@ -542,6 +683,16 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                 >
                   Cancel
                 </button>
+                {activeTab === 'details' ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleRegenerateImage()}
+                    className="rounded bg-indigo-500 px-5 py-1.5 text-xs text-white transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isGeneratingImage}
+                  >
+                    {isGeneratingImage ? 'Regenerating…' : 'Regenerate Image'}
+                  </button>
+                ) : null}
                 <button
                   type="submit"
                   className="rounded bg-white px-5 py-1.5 text-xs text-black transition-colors hover:bg-gray-200"
