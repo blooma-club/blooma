@@ -32,6 +32,12 @@ remotePatterns.push({
   pathname: '/**'
 })
 
+remotePatterns.push({
+  protocol: 'https',
+  hostname: '*.r2.cloudflarestorage.com',
+  pathname: '/**'
+})
+
 // Add Google OAuth avatar images and AI service domains
 remotePatterns.push(
   {
@@ -101,7 +107,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns,
     dangerouslyAllowSVG: true,
-    contentDispositionType: 'attachment',
+    contentDispositionType: 'inline',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   // Webpack 설정은 Turbopack을 사용하지 않을 때만 적용

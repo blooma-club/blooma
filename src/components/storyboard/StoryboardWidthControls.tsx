@@ -1,10 +1,9 @@
-"use client"
+'use client'
 
 import React, { useState } from 'react'
 import clsx from 'clsx'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChevronDown } from '@fortawesome/free-solid-svg-icons'
-import { CARD_WIDTH_MIN, CARD_WIDTH_MAX, clampCardWidth } from '@/lib/constants'
+import { ChevronDown } from 'lucide-react'
+import { CARD_WIDTH_MIN, CARD_WIDTH_MAX, clampCardWidth, DEFAULT_RATIO } from '@/lib/constants'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 
 type StoryboardWidthControlsProps = {
@@ -36,7 +35,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
   cardWidthMax,
   normalizedCardWidth,
   onCardWidthChange,
-  aspectRatio = '16:9',
+  aspectRatio = DEFAULT_RATIO,
   onAspectRatioChange,
   onClose,
   className,
@@ -48,19 +47,20 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
-      
+
       // 드롭다운 외부 클릭 시 드롭다운 닫기
       if (!target.closest('.aspect-dropdown-container')) {
         setAspectDropdownOpen(false)
       }
-      
+
       // 카드 외부 클릭 시 카드 닫기 (슬라이더, 프리셋 버튼, 드롭다운 제외)
       if (cardRef.current && !cardRef.current.contains(target) && onClose) {
         // 슬라이더, 프리셋 버튼, 드롭다운 클릭이 아닌 경우에만 카드 닫기
-        const isSlider = (target as HTMLInputElement).type === 'range' || target.closest('[data-slider="true"]')
+        const isSlider =
+          (target as HTMLInputElement).type === 'range' || target.closest('[data-slider="true"]')
         const isPresetButton = target.closest('[data-preset="true"]')
         const isDropdown = target.closest('.aspect-dropdown-container')
-        
+
         if (!isSlider && !isPresetButton && !isDropdown) {
           onClose()
         }
@@ -81,7 +81,9 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
         ref={cardRef}
         className={clsx(
           'rounded-xl border border-neutral-800/70 bg-[#1A1A1A] px-4 py-4 shadow-lg text-sm text-neutral-200 transition-all duration-150',
-          visible ? 'visible opacity-100 pointer-events-auto' : 'invisible opacity-0 pointer-events-none'
+          visible
+            ? 'visible opacity-100 pointer-events-auto'
+            : 'invisible opacity-0 pointer-events-none'
         )}
         aria-hidden={!visible}
       >
@@ -98,7 +100,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
                 >
                   {aspectRatio}
                   <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-300 text-xs">
-                    <FontAwesomeIcon icon={faChevronDown} />
+                    <ChevronDown className="h-3 w-3" />
                   </span>
                 </button>
                 {aspectDropdownOpen && (
@@ -127,7 +129,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
           <div className="space-y-2">
             <span className="text-xs text-neutral-400">Quick presets</span>
             <div className="flex gap-1">
-              {PRESETS.map((preset) => (
+              {PRESETS.map(preset => (
                 <button
                   key={preset.label}
                   type="button"
@@ -150,9 +152,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
           <label className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-neutral-100">Card size</span>
-              <span className="text-xs text-neutral-400">
-                {normalizedCardWidth}px
-              </span>
+              <span className="text-xs text-neutral-400">{normalizedCardWidth}px</span>
             </div>
             <div className="flex items-center justify-between text-xs text-neutral-400">
               <span>{cardWidthMin}px</span>

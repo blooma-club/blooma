@@ -12,6 +12,9 @@ type CardSnakeCaseFields = {
   video_url?: string
   video_key?: string
   video_prompt?: string
+  videoUrl?: string
+  videoKey?: string
+  videoPrompt?: string
 }
 
 export function cn(...inputs: ClassValue[]) {
@@ -48,6 +51,16 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
       ? [rawHistory]
       : []
 
+  // Extract characterMetadata from card.metadata if available
+  const characterMetadata = card.metadata?.characterMetadata as Array<{
+    characterId: string
+    characterName: string
+    characterHandle?: string
+    characterImageUrl?: string
+    modelId: string
+    modelLabel: string
+  }> | undefined
+
   return {
     id: card.id,
     scene: card.scene_number || (index !== undefined ? index + 1 : 1),
@@ -56,10 +69,14 @@ export function cardToFrame(card: Card, index?: number): StoryboardFrame {
     dialogue: card.dialogue || '',
     sound: card.sound || '',
     imagePrompt: card.image_prompt || '',
+    background: card.background || '', // Include background from card
     status: (card.storyboard_status as 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error') || 'ready',
     imageUrl: getImageUrlFromCard(card),
     cardWidth: typeof card.card_width === 'number' ? card.card_width : undefined,
     imageHistory: Array.from(new Set(normalizedHistory)),
+    videoUrl: snakeCaseCard.videoUrl || snakeCaseCard.video_url,
+    videoKey: snakeCaseCard.videoKey || snakeCaseCard.video_key,
+    videoPrompt: snakeCaseCard.videoPrompt || snakeCaseCard.video_prompt,
+    characterMetadata: characterMetadata || [],
   };
 }
-

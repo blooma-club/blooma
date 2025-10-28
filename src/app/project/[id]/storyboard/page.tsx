@@ -24,7 +24,15 @@ import { useCardWidth } from '@/hooks/useCardWidth'
 import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
 import { useFrameManagement } from '@/hooks/useFrameManagement'
 import { useCards } from '@/lib/api'
-import { DEFAULT_RATIO, CARD_WIDTH_MIN, CARD_WIDTH_MAX, DEFAULT_CARD_WIDTH, clampCardWidth } from '@/lib/constants'
+import {
+  DEFAULT_RATIO,
+  CARD_WIDTH_MIN,
+  CARD_WIDTH_MAX,
+  DEFAULT_CARD_WIDTH,
+  clampCardWidth,
+} from '@/lib/constants'
+import { loadProjectRatio, saveProjectRatio } from '@/lib/localStorage'
+import { useBackgroundStore } from '@/store/backgrounds'
 
 // Removed legacy local caches; SWR가 카드 데이터를 관리합니다.
 type CardImageUpdate = Partial<
@@ -43,7 +51,29 @@ export default function StoryboardPage() {
   const [index, setIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
-  const [ratio, setRatio] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
+  // Initialize with DEFAULT_RATIO to avoid hydration mismatch
+  const [ratio, setRatioState] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
+
+  // Load saved ratio from localStorage after mount (client-side only)
+  useEffect(() => {
+    if (projectId) {
+      const savedRatio = loadProjectRatio(projectId)
+      if (savedRatio && ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16'].includes(savedRatio)) {
+        setRatioState(savedRatio as StoryboardAspectRatio)
+      }
+    }
+  }, [projectId])
+
+  // Wrapper to also save to localStorage when ratio changes
+  const setRatio = useCallback(
+    (newRatio: StoryboardAspectRatio) => {
+      setRatioState(newRatio)
+      if (projectId) {
+        saveProjectRatio(projectId, newRatio)
+      }
+    },
+    [projectId]
+  )
   // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
@@ -54,20 +84,53 @@ export default function StoryboardPage() {
   // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
   const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
 
+  // Background store
+  const { initializeBackgrounds, setProjectId } = useBackgroundStore()
+
+  // Set project ID for background store
+  useEffect(() => {
+    if (projectId) {
+      setProjectId(projectId)
+    }
+  }, [projectId, setProjectId])
+
   // Custom hooks
-  const { cardWidth, setCardWidth, latestCardWidthRef, persistCardWidthTimeout, handleCardWidthChange, readStoredCardWidth, persistCardWidthLocally, schedulePersistCardWidth } = useCardWidth(projectId)
-  const { handleNavigateToStoryboard, handleNavigateToCharacters, handleOpenFrame } = useStoryboardNavigation(projectId, index, setViewMode)
-  const { deletingFrameId, generatingVideoId, videoPreview, setVideoPreview, framesRef, handleAddFrame, handleDeleteFrame, handleReorderFrames, handleGenerateVideo, handlePlayVideo } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
+  const {
+    cardWidth,
+    setCardWidth,
+    latestCardWidthRef,
+    persistCardWidthTimeout,
+    handleCardWidthChange,
+    readStoredCardWidth,
+    persistCardWidthLocally,
+    schedulePersistCardWidth,
+  } = useCardWidth(projectId)
+  const { handleNavigateToStoryboard, handleNavigateToCharacters, handleOpenFrame } =
+    useStoryboardNavigation(projectId, index, setViewMode)
+  const {
+    deletingFrameId,
+    generatingVideoId,
+    videoPreview,
+    setVideoPreview,
+    framesRef,
+    handleAddFrame,
+    handleDeleteFrame,
+    handleReorderFrames,
+    handleGenerateVideo,
+    handlePlayVideo,
+  } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
 
   // SWR 훅 사용 (SWR이 캐싱/동기화 관리)
   const { cards: queryCards, updateCards, isLoading: cardsLoading } = useCards(projectId!)
 
-
   // 안정적인 이미지 업데이트 콜백
   // 통일된 카드 패치 함수
-  const patchCards = useCallback(async (patches: Partial<Card>[]) => {
-    await updateCards(patches)
-  }, [updateCards])
+  const patchCards = useCallback(
+    async (patches: Partial<Card>[]) => {
+      await updateCards(patches)
+    },
+    [updateCards]
+  )
 
   const handleImageUpdated = useCallback(
     async (
@@ -107,7 +170,9 @@ export default function StoryboardPage() {
 
   // 파생 데이터 파이프라인: 카드 폭 + 프레임/타이틀
   const resolvedCardWidth = useMemo(() => {
-    const firstWithWidth = queryCards.find((c: Card) => typeof c.card_width === 'number' && Number.isFinite(c.card_width))
+    const firstWithWidth = queryCards.find(
+      (c: Card) => typeof c.card_width === 'number' && Number.isFinite(c.card_width)
+    )
     const widthFromCards = firstWithWidth?.card_width as number | undefined
     const storedWidth = readStoredCardWidth()
     return clampCardWidth(widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH)
@@ -120,17 +185,21 @@ export default function StoryboardPage() {
   }, [resolvedCardWidth, setCardWidth, persistCardWidthLocally])
 
   const derived = useMemo(() => {
-      const orderedCards = [...queryCards].sort((a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    const orderedCards = [...queryCards].sort(
+      (a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0)
+    )
     const frames = orderedCards.map((card, idx) => {
       const baseFrame = cardToFrame(card, idx)
-      const normalizedWidth = typeof baseFrame.cardWidth === 'number' && Number.isFinite(baseFrame.cardWidth)
-        ? clampCardWidth(baseFrame.cardWidth)
-        : resolvedCardWidth
+      const normalizedWidth =
+        typeof baseFrame.cardWidth === 'number' && Number.isFinite(baseFrame.cardWidth)
+          ? clampCardWidth(baseFrame.cardWidth)
+          : resolvedCardWidth
       return { ...baseFrame, cardWidth: normalizedWidth }
     })
-    const title = orderedCards.length > 0
-      ? `Storyboard: ${(orderedCards[0].title ?? '').replace(/^Scene \d+:?\s*/, '') || 'Untitled'}`
-      : 'New Storyboard'
+    const title =
+      orderedCards.length > 0
+        ? `Storyboard: ${(orderedCards[0].title ?? '').replace(/^Scene \d+:?\s*/, '') || 'Untitled'}`
+        : 'New Storyboard'
     return { frames, title }
   }, [queryCards, resolvedCardWidth])
 
@@ -186,13 +255,9 @@ export default function StoryboardPage() {
 
   // viewportWidth 제거에 따라 resize 리스너도 제거
 
-
   // 쿼리 결과 동기화는 derived 파이프라인으로 대체
 
-
-
   // 네비게이션 핸들러 (커스텀 훅에서 가져옴)
-
 
   // 프레임 관리 핸들러 (커스텀 훅에서 가져옴)
 
@@ -336,28 +401,34 @@ export default function StoryboardPage() {
   const currentFrame = useMemo(() => derived.frames[index] || null, [derived.frames, index])
 
   // 공통 프레임 조작 핸들러
-  const handleFrameDeleteLocal = useCallback(async (frameId: string) => {
-    try {
-      const newFrames = await handleDeleteFrame(frameId)
-      if (newFrames) {
-        setIndex(prev => (newFrames.length === 0 ? 0 : Math.min(prev, newFrames.length - 1)))
+  const handleFrameDeleteLocal = useCallback(
+    async (frameId: string) => {
+      try {
+        const newFrames = await handleDeleteFrame(frameId)
+        if (newFrames) {
+          setIndex(prev => (newFrames.length === 0 ? 0 : Math.min(prev, newFrames.length - 1)))
+        }
+      } catch (error) {
+        console.error('Failed to delete frame:', error)
       }
-    } catch (error) {
-      console.error('Failed to delete frame:', error)
-    }
-  }, [handleDeleteFrame])
+    },
+    [handleDeleteFrame]
+  )
 
-  const handleFrameAddLocal = useCallback(async (insertIndex?: number, duplicateFrameId?: string) => {
-    try {
-      const newFrames = await handleAddFrame(insertIndex, duplicateFrameId)
-      if (newFrames) {
-        setIndex(insertIndex ?? newFrames.length - 1)
+  const handleFrameAddLocal = useCallback(
+    async (insertIndex?: number, duplicateFrameId?: string) => {
+      try {
+        const newFrames = await handleAddFrame(insertIndex, duplicateFrameId)
+        if (newFrames) {
+          setIndex(insertIndex ?? newFrames.length - 1)
+        }
+      } catch (error) {
+        console.error('Failed to add frame:', error)
       }
-    } catch (error) {
-      console.error('Failed to add frame:', error)
-    }
-  }, [handleAddFrame])
-  
+    },
+    [handleAddFrame]
+  )
+
   const canShowWidthControlsPanel =
     viewMode === 'storyboard' && (!isClient || storyboardViewMode === 'grid')
 
@@ -443,30 +514,28 @@ export default function StoryboardPage() {
 
             {/* 콘텐츠 렌더링 */}
             {derived.frames.length === 0 && cardsLoading && (
-              <LoadingGrid 
-                cardsLength={0} 
-                aspectRatio={ratio}
-                cardWidth={cardWidth}
-              />
+              <LoadingGrid cardsLength={0} aspectRatio={ratio} cardWidth={cardWidth} />
             )}
 
             {derived.frames.length === 0 && !cardsLoading && (
-              <EmptyStoryboardState 
+              <EmptyStoryboardState
                 onCreateFirstCard={async () => {
                   try {
                     const newFrames = await handleAddFrame()
-                    if (newFrames) { setIndex(0) }
+                    if (newFrames) {
+                      setIndex(0)
+                    }
                   } catch (error) {
                     console.error('Failed to create first card:', error)
                   }
-                }} 
+                }}
               />
             )}
 
             {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
               <FrameGrid
                 frames={derived.frames}
-                onFrameOpen={(frameIndex) => {
+                onFrameOpen={frameIndex => {
                   setIndex(frameIndex)
                 }}
                 onFrameEdit={frameId => {
@@ -478,7 +547,7 @@ export default function StoryboardPage() {
                 deletingFrameId={deletingFrameId}
                 loading={cardsLoading}
                 cardsLength={queryCards.length}
-                onGenerateVideo={async (frameId) => {
+                onGenerateVideo={async frameId => {
                   try {
                     await handleGenerateVideo(frameId, derived.frames)
                     // Update frames with video data
@@ -487,7 +556,7 @@ export default function StoryboardPage() {
                     setError(error instanceof Error ? error.message : 'Failed to generate video')
                   }
                 }}
-                onPlayVideo={(frameId) => {
+                onPlayVideo={frameId => {
                   try {
                     handlePlayVideo(frameId, derived.frames)
                   } catch (error) {
@@ -511,7 +580,7 @@ export default function StoryboardPage() {
             {derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
               <FrameList
                 frames={derived.frames}
-                onFrameEdit={(frameIndex) => {
+                onFrameEdit={frameIndex => {
                   setIndex(frameIndex)
                 }}
                 onFrameEditMetadata={frameId => {
@@ -521,14 +590,14 @@ export default function StoryboardPage() {
                 onFrameDelete={handleFrameDeleteLocal}
                 onAddFrame={handleFrameAddLocal}
                 deletingFrameId={deletingFrameId}
-                onGenerateVideo={async (frameId) => {
+                onGenerateVideo={async frameId => {
                   try {
                     await handleGenerateVideo(frameId, derived.frames)
                   } catch (error) {
                     setError(error instanceof Error ? error.message : 'Failed to generate video')
                   }
                 }}
-                onPlayVideo={(frameId) => {
+                onPlayVideo={frameId => {
                   try {
                     handlePlayVideo(frameId, derived.frames)
                   } catch (error) {
@@ -582,7 +651,9 @@ export default function StoryboardPage() {
                 const targetCard = (queryCards || []).find((c: Card) => c.id === targetCardId)
 
                 const prevImage = targetCard?.image_url || targetFrame.imageUrl
-                const existingHistory = Array.isArray(targetCard?.image_urls) ? targetCard!.image_urls! : []
+                const existingHistory = Array.isArray(targetCard?.image_urls)
+                  ? targetCard!.image_urls!
+                  : []
                 const newHistory = prevImage ? [...existingHistory, prevImage] : existingHistory
 
                 await patchCards([
@@ -608,12 +679,8 @@ export default function StoryboardPage() {
         />
       )}
 
-
       {videoPreview && (
-        <VideoPreviewModal 
-          url={videoPreview.url} 
-          onClose={() => setVideoPreview(null)} 
-        />
+        <VideoPreviewModal url={videoPreview.url} onClose={() => setVideoPreview(null)} />
       )}
     </div>
   )

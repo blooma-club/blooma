@@ -1,10 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
-import type {
-  BuildStoryboardOptions,
-  StoryboardBuildResponse,
-} from '@/types/storyboard'
+import type { BuildStoryboardOptions, StoryboardBuildResponse } from '@/types/storyboard'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_MODEL } from '@/lib/fal-ai'
@@ -13,6 +10,7 @@ import {
   loadDraftFromLocal,
   clearDraftFromLocal,
   saveLastStoryboardId,
+  saveProjectRatio,
 } from '@/lib/localStorage'
 import Image from 'next/image'
 import ScriptEditor from '@/components/project/setup/ScriptEditor'
@@ -97,8 +95,14 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     []
   )
   const setRatio = useCallback(
-    (value: '16:9' | '1:1' | '9:16') => setDraftData(prev => ({ ...prev, ratio: value })),
-    []
+    (value: '16:9' | '1:1' | '9:16') => {
+      setDraftData(prev => ({ ...prev, ratio: value }))
+      // Save ratio to localStorage immediately when changed
+      if (projectId) {
+        saveProjectRatio(projectId, value)
+      }
+    },
+    [projectId]
   )
   const setSelectedModel = useCallback(
     (value: string) => setDraftData(prev => ({ ...prev, selectedModel: value })),
@@ -324,7 +328,9 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
     }
   }
 
-  const handleGenerateStoryboard = async () => {
+  const handleGenerateStoryboard = async (
+    sceneMetadata?: { sceneId: string; metadata: any[] }[]
+  ) => {
     setFileError(null)
     if (!textValue.trim()) {
       setFileError('Please enter a script before generating storyboard.')
@@ -350,6 +356,8 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         aiModel: selectedModel,
         // Character references for image generation
         characters: normalizedCharacters,
+        // Scene metadata with dragged characters
+        sceneMetadata,
       }
 
       if (!isSignedIn) {
@@ -366,7 +374,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         },
         body: JSON.stringify(payload),
       })
-      let data: StoryboardBuildResponse | null = null
+      let data: (StoryboardBuildResponse & { backgrounds?: unknown[] }) | null = null
       try {
         data = await res.json()
       } catch {
@@ -382,12 +390,15 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
         mode: data.mode,
         framesCount: data.framesCount,
         title: data.title,
+        backgroundsCount: data.backgrounds?.length || 0,
       })
 
       if (newProjectId) {
         // Clear the draft since we've successfully generated a storyboard
         clearSavedDraft()
         saveLastStoryboardId(newProjectId, newProjectId)
+        // Save the selected ratio for the storyboard page
+        saveProjectRatio(newProjectId, ratio)
 
         const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard?view=editor`
         console.log('[SETUP] Navigating directly to editor:', newUrl)

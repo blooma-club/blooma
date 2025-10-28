@@ -80,7 +80,7 @@ export async function GET() {
       headers: {
         'xi-api-key': apiKey,
       },
-      signal: AbortSignal.timeout(60000),
+      next: { revalidate: 3600 },
     })
 
     if (!response.ok) {

@@ -14,7 +14,6 @@ type Props = {
   characters: Character[]
   onEdit: (character: Character) => void
   onRemove: (index: number) => void
-  onUseAsReference: (character: Character) => void
   onRequestUpload: () => void
   onRequestGenerate: () => void
 }
@@ -23,7 +22,6 @@ export function CharacterList({
   characters,
   onEdit,
   onRemove,
-  onUseAsReference,
   onRequestUpload,
   onRequestGenerate,
 }: Props) {
@@ -77,13 +75,36 @@ export function CharacterList({
           >
             <div className="relative aspect-[3/4] w-full overflow-hidden rounded bg-neutral-800">
               {char.imageUrl ? (
-                <Image
-                  src={char.imageUrl}
-                  alt={char.name}
-                  width={240}
-                  height={320}
-                  className="h-full w-full object-cover"
-                />
+                <>
+                  <Image
+                    src={char.imageUrl}
+                    alt={char.name}
+                    width={240}
+                    height={320}
+                    className="h-full w-full object-cover"
+                  />
+                  {/* Edit icon overlay on hover */}
+                  <button
+                    type="button"
+                    onClick={() => onEdit(char)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100"
+                    aria-label="Edit character"
+                  >
+                    <svg
+                      className="h-12 w-12 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                      />
+                    </svg>
+                  </button>
+                </>
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-neutral-500">
                   No image
@@ -93,27 +114,10 @@ export function CharacterList({
             <div className="mt-2 truncate text-center text-sm font-medium text-white">
               {char.name}
             </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => onEdit(char)}
-                className="rounded-md border border-neutral-700 px-3 py-1 text-xs font-medium text-neutral-200 transition hover:border-neutral-500 hover:text-white"
-              >
-                Edit
-              </button>
-              {char.imageUrl ? (
-                <button
-                  type="button"
-                  onClick={() => onUseAsReference(char)}
-                  className="rounded-md border border-transparent px-3 py-1 text-xs font-medium text-blue-300 transition hover:text-blue-100"
-                >
-                  Use as Ref
-                </button>
-              ) : null}
-            </div>
             <button
               onClick={() => onRemove(idx)}
               className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-sm text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
+              aria-label="Remove character"
             >
               ×
             </button>
@@ -148,4 +152,3 @@ export function CharacterList({
     </div>
   )
 }
-

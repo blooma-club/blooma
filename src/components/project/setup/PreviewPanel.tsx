@@ -1,9 +1,21 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { DndProvider, useDrag, useDrop } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useDndContext,
+  useDroppable,
+  useDraggable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -16,13 +28,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getImageGenerationModels, getModelInfo } from '@/lib/fal-ai'
 import { parseScript } from '@/lib/scriptParser'
+import { cn } from '@/lib/utils'
 import { usePreviewScenesStore } from '@/store/previewScenes'
 import type { SceneEntry } from '@/store/previewScenes'
 import type { Character as CharacterModel } from './character-wizard/types'
 
 const CHARACTER_DRAG_TYPE = 'preview-character'
 
-type DraggedCharacterItem = {
+type DraggedCharacterData = {
   type: typeof CHARACTER_DRAG_TYPE
   character: CharacterModel
 }
@@ -39,7 +52,7 @@ type Props = {
   onBack?: () => void
   onEditScript?: () => void
   onEditCharacters?: () => void
-  onGenerateStoryboard?: () => void
+  onGenerateStoryboard?: (sceneMetadata?: { sceneId: string; metadata: any[] }[]) => void
   generating?: boolean
   selectedModel: string
   setSelectedModel: (s: string) => void
@@ -64,6 +77,14 @@ export default function PreviewPanel({
   visualStyle,
   onOpenStyleGallery,
 }: Props) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  )
   const stylePresets: { id: string; label: string; img: string }[] = [
     { id: 'photo', label: 'Photo realistic', img: '/styles/photo.jpg' },
     { id: 'cinematic', label: 'Cinematic', img: '/styles/cinematic.jpg' },
@@ -80,6 +101,8 @@ export default function PreviewPanel({
   const assignCharacterToScene = usePreviewScenesStore(state => state.assignCharacterToScene)
   const removeCharacterFromScene = usePreviewScenesStore(state => state.removeCharacterFromScene)
   const selectedModelInfo = useMemo(() => getModelInfo(selectedModel), [selectedModel])
+  const [activeCharacter, setActiveCharacter] = useState<CharacterModel | null>(null)
+  const [activeCharacterWidth, setActiveCharacterWidth] = useState<number | null>(null)
 
   useEffect(() => {
     if (!script?.trim()) {
@@ -152,8 +175,48 @@ export default function PreviewPanel({
     [removeCharacterFromScene]
   )
 
+  const clearActiveCharacter = useCallback(() => {
+    setActiveCharacter(null)
+    setActiveCharacterWidth(null)
+  }, [])
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active?.data?.current as DraggedCharacterData | undefined
+    if (!data || data.type !== CHARACTER_DRAG_TYPE || !data.character) return
+    setActiveCharacter(data.character)
+
+    const activeRect = event.active.rect.current
+    const measuringRect = activeRect.translated ?? activeRect.initial
+    if (measuringRect) {
+      setActiveCharacterWidth(measuringRect.width)
+    } else {
+      setActiveCharacterWidth(null)
+    }
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      const data = active?.data?.current as DraggedCharacterData | undefined
+      if (data && data.type === CHARACTER_DRAG_TYPE && data.character && over) {
+        handleCharacterDrop(String(over.id), data.character)
+      }
+      clearActiveCharacter()
+    },
+    [clearActiveCharacter, handleCharacterDrop]
+  )
+
+  const handleDragCancel = useCallback(() => {
+    clearActiveCharacter()
+  }, [clearActiveCharacter])
+
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <div className="space-y-6 text-white">
         <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <section className="space-y-6">
@@ -195,7 +258,6 @@ export default function PreviewPanel({
                         <ScriptSceneDropZone
                           key={scene.id}
                           scene={scene}
-                          onDrop={handleCharacterDrop}
                           onRemove={handleRemoveCharacter}
                         />
                       ))}
@@ -414,7 +476,13 @@ export default function PreviewPanel({
           </Button>
           <Button
             type="button"
-            onClick={onGenerateStoryboard}
+            onClick={() => {
+              const sceneMetadata = scenes.map(scene => ({
+                sceneId: scene.id,
+                metadata: scene.metadata,
+              }))
+              onGenerateStoryboard?.(sceneMetadata)
+            }}
             disabled={generating || !script?.trim() || characters.length === 0}
             className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
           >
@@ -422,38 +490,38 @@ export default function PreviewPanel({
           </Button>
         </div>
       </div>
-    </DndProvider>
+      <DragOverlay>
+        {activeCharacter ? (
+          <CharacterCardShell
+            character={activeCharacter}
+            showDragHint={false}
+            className="pointer-events-none border-neutral-700 shadow-xl"
+            style={{ width: activeCharacterWidth ?? undefined }}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
 type ScriptSceneDropZoneProps = {
   scene: SceneEntry
-  onDrop: (sceneId: string, character: CharacterModel) => void
   onRemove: (sceneId: string, characterId: string) => void
 }
 
-const ScriptSceneDropZone: React.FC<ScriptSceneDropZoneProps> = ({ scene, onDrop, onRemove }) => {
-  const [{ isOver, canDrop }, dropRef] = useDrop<DraggedCharacterItem>(
-    () => ({
-      accept: CHARACTER_DRAG_TYPE,
-      drop: item => {
-        if (item?.character) {
-          onDrop(scene.id, item.character)
-        }
-      },
-      collect: monitor => ({
-        isOver: monitor.isOver({ shallow: true }),
-        canDrop: monitor.canDrop(),
-      }),
-    }),
-    [onDrop, scene.id]
-  )
-
-  const dropActive = isOver && canDrop
+const ScriptSceneDropZone: React.FC<ScriptSceneDropZoneProps> = ({ scene, onRemove }) => {
+  const { active } = useDndContext()
+  const { isOver, setNodeRef } = useDroppable({
+    id: scene.id,
+  })
+  const canDrop = active?.data?.current
+    ? (active.data.current as DraggedCharacterData).type === CHARACTER_DRAG_TYPE
+    : false
+  const dropActive = Boolean(isOver && canDrop)
 
   return (
     <div
-      ref={dropRef}
+      ref={setNodeRef}
       className={`rounded-xl p-4 transition ${
         dropActive
           ? 'bg-neutral-950/60 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.8)]'
@@ -495,30 +563,21 @@ type DraggableCharacterCardProps = {
   character: CharacterModel
 }
 
-const DraggableCharacterCard: React.FC<DraggableCharacterCardProps> = ({ character }) => {
-  const [{ isDragging }, dragRef] = useDrag<DraggedCharacterItem>(
-    () => ({
-      type: CHARACTER_DRAG_TYPE,
-      item: { type: CHARACTER_DRAG_TYPE, character },
-      collect: monitor => ({
-        isDragging: monitor.isDragging(),
-      }),
-    }),
-    [character]
-  )
+type CharacterCardShellProps = React.ComponentPropsWithoutRef<'div'> & {
+  character: CharacterModel
+  showDragHint?: boolean
+}
 
-  return (
+const CharacterCardShell = React.forwardRef<HTMLDivElement, CharacterCardShellProps>(
+  ({ character, className, style, showDragHint = true, ...rest }, ref) => (
     <div
-      ref={dragRef}
-      role="button"
-      tabIndex={0}
-      aria-label={`Drag ${character.name} onto the script`}
-      className={`overflow-hidden rounded-xl border bg-neutral-950 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
-        isDragging
-          ? 'border-neutral-500 opacity-60'
-          : 'border-neutral-800/80 hover:border-neutral-700'
-      }`}
-      style={{ cursor: 'grab' }}
+      ref={ref}
+      className={cn(
+        'overflow-hidden rounded-xl border bg-neutral-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
+        className
+      )}
+      style={style}
+      {...rest}
     >
       <div className="relative w-full pb-[150%]">
         {character.imageUrl ? (
@@ -528,13 +587,46 @@ const DraggableCharacterCard: React.FC<DraggableCharacterCardProps> = ({ charact
             No image
           </div>
         )}
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white">
-          Drag onto script
-        </div>
+        {showDragHint ? (
+          <div className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white">
+            Drag onto script
+          </div>
+        ) : null}
       </div>
       <div className="border-t border-neutral-800/70 bg-neutral-900/80 px-3 py-2 text-center text-xs font-medium text-white">
         {character.name}
       </div>
     </div>
+  )
+)
+CharacterCardShell.displayName = 'CharacterCardShell'
+
+const DraggableCharacterCard: React.FC<DraggableCharacterCardProps> = ({ character }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `preview-character-${character.id}`,
+    data: { type: CHARACTER_DRAG_TYPE, character },
+  })
+  const style = transform ? CSS.Translate.toString(transform) : undefined
+
+  return (
+    <CharacterCardShell
+      ref={setNodeRef}
+      character={character}
+      showDragHint={!isDragging}
+      className={cn(
+        'border-neutral-800/80 hover:border-neutral-700 transition-colors duration-200',
+        isDragging && 'border-neutral-500'
+      )}
+      style={{
+        cursor: isDragging ? 'grabbing' : 'grab',
+        transform: style,
+        touchAction: 'none',
+        transition: isDragging ? 'transform 0s, opacity 120ms ease' : undefined,
+        opacity: isDragging ? 0 : 1,
+      }}
+      aria-label={`Drag ${character.name} onto the script`}
+      {...attributes}
+      {...listeners}
+    />
   )
 }

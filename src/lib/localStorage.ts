@@ -52,6 +52,21 @@ export const loadLastStoryboardId = (projectId: string): string | null => {
   }
 }
 
+// Save aspect ratio for project
+export const saveProjectRatio = (projectId: string, ratio: string) => {
+  try {
+    localStorage.setItem(`ratio_${projectId}`, ratio)
+  } catch {}
+}
+
+export const loadProjectRatio = (projectId: string): string | null => {
+  try {
+    return localStorage.getItem(`ratio_${projectId}`)
+  } catch {
+    return null
+  }
+}
+
 // SetupForm 자동 저장
 export const saveDraftToLocal = (projectId: string, draft: Omit<StoryboardDraft, 'projectId' | 'lastSaved'>) => {
   try {
@@ -143,6 +158,7 @@ export const clearStoryboardPageData = (storyboardId: string) => {
 export const cleanupProjectData = (projectId: string) => {
   try {
     clearDraftFromLocal(projectId)
+    localStorage.removeItem(`ratio_${projectId}`)
     console.log('All project data cleaned up:', projectId)
   } catch (error) {
     console.warn('Failed to cleanup project data:', error)

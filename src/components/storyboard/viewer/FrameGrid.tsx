@@ -348,7 +348,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
-        videoUrl={(frame as any)?.videoUrl}
+        videoUrl={frame.videoUrl}
         onGenerateVideo={onGenerateVideo}
         onPlayVideo={onPlayVideo}
         isGeneratingVideo={isGeneratingVideo}
@@ -363,4 +363,3 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
     </div>
   )
 }
-

@@ -246,7 +246,7 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/gemini-25-flash-image/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
       break
-    case 'fal-ai/gemini-25-flash-image/text-to-image':
+    case 'fal-ai/gemini-25-flash-image':
       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
       break
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
@@ -634,7 +634,7 @@ async function generateWithGemini25FlashImageEdit(prompt: string, options: any):
 
 // Gemini 2.5 Flash Image Text to Image 모델 (텍스트에서 이미지 생성)
 async function generateWithGemini25FlashImageTextToImage(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/gemini-25-flash-image/text-to-image', {
+  const submission: any = await fal.subscribe('fal-ai/gemini-25-flash-image', {
     input: {
       prompt,
       num_images: options.numImages || 1,
@@ -953,7 +953,7 @@ export function isTextToImageModel(modelId: string): boolean {
     case 'fal-ai/imagen4':
     case 'fal-ai/imagen4-ultra':
     case 'fal-ai/flux-pro/v1.1-ultra':
-    case 'fal-ai/gemini-25-flash-image/text-to-image':
+    case 'fal-ai/gemini-25-flash-image':
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
       return true
     case 'fal-ai/flux-pro/kontext':
@@ -964,13 +964,13 @@ export function isTextToImageModel(modelId: string): boolean {
   }
 }
 
-// PromptDock에서 사용할 모델 목록 (generate는 t2i+i2i, edit는 i2i만)
+// PromptDock에서 사용할 모델 목록 (generate는 t2i만, edit는 i2i만)
 export function getModelsForMode(mode: 'generate' | 'edit'): FalAIModel[] {
   if (mode === 'edit') {
     return FAL_AI_MODELS.filter(m => isImageToImageModel(m.id))
   }
-  // generate 모드: 텍스트-투-이미지 + 이미지-투-이미지 모두 노출
-  return FAL_AI_MODELS.filter(m => m.category === 'image-generation' || isImageToImageModel(m.id))
+  // generate 모드: 텍스트-투-이미지 모델만 노출
+  return FAL_AI_MODELS.filter(m => isTextToImageModel(m.id))
 }
 
 // 모델 비용 계산

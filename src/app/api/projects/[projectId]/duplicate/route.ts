@@ -7,20 +7,17 @@ import {
 } from '@/lib/db/projects'
 import { D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
 
-type RouteParams = {
-  params: {
-    projectId?: string
-  }
-}
-
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
   try {
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const projectId = params.projectId
+    const { projectId } = await context.params
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
     }

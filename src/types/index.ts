@@ -66,6 +66,7 @@ export interface Card {
   image_prompt?: string       // AI 이미지 생성 프롬프트
   storyboard_status?: string  // 처리 상태 (ready, pending, error 등)
   shot_description?: string   // 촬영 설명 (content와 별도)
+  background?: string         // 배경 설명 (Background description)
 
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>
@@ -138,6 +139,7 @@ export interface CardInput {
   image_prompt?: string
   storyboard_status?: string
   shot_description?: string
+  background?: string  // Background description
 
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>

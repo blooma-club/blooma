@@ -39,8 +39,10 @@ type PersistedCardInput = {
   dialogue: string
   sound: string
   imagePrompt: string
+  background: string  // Background description
   storyboardStatus: string
   orderIndex: number
+  metadata?: Record<string, unknown>
 }
 
 const DEFAULT_IMAGE_URLS = '[]'
@@ -164,10 +166,18 @@ async function insertCards(cards: PersistedCardInput[]) {
       ['dialogue', card.dialogue],
       ['sound', card.sound],
       ['image_prompt', card.imagePrompt],
+      ['background', card.background],  // Include background
       ['storyboard_status', card.storyboardStatus],
       ['created_at', now],
       ['updated_at', now],
     ]
+
+    // Only include metadata if the column exists
+    if (card.metadata && availableColumns.has('metadata')) {
+      columnEntries.push(['metadata', JSON.stringify(card.metadata)])
+    } else if (card.metadata && !availableColumns.has('metadata')) {
+      console.warn('[CARDS] metadata column not available - skipping character metadata storage')
+    }
 
     const includedEntries = columnEntries.filter(([column]) =>
       availableColumns.has(column),
@@ -189,7 +199,16 @@ async function insertCards(cards: PersistedCardInput[]) {
       VALUES (${placeholders.join(', ')})
     `
 
-    await queryD1(sql, params)
+    try {
+      await queryD1(sql, params)
+    } catch (insertError) {
+      console.error('[CARDS] Failed to insert card:', {
+        error: insertError,
+        columns,
+        params: params.map((p, i) => ({ [columns[i]]: typeof p === 'string' && p.length > 50 ? `${p.slice(0, 50)}...` : p })),
+      })
+      throw insertError
+    }
 
     inserted.push({
       id: card.id,
@@ -224,6 +243,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
+    console.log('[STORYBOARD BUILD] Request body:', JSON.stringify(body, null, 2))
+    
     const projectId: string | undefined = body.projectId
     const modelId: string | undefined = body.modelId
     const script = typeof body.script === 'string' ? body.script : ''
@@ -232,6 +253,9 @@ export async function POST(req: Request) {
     const mode = body.mode === 'async' ? 'async' : 'sync'
     const aiModel = body.aiModel
     const characters = Array.isArray(body.characters) ? body.characters : []
+    const sceneMetadata = Array.isArray(body.sceneMetadata) ? body.sceneMetadata : []
+    
+    console.log('[STORYBOARD BUILD] Parsed sceneMetadata:', sceneMetadata)
 
     if (!projectId) {
       return NextResponse.json(
@@ -272,6 +296,7 @@ export async function POST(req: Request) {
       topTitle,
       aiModel,
       characters,
+      sceneMetadata,
     })
 
     console.log('[STORYBOARD BUILD] Skipping storyboard table - creating cards directly')
@@ -301,8 +326,10 @@ export async function POST(req: Request) {
             dialogue: frame.dialogue || '',
             sound: frame.sound || '',
             imagePrompt: frame.imagePrompt || '',
+            background: frame.background || '', // Save background to database
             storyboardStatus: 'pending',
             orderIndex: idx,
+            metadata: frame.characterMetadata ? { characterMetadata: frame.characterMetadata } : undefined,
           }
 
           console.log(`[CARDS] Creating card ${idx + 1}:`, {
@@ -310,6 +337,7 @@ export async function POST(req: Request) {
             shot_type: card.shotType,
             user_input: card.userInput?.slice(0, 50) || '',
             image_prompt: card.imagePrompt?.slice(0, 50) || '',
+            characterMetadata: frame.characterMetadata,
           })
 
           return card
@@ -323,13 +351,24 @@ export async function POST(req: Request) {
         }
       }
     } catch (cardsPersistErr) {
-      console.error('[CARDS] Failed to persist initial cards to D1:', cardsPersistErr)
-      console.warn('Failed to persist initial cards to database', cardsPersistErr)
+      console.error('[CARDS] Failed to persist initial cards to D1:', {
+        error: cardsPersistErr,
+        message: cardsPersistErr instanceof Error ? cardsPersistErr.message : 'Unknown error',
+        stack: cardsPersistErr instanceof Error ? cardsPersistErr.stack : undefined,
+      })
       throw cardsPersistErr // Re-throw the error so the API returns failure
     }
 
   // For sync mode, return full frames. For async mode return initial shell frames (no waiting for generation)
-  return NextResponse.json({ projectId: projectId, storyboardId: sb.id, mode, framesCount: sb.frames.length, title: sb.title || '', frames: trimFrames(sb.frames) })
+  return NextResponse.json({ 
+    projectId: projectId, 
+    storyboardId: sb.id, 
+    mode, 
+    framesCount: sb.frames.length, 
+    title: sb.title || '', 
+    frames: trimFrames(sb.frames),
+    backgrounds: sb.backgrounds || [],
+  })
   } catch (err: unknown) {
     if (err instanceof ResponseError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
@@ -344,14 +383,28 @@ export async function POST(req: Request) {
     }
 
     if (err instanceof D1QueryError) {
-      console.error('[STORYBOARD BUILD] Cloudflare D1 query failed', err)
+      console.error('[STORYBOARD BUILD] Cloudflare D1 query failed', {
+        error: err,
+        message: err.message,
+        cause: err.cause,
+      })
       return NextResponse.json(
-        { error: 'Failed to persist storyboard cards' },
+        { 
+          error: 'Failed to persist storyboard cards',
+          details: err.message,
+        },
         { status: 500 },
       )
     }
 
-    console.error('build storyboard error', err)
-    return NextResponse.json({ error: 'Build failed' }, { status: 500 })
+    console.error('[STORYBOARD BUILD] Unexpected error:', {
+      error: err,
+      message: err instanceof Error ? err.message : 'Unknown error',
+      stack: err instanceof Error ? err.stack : undefined,
+    })
+    return NextResponse.json({ 
+      error: 'Build failed',
+      details: err instanceof Error ? err.message : 'Unknown error',
+    }, { status: 500 })
   }
 }

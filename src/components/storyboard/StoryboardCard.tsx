@@ -1,9 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Trash2, Info } from 'lucide-react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { Trash2, Info, LoaderCircle, Play } from 'lucide-react'
 import Image from 'next/image'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { RATIO_TO_CSS } from '@/lib/constants'
@@ -124,7 +122,8 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             className={objectFitClass}
             draggable={false}
             sizes="(max-width: 768px) 100vw, 50vw"
-            unoptimized
+            loading="lazy"
+            quality={70}
           />
         ) : status !== 'ready' && status !== 'error' ? (
           <div className="absolute inset-0 flex items-center justify-center select-none">
@@ -213,9 +212,9 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
                 }`}
               >
                 {isGeneratingVideo ? (
-                  <FontAwesomeIcon icon={faSpinner} fade />
+                  <LoaderCircle className="h-3 w-3 animate-spin" />
                 ) : (
-                  <FontAwesomeIcon icon={faPlay} />
+                  <Play className="h-3 w-3" />
                 )}
               </button>
             ) : null}

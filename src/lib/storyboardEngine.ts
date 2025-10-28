@@ -3,6 +3,8 @@ import { openrouter } from './openrouter'
 import { generateImageWithModel, DEFAULT_MODEL } from './fal-ai'
 import { uploadImageToR2 } from './r2'
 import { queryD1 } from './db/d1'
+import { extractBackgrounds, type BackgroundCandidate } from './backgroundExtractor'
+import { backgroundManager, type BackgroundMetadata } from './backgroundManager'
 
 export interface FrameRecord {
   id: string
@@ -17,8 +19,20 @@ export interface FrameRecord {
   imagePrompt?: string
   imageUrl?: string
   characterImageUrls?: string[] // Reference images for characters mentioned in this frame
+  backgroundId?: string | null // Reference to selected background
+  backgroundDescription?: string | null // Text description of background
+  backgroundMetadata?: BackgroundMetadata // Inheritance metadata
   status: 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error'
   error?: string
+  // Character metadata for dragged characters
+  characterMetadata?: Array<{
+    characterId: string
+    characterName: string
+    characterHandle?: string
+    characterImageUrl?: string
+    modelId: string
+    modelLabel: string
+  }>
 }
 
 export interface StoryboardRecord {
@@ -45,6 +59,9 @@ export interface StoryboardRecord {
     original_image_url?: string
     edit_prompt?: string
   }>
+  // Background consistency
+  backgrounds?: BackgroundCandidate[]
+  sceneBackgrounds?: Map<number, string> // sceneOrder -> backgroundId
 }
 
 const storyboards = new Map<string, StoryboardRecord>()
@@ -77,6 +94,18 @@ export async function createStoryboard(params: {
     originalImageUrl?: string
     editPrompt?: string
   }>
+  // Scene metadata with dragged characters
+  sceneMetadata?: Array<{
+    sceneId: string
+    metadata: Array<{
+      characterId: string
+      characterName: string
+      characterHandle?: string
+      characterImageUrl?: string
+      modelId: string
+      modelLabel: string
+    }>
+  }>
 }) {
   // Allow callers to provide a top-level title (extracted earlier). If not provided,
   // attempt to extract it here. If a top title exists we strip it from the script
@@ -85,6 +114,18 @@ export async function createStoryboard(params: {
   const detectedTop = providedTop ?? extractTitle(params.rawScript)
   const scriptWithoutTitle = providedTop ? params.rawScript : (detectedTop ? stripTitle(params.rawScript) : params.rawScript)
   const scenes: ParsedScene[] = parseScript(scriptWithoutTitle)
+  
+  // Extract background candidates from scenes using LLM
+  const backgroundCandidates = await extractBackgrounds(scenes)
+  console.log('[createStoryboard] Extracted backgrounds:', backgroundCandidates.map(bg => ({
+    id: bg.id,
+    description: bg.description,
+    sceneCount: bg.sceneIndices.length
+  })))
+  
+  // Initialize background manager for inheritance
+  backgroundManager.initializeBackgrounds(backgroundCandidates)
+  backgroundManager.resetInheritanceChain()
   // If any scene is missing required metadata (shotDescription, shotType, dialogue, sound),
   // attempt to enrich it using the LLM so cards always have those fields.
   if (process.env.OPENROUTER_API_KEY) {
@@ -113,14 +154,43 @@ export async function createStoryboard(params: {
   } catch (e) {
     console.error('[createStoryboard] failed to log scenes', e)
   }
-  // 1) 임시 프레임 생성 (sceneNumber가 없거나 중복/불연속인 경우를 안전하게 처리)
-  const provisionalFrames: FrameRecord[] = scenes.map((s, i) => {
+  // 1) 임시 프레임 생성 with background inheritance
+  const provisionalFrames: FrameRecord[] = []
+  
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i]
     const parsed = s as ParsedScene
+    
     // sceneNumber가 유효한 양수라면 그대로 사용(0-based로 변환), 아니면 i 사용
     const initialSceneOrder = (typeof parsed.sceneNumber === 'number' && parsed.sceneNumber > 0)
       ? parsed.sceneNumber - 1
       : i
-    return {
+    
+    // Match scene metadata by order index
+    const sceneMetadataEntry = params.sceneMetadata?.[i]
+    
+    // Find matching background for this scene
+    const matchingBackground = backgroundCandidates.find(bg => 
+      bg.sceneIndices.includes(i)
+    )
+    
+    // Determine background using inheritance logic
+    let backgroundMetadata: BackgroundMetadata | undefined
+    let finalBackgroundDescription = s.background || matchingBackground?.description
+    
+    if (finalBackgroundDescription) {
+      try {
+        backgroundMetadata = await backgroundManager.decideBackgroundInheritance(
+          finalBackgroundDescription
+        )
+        // Use the inherited/decided description
+        finalBackgroundDescription = backgroundMetadata.description
+      } catch (error) {
+        console.error('[createStoryboard] Background inheritance failed:', error)
+      }
+    }
+    
+    provisionalFrames.push({
       id: crypto.randomUUID(),
       storyboardId,
       sceneOrder: initialSceneOrder,
@@ -129,9 +199,13 @@ export async function createStoryboard(params: {
       shotType: s.shotType,
       dialogue: s.dialogue,
       sound: s.sound,
-      status: 'pending'
-    }
-  })
+      status: 'pending',
+      characterMetadata: sceneMetadataEntry?.metadata || [],
+      backgroundId: backgroundMetadata?.id || matchingBackground?.id || null,
+      backgroundDescription: finalBackgroundDescription || null,
+      backgroundMetadata,
+    })
+  }
 
   // 2) sceneOrder 기준 정렬 후, 0..N-1로 재번호를 강제하여 Scene 1..N이 연속되도록 보정
   provisionalFrames.sort((a, b) => (a.sceneOrder ?? 0) - (b.sceneOrder ?? 0))
@@ -140,6 +214,14 @@ export async function createStoryboard(params: {
   }
 
   const frames: FrameRecord[] = provisionalFrames
+
+  // Build scene backgrounds map
+  const sceneBackgrounds = new Map<number, string>()
+  for (const frame of frames) {
+    if (frame.backgroundId && frame.sceneOrder !== undefined) {
+      sceneBackgrounds.set(frame.sceneOrder, frame.backgroundId)
+    }
+  }
 
   // Create storyboard record
   const record: StoryboardRecord = {
@@ -156,7 +238,10 @@ export async function createStoryboard(params: {
     aiModel: params.aiModel,
     aiQuality: 'balanced', // Default to balanced for image generation
     // Character references for image generation
-    characters: params.characters || []
+    characters: params.characters || [],
+    // Background consistency
+    backgrounds: backgroundCandidates,
+    sceneBackgrounds,
   }
 
   // Generate image prompts for each frame
@@ -196,7 +281,13 @@ export async function createStoryboard(params: {
 
 async function extractMetadataWithLLM(block: string, style: string, aspect: string) {
   // Returns an object with keys: shotDescription, shotType, dialogue, sound
-  const prompt = `Extract the following fields from the scene text. Output ONLY a valid JSON object with keys: shotDescription, shotType, dialogue, sound. If a field is missing, set it to an empty string. Do not include any extra text.\n\nScene text:\n${block}\n\nStyle hint: ${style}\nPreferred aspect ratio: ${aspect}`
+  const prompt = `Extract the following fields from the scene text. Output ONLY a valid JSON object with keys: shotDescription, shotType, dialogue, sound. If a field is missing, set it to an empty string. Do not include any extra text.
+
+Scene text:
+${block}
+
+Style hint: ${style}
+Preferred aspect ratio: ${aspect}`
   try {
     const res = await retry(async () => {
       const r = await openrouter.chat.completions.create({
@@ -284,11 +375,41 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
   const baseDescription = frame.enhancedDescription || frame.baseDescription
   const parts = [baseDescription]
   
-  // Add character references if characters are mentioned in the shot description
-  if (sb.characters && sb.characters.length > 0) {
-    const characterRefs: string[] = []
-    const characterImageUrls: string[] = []
-    
+  // Add background description if available
+  if (frame.backgroundDescription) {
+    parts.push(`background: ${frame.backgroundDescription}`)
+  }
+  
+  const characterRefs: string[] = []
+  const characterImageUrls: string[] = []
+  
+  // First priority: use dragged character metadata if available
+  if (frame.characterMetadata && frame.characterMetadata.length > 0) {
+    for (const meta of frame.characterMetadata) {
+      // Find full character info from storyboard characters
+      const character = sb.characters?.find(c => c.id === meta.characterId)
+      
+      let characterRef = meta.characterName
+      
+      // Add visual description if available
+      if (character) {
+        const editPrompt = character.editPrompt ?? character.edit_prompt
+        if (editPrompt && editPrompt.trim()) {
+          characterRef += ` (${editPrompt.trim()})`
+        }
+        
+        // Collect character image URL
+        const imageUrl = meta.characterImageUrl || character.imageUrl || character.image_url
+        if (imageUrl && !characterImageUrls.includes(imageUrl)) {
+          characterImageUrls.push(imageUrl)
+        }
+      }
+      
+      characterRefs.push(characterRef)
+    }
+  }
+  // Fallback: check if characters are mentioned in the shot description
+  else if (sb.characters && sb.characters.length > 0) {
     for (const character of sb.characters) {
       // Check if character is mentioned in the description (case-insensitive)
       const characterName = character.name.toLowerCase()
@@ -321,14 +442,14 @@ function buildImagePrompt(frame: FrameRecord, sb: StoryboardRecord) {
         }
       }
     }
-    
-    // Store character image URLs in the frame for later use during image generation
-    frame.characterImageUrls = characterImageUrls
-    
-    // Add character references to the prompt
-    if (characterRefs.length > 0) {
-      parts.push(`featuring: ${characterRefs.join(', ')}`)
-    }
+  }
+  
+  // Store character image URLs in the frame for later use during image generation
+  frame.characterImageUrls = characterImageUrls
+  
+  // Add character references to the prompt
+  if (characterRefs.length > 0) {
+    parts.push(`featuring: ${characterRefs.join(', ')}`)
   }
   
   if (frame.shotType) parts.push(frame.shotType)
@@ -416,7 +537,11 @@ export function trimFrame(f: FrameRecord) {
     dialogue: f.dialogue || '',
     sound: f.sound || '',
     imagePrompt: f.imagePrompt || '',
-    status: f.status
+    status: f.status,
+    characterMetadata: f.characterMetadata || [],
+    background: f.backgroundDescription || '',
+    backgroundId: f.backgroundId || null,
+    backgroundMetadata: f.backgroundMetadata, // Include inheritance info
   }
 }
 

@@ -1,9 +1,7 @@
 'use client'
 import React from 'react'
 import clsx from 'clsx'
-import { SlidersHorizontal } from 'lucide-react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 
 interface FloatingHeaderProps {
@@ -96,10 +94,6 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
             <SlidersHorizontal className="h-4 w-4" />
           </button>
         )}
-        <h2 className="text-lg font-semibold text-neutral-800 dark:text-white">{title}</h2>
-        <div className="text-sm text-neutral-500 dark:text-neutral-300">
-          {displayIndex} / {total}
-        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
@@ -134,7 +128,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
                 )}
               </div>
               <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-500 dark:text-[#DBDBDB] text-s">
-                <FontAwesomeIcon icon={faChevronDown} />{' '}
+                <ChevronDown className="h-3 w-3" />
               </span>
             </div>
           </label>
@@ -167,7 +161,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
               </ul>
             )}
             <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-500 dark:text-[#DBDBDB] text-s">
-              <FontAwesomeIcon icon={faChevronDown} />{' '}
+              <ChevronDown className="h-3 w-3" />
             </span>
           </div>
         </label>

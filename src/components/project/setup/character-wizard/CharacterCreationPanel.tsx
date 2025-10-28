@@ -45,6 +45,14 @@ export function CharacterCreationPanel({
     return initialModelId || allowedModels[0]?.id || DEFAULT_MODEL
   })
 
+  // Character attribute states
+  const [gender, setGender] = useState('')
+  const [age, setAge] = useState('')
+  const [race, setRace] = useState('')
+  const [hairStyleAndColor, setHairStyleAndColor] = useState('')
+  const [eyeColorAndShape, setEyeColorAndShape] = useState('')
+  const [faceFeatures, setFaceFeatures] = useState('')
+
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadPreviews, setUploadPreviews] = useState<string[]>([])
   const [activePreviewIndex, setActivePreviewIndex] = useState(0)
@@ -87,6 +95,12 @@ export function CharacterCreationPanel({
     setUploadFiles([])
     setUploadPreviews([])
     setActivePreviewIndex(0)
+    setGender('')
+    setAge('')
+    setRace('')
+    setHairStyleAndColor('')
+    setEyeColorAndShape('')
+    setFaceFeatures('')
     onClose()
   }, [onClose])
 
@@ -144,11 +158,6 @@ export function CharacterCreationPanel({
       return
     }
 
-    if (mode === 'generate' && !imagePrompt.trim()) {
-      setCreationError('Please describe the model')
-      return
-    }
-
     if (mode === 'upload' && uploadFiles.length === 0) {
       setCreationError('Please upload at least one image')
       return
@@ -164,8 +173,25 @@ export function CharacterCreationPanel({
       let imageSize: number | undefined
 
       if (mode === 'generate') {
-        const basePrompt = imagePrompt.trim() || 'portrait of an original cinematic character'
-        const prompt = ensureCharacterStyle(basePrompt)
+        // Build prompt from CHARACTER_SYSTEM_PROMPT with replaced placeholders
+        let prompt = CHARACTER_SYSTEM_PROMPT
+
+        // Replace placeholders with user inputs or defaults
+        prompt = prompt.replace('**[성별]**', gender.trim() || '[성별]')
+        prompt = prompt.replace('**[나이]**', age.trim() || '[나이]')
+        prompt = prompt.replace('**[인종/국적]**', race.trim() || '[인종/국적]')
+        prompt = prompt.replace(
+          '**[헤어스타일과 색상]**',
+          hairStyleAndColor.trim() || '[헤어스타일과 색상]'
+        )
+        prompt = prompt.replace(
+          '**[눈 색상과 모양]**',
+          eyeColorAndShape.trim() || '[눈 색상과 모양]'
+        )
+        prompt = prompt.replace(
+          '**[독특한 얼굴 특징 (주근깨, 점 등)]**',
+          faceFeatures.trim() || '[독특한 얼굴 특징]'
+        )
 
         const res = await fetch('/api/generate-image', {
           method: 'POST',
@@ -258,6 +284,12 @@ export function CharacterCreationPanel({
     resetForm,
     uploadFiles,
     userId,
+    gender,
+    age,
+    race,
+    hairStyleAndColor,
+    eyeColorAndShape,
+    faceFeatures,
   ])
 
   const latestPreviewImage = useMemo(() => {
@@ -281,24 +313,8 @@ export function CharacterCreationPanel({
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row" data-testid="character-creation-layout">
-        <div
-          className="flex w-full flex-col gap-4 rounded-xl border border-neutral-800/60 bg-neutral-900/70 p-4"
-          data-testid="character-creation-left"
-        >
-          <div className="space-y-3">
-            <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
-              Model name
-            </label>
-            <input
-              type="text"
-              value={creationName}
-              onChange={e => setCreationName(e.target.value)}
-              placeholder="Model name"
-              ref={nameInputRef}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
-            />
-          </div>
-
+        {/* Left side - Preview */}
+        <div className="flex w-full flex-col gap-4 lg:w-2/5" data-testid="character-creation-left">
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-neutral-500">
               <span>Preview</span>
@@ -308,7 +324,7 @@ export function CharacterCreationPanel({
                 </span>
               ) : null}
             </div>
-            <div className="relative mx-auto aspect-[3/4] w-full max-w-[320px] overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
+            <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
               {mode === 'generate' ? (
                 isSaving ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-neutral-300">
@@ -363,9 +379,7 @@ export function CharacterCreationPanel({
                 </button>
                 <button
                   onClick={() =>
-                    setActivePreviewIndex(idx =>
-                      Math.min(uploadPreviews.length - 1, idx + 1)
-                    )
+                    setActivePreviewIndex(idx => Math.min(uploadPreviews.length - 1, idx + 1))
                   }
                   className="rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white disabled:opacity-40"
                   disabled={boundedPreviewIndex === uploadPreviews.length - 1}
@@ -376,49 +390,14 @@ export function CharacterCreationPanel({
             ) : null}
           </div>
 
-          {mode === 'generate' ? (
-            <div className="space-y-3">
-              <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
-                Model description
-              </label>
-              <textarea
-                value={imagePrompt}
-                onChange={e => setImagePrompt(e.target.value)}
-                placeholder={GENERATE_DESCRIPTION_PLACEHOLDER}
-                className="min-h-[180px] w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
-              />
-              <div className="flex items-center justify-between text-[11px] text-neutral-500">
-                <span>Model</span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 transition hover:border-neutral-500 hover:text-white">
-                      {allowedModels.find(m => m.id === model)?.name ?? 'Select model'}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-64 rounded-lg border border-neutral-800 bg-neutral-900 py-1 text-white">
-                    <DropdownMenuRadioGroup value={model} onValueChange={setModel}>
-                      {allowedModels.map(m => (
-                        <DropdownMenuRadioItem
-                          key={m.id}
-                          value={m.id}
-                          className="cursor-pointer rounded px-3 py-2 text-sm text-white hover:bg-neutral-700"
-                        >
-                          {m.name}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ) : (
+          {mode === 'upload' && (
             <div className="flex flex-1 flex-col gap-4">
               <label className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
                 Upload images
               </label>
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="flex min-h-[260px] flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-neutral-700 bg-neutral-800/50 transition hover:border-neutral-600"
+                className="flex min-h-[160px] flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-neutral-700 bg-neutral-800/50 transition hover:border-neutral-600"
                 tabIndex={0}
                 aria-label="Upload character images"
                 onKeyDown={event => {
@@ -430,7 +409,13 @@ export function CharacterCreationPanel({
               >
                 <div className="text-center">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-neutral-600 bg-neutral-700 text-white">
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <svg
+                      className="h-6 w-6"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -454,7 +439,166 @@ export function CharacterCreationPanel({
               />
             </div>
           )}
+        </div>
 
+        <div className="flex w-full flex-col gap-4 lg:w-3/5">
+          <div>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              Model name
+            </label>
+            <input
+              type="text"
+              value={creationName}
+              onChange={e => setCreationName(e.target.value)}
+              placeholder="Enter model name"
+              ref={nameInputRef}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+            />
+          </div>
+
+          {mode === 'generate' && (
+            <>
+              <div>
+                <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+                  AI Model
+                </label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-left text-sm text-white transition hover:border-neutral-500">
+                      {allowedModels.find(m => m.id === model)?.name ?? 'Select model'}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-64 rounded-lg border border-neutral-800 bg-neutral-900 py-1 text-white">
+                    <DropdownMenuRadioGroup value={model} onValueChange={setModel}>
+                      {allowedModels.map(m => (
+                        <DropdownMenuRadioItem
+                          key={m.id}
+                          value={m.id}
+                          className="cursor-pointer rounded px-3 py-2 text-sm text-white hover:bg-neutral-700"
+                        >
+                          {m.name}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="flex flex-col gap-4 rounded-xl border border-neutral-800/60 bg-neutral-900/70 p-4">
+                <h4 className="text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
+                  Character Attributes
+                </h4>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* Gender */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                      Gender
+                    </label>
+                    <input
+                      type="text"
+                      value={gender}
+                      onChange={e => setGender(e.target.value)}
+                      placeholder="e.g., Male, Female, Non-binary"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Age */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                      Age
+                    </label>
+                    <input
+                      type="text"
+                      value={age}
+                      onChange={e => setAge(e.target.value)}
+                      placeholder="e.g., 25, Mid-30s, Elderly"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Race */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                      Race
+                    </label>
+                    <input
+                      type="text"
+                      value={race}
+                      onChange={e => setRace(e.target.value)}
+                      placeholder="e.g., Caucasian, Asian, Hispanic"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Hair Style & Color */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                      Hair Style & Color
+                    </label>
+                    <input
+                      type="text"
+                      value={hairStyleAndColor}
+                      onChange={e => setHairStyleAndColor(e.target.value)}
+                      placeholder="e.g., Long wavy blonde hair"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Eye Color & Shape */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                      Eye Color & Shape
+                    </label>
+                    <input
+                      type="text"
+                      value={eyeColorAndShape}
+                      onChange={e => setEyeColorAndShape(e.target.value)}
+                      placeholder="e.g., Blue almond-shaped eyes"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Face Features - Full Width */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium uppercase tracking-wider text-neutral-500">
+                    Face Features
+                  </label>
+                  <input
+                    type="text"
+                    value={faceFeatures}
+                    onChange={e => setFaceFeatures(e.target.value)}
+                    placeholder="e.g., Freckles, beauty mark, dimples"
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+                  />
+                </div>
+
+                {creationError && (
+                  <div className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-400">
+                    {creationError}
+                  </div>
+                )}
+
+                <div className="flex justify-end border-t border-neutral-800 pt-4">
+                  <Button
+                    onClick={handleCreateCharacter}
+                    disabled={isSaving || !creationName.trim()}
+                    className="rounded-lg bg-white px-8 py-2.5 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-50"
+                  >
+                    {isSaving ? 'Generating...' : 'Generate Model'}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Error and action buttons for upload mode */}
+      {mode === 'upload' && (
+        <div className="space-y-4">
           {creationError && (
             <div className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-400">
               {creationError}
@@ -467,11 +611,11 @@ export function CharacterCreationPanel({
               disabled={isSaving || !creationName.trim()}
               className="rounded-lg bg-white px-8 py-2.5 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : mode === 'generate' ? 'Generate' : 'Add Model'}
+              {isSaving ? 'Saving...' : 'Add Model'}
             </Button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

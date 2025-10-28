@@ -101,7 +101,7 @@ export const useFrameManagement = (
         let duplicateFields: Partial<Card> | null = null
 
         if (duplicateCardId) {
-          const sourceCard = (cards || []).find(card => card.id === duplicateCardId)
+          const sourceCard = (cards || []).find((card: Card) => card.id === duplicateCardId)
           const sourceFrame = framesRef.current.find(frame => frame.id === duplicateCardId) || null
 
           const rawHistory = sourceCard?.image_urls
@@ -359,7 +359,7 @@ export const useFrameManagement = (
   const handlePlayVideo = useCallback(
     (frameId: string, frames: StoryboardFrame[]) => {
       const frame = frames.find(f => f.id === frameId)
-      const url = (frame as any)?.videoUrl as string | undefined
+      const url = frame?.videoUrl
       if (!frame || !url) {
         throw new Error('No video available yet for this scene. Generate one first.')
       }

@@ -8,9 +8,10 @@ import { CharacterEditDialog } from './character-wizard/CharacterEditDialog'
 import type { Character } from './character-wizard/types'
 
 const ALLOWED_CHARACTER_MODEL_IDS = [
-  'fal-ai/flux-pro/v1.1-ultra',
+  'fal-ai/imagen4',
+  'fal-ai/imagen4-ultra',
+  'fal-ai/gemini-25-flash-image',
   'fal-ai/bytedance/seedream/v4/text-to-image',
-  'fal-ai/flux-pro/kontext',
 ] as const
 
 type Props = {
@@ -45,7 +46,7 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
   )
 
   const latestCharacterImageUrl = useMemo(
-    () => (characters.length ? characters[characters.length - 1]?.imageUrl ?? null : null),
+    () => (characters.length ? (characters[characters.length - 1]?.imageUrl ?? null) : null),
     [characters]
   )
 
@@ -81,7 +82,9 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
   )
 
   const handleSaveCharacterEdit = useCallback((updatedCharacter: Character) => {
-    setCharacters(prev => prev.map(char => (char.id === updatedCharacter.id ? updatedCharacter : char)))
+    setCharacters(prev =>
+      prev.map(char => (char.id === updatedCharacter.id ? updatedCharacter : char))
+    )
   }, [])
 
   const handleCloseEditModal = useCallback(() => {
@@ -123,7 +126,6 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
         characters={characters}
         onEdit={handleEditCharacter}
         onRemove={handleRemove}
-        onUseAsReference={handleUseAsReference}
         onRequestUpload={handleRequestUpload}
         onRequestGenerate={handleRequestGenerate}
       />
@@ -139,4 +141,3 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
     </div>
   )
 }
-

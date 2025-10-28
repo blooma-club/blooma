@@ -1,4 +1,13 @@
 // Shared storyboard UI types (client-side only)
+
+export interface BackgroundMetadata {
+  id: string
+  description: string
+  keywords: string[]
+  isInherited: boolean
+  inheritedFrom?: string
+}
+
 export interface StoryboardFrame {
   id: string
   imageUrl?: string
@@ -8,6 +17,8 @@ export interface StoryboardFrame {
   shot: string
   angle?: string
   background?: string
+  backgroundId?: string | null // Reference to selected background
+  backgroundMetadata?: BackgroundMetadata // Inheritance metadata
   moodLighting?: string
   dialogue: string
   sound: string
@@ -15,6 +26,18 @@ export interface StoryboardFrame {
   status: 'pending' | 'enhancing' | 'prompted' | 'generating' | 'ready' | 'error'
   error?: string
   cardWidth?: number | null
+  videoUrl?: string
+  videoKey?: string
+  videoPrompt?: string
+  // Character metadata for dragged characters
+  characterMetadata?: Array<{
+    characterId: string
+    characterName: string
+    characterHandle?: string
+    characterImageUrl?: string
+    modelId: string
+    modelLabel: string
+  }>
 }
 
 export interface Character {
@@ -36,6 +59,25 @@ export interface BuildStoryboardOptions {
   aiModel?: string
   // Character references for image generation
   characters?: Character[]
+  // Scene metadata with dragged characters
+  sceneMetadata?: Array<{
+    sceneId: string
+    metadata: Array<{
+      characterId: string
+      characterName: string
+      characterHandle?: string
+      characterImageUrl?: string
+      modelId: string
+      modelLabel: string
+    }>
+  }>
+  // Background consistency
+  backgrounds?: Array<{
+    id: string
+    description: string
+    keywords: string[]
+    sceneIndices: number[]
+  }>
 }
 
 export interface StoryboardBuildResponse {

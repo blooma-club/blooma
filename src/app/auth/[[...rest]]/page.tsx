@@ -8,7 +8,24 @@ import { CLERK_USER_SYNC_STORAGE_KEY } from '@/lib/clerk'
 
 type SyncStatus = 'idle' | 'syncing' | 'success' | 'error'
 
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+
 export default function AuthPage() {
+  if (!clerkPublishableKey) {
+    return (
+      <AuthShell>
+        <div className="space-y-4">
+          <h2 className="text-2xl font-semibold text-black">Authentication unavailable</h2>
+          <p className="text-base text-neutral-600">
+            Clerk is not configured for this environment. Set the{' '}
+            <span className="font-mono text-neutral-800">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</span>{' '}
+            environment variable to enable sign in and try again.
+          </p>
+        </div>
+      </AuthShell>
+    )
+  }
+
   return (
     <>
       <SignedOut>
