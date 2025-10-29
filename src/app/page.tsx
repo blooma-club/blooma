@@ -71,25 +71,29 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       {/* Header (로고+네비+액션) */}
       <div className="h-16 flex items-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="flex items-center justify-between w-full max-w-7xl mx-auto gap-x-32 px-4">
+        <div className="relative w-full max-w-7xl mx-auto px-4 flex items-center justify-between">
           {/* 좌측: 로고 */}
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <Image
-              src="/blooma_logo.svg"
-              alt="Blooma Logo"
-              aria-label="Blooma Logo"
-              width={36}
-              height={36}
-              className="w-9 h-9 object-contain"
-              priority
-            />
-            <span className="text-2xl font-bold text-white select-none ml-3">Blooma</span>
-          </button>
+          <div className="flex-shrink-0">
+            <Button
+              variant="ghost"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center hover:opacity-80 transition-opacity cursor-pointer p-2"
+              aria-label="Go to top"
+              tabIndex={0}
+            >
+              <Image
+                src="/blooma_logo.svg"
+                alt="Blooma Logo"
+                width={28}
+                height={28}
+                className="w-7 h-7 object-contain"
+                priority
+              />
+            </Button>
+          </div>
+
           {/* 중앙: 네비게이션 */}
-          <nav className="hidden md:flex gap-10 pr-30">
+          <nav className="hidden md:flex gap-10 absolute left-1/2 -translate-x-1/2">
             <a
               href="#features"
               className="text-neutral-300 hover:text-white font-medium transition-colors"
@@ -115,36 +119,33 @@ export default function Home() {
               Contact
             </a>
           </nav>
-          {/* 우측: 액션 버튼 */}
-          <div className="flex items-center gap-4 -mt-1 group">
+
+          {/* 우측: Login만 */}
+          <div className="flex-shrink-0 flex items-center gap-4">
             <ThemeToggle />
             {!user ? (
-              <>
-                <Button
-                  variant="ghost"
-                  className="py-1 px-3 text-white hover:bg-neutral-800"
-                  onClick={() => {
-                    console.log('Login button clicked, navigating to /auth')
-                    router.push('/auth')
-                  }}
-                >
-                  Login
-                </Button>
-                <Button
-                  variant="outline"
-                  className="py-1 px-3 border-neutral-700 text-white hover:bg-neutral-800"
-                  onClick={() => {
-                    console.log('Get Started Free button clicked, navigating to /auth')
-                    router.push('/auth')
-                  }}
-                >
-                  Get Started Free
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                className="text-white hover:bg-neutral-800"
+                onClick={() => {
+                  console.log('Login button clicked, navigating to /auth')
+                  router.push('/auth')
+                }}
+                aria-label="Login"
+                tabIndex={0}
+              >
+                Login
+              </Button>
             ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center hover:opacity-80 transition-opacity cursor-pointer">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
+                    aria-label="User menu"
+                    tabIndex={0}
+                  >
                     {user.imageUrl ? (
                       <Image
                         src={user.imageUrl}
@@ -161,7 +162,7 @@ export default function Home() {
                         </span>
                       </div>
                     )}
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-48 border-neutral-700" style={{ backgroundColor: 'hsl(var(--background))' }} align="end">
                   <div className="px-3 py-2 border-b border-neutral-700">
@@ -255,30 +256,18 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-16 flex items-center gap-4">
+          <div className="mt-16 flex items-center justify-center">
             <Button
-              className="px-8 py-3 text-lg font-semibold"
-              style={{ 
-                backgroundColor: 'hsl(var(--primary))', 
-                color: 'hsl(var(--primary-foreground))' 
-              }}
+              variant="default"
+              size="lg"
               onClick={() => {
                 console.log('Hero Get Started button clicked, navigating to /auth')
                 router.push('/auth')
               }}
+              aria-label="Get Started"
+              tabIndex={0}
             >
               Get Started
-            </Button>
-            <Button
-              variant="outline"
-              className="px-8 py-3 text-lg font-semibold border-2"
-              style={{ 
-                borderColor: 'hsl(var(--border))', 
-                color: 'hsl(var(--foreground))' 
-              }}
-              onClick={() => router.push('/dashboard')}
-            >
-              View Demo
             </Button>
           </div>
         </div>

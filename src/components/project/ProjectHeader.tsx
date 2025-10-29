@@ -107,13 +107,14 @@ export default function ProjectHeader() {
     <div className="flex items-center gap-4">
       <button
         onClick={() => router.push('/dashboard')}
-        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
+        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-800 hover:bg-muted rounded-lg transition-all"
+        style={{ color: 'hsl(var(--foreground))' }}
         title="돌아가기"
       >
         <ArrowLeft className="w-4 h-4" />
         Dashboard
       </button>
-      <div className="w-px h-4 bg-gray-600" />
+      <div className="w-px h-4 dark:bg-gray-600" style={{ backgroundColor: 'hsl(var(--border))' }} />
       {isEditing ? (
         <div className="flex items-center gap-3">
           <input
@@ -149,10 +150,11 @@ export default function ProjectHeader() {
         </div>
       ) : (
         <div className="flex items-center gap-2 group">
-          <span className="text-sm font-semibold text-white truncate">{title}</span>
+          <span className="text-sm font-semibold dark:text-white truncate" style={{ color: 'hsl(var(--foreground))' }}>{title}</span>
           <button
             onClick={handleEditStart}
-            className="inline-flex items-center justify-center p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 opacity-0 group-hover:opacity-100 transition-all"
+            className="inline-flex items-center justify-center p-1.5 rounded-md dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-800 hover:bg-muted opacity-0 group-hover:opacity-100 transition-all"
+            style={{ color: 'hsl(var(--muted-foreground))' }}
             title="Edit project title"
           >
             <Edit3 className="w-3.5 h-3.5" />

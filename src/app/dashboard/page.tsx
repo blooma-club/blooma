@@ -118,7 +118,7 @@ export default function DashboardPage() {
   return (
     <div className="w-full min-h-screen flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
       {/* 헤더: Projects 타이틀 + Account Settings */}
-      <header className="w-full border-b-2 border-neutral-800 px-8 py-4 flex items-center justify-between" style={{ backgroundColor: 'hsl(var(--background))' }}>
+      <header className="w-full h-14 border-b px-6 flex items-center justify-between" style={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}>
         <button
           onClick={() => router.push('/')}
           className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
@@ -126,12 +126,11 @@ export default function DashboardPage() {
           <Image
             src="/blooma_logo.svg"
             alt="Blooma Logo"
-            width={40}
-            height={40}
-            className="w-10 h-10 object-contain select-none"
+            width={28}
+            height={28}
+            className="w-7 h-7 object-contain select-none"
             draggable={false}
           />
-          <span className="text-2xl font-bold text-white select-none ml-1">Blooma</span>
         </button>
 
         {/* 오른쪽: 계정 설정 */}
@@ -148,12 +147,12 @@ export default function DashboardPage() {
         {/* 제목/버튼/부제목 */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-4xl font-bold text-white">Projects</h1>
+            <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">Projects</h1>
             <Button
               variant="default"
               onClick={handleCreateProject}
               disabled={creatingProject || !userId}
-              className="flex items-center mt-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+              className="flex items-center mt-2"
               aria-label="New project"
               tabIndex={0}
             >
@@ -171,11 +170,12 @@ export default function DashboardPage() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               disabled={!userId}
-              className="w-full border border-neutral-700 bg-neutral-900 text-white rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-white pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed placeholder-neutral-400"
+              className="w-full border border-input bg-background rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-ring pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed placeholder-muted-foreground"
+              style={{ color: 'hsl(var(--foreground))' }}
               aria-label="Search projects"
               tabIndex={0}
             />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 w-5 h-5 pointer-events-none" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: 'hsl(var(--muted-foreground))' }} />
           </div>
           <div className="flex flex-row-reverse gap-4 flex-shrink-0">
             <Button
@@ -185,7 +185,7 @@ export default function DashboardPage() {
               disabled={!userId}
               aria-label="Grid view"
               tabIndex={0}
-              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+              className=""
             >
               <Grid className="w-5 h-5" />
             </Button>
@@ -196,7 +196,7 @@ export default function DashboardPage() {
               disabled={!userId}
               aria-label="List view"
               tabIndex={0}
-              className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+              className=""
             >
               <List className="w-5 h-5" />
             </Button>
@@ -206,8 +206,8 @@ export default function DashboardPage() {
         {/* Loading states and error handling */}
         {!isLoaded ? (
           <div className="text-center py-12">
-            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
-              <div className="text-neutral-400 mb-4">
+            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
@@ -224,16 +224,16 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">Loading...</h3>
-              <p className="text-neutral-300">
+              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>Loading...</h3>
+              <p style={{ color: 'hsl(var(--muted-foreground))' }}>
                 Please wait while we check your authentication status.
               </p>
             </div>
           </div>
         ) : !userId ? (
           <div className="text-center py-12">
-            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
-              <div className="text-neutral-400 mb-4">
+            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -248,16 +248,16 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">Please sign in</h3>
-              <p className="text-neutral-300 mb-4">
+              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>Please sign in</h3>
+              <p className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 You need to be signed in to view your projects.
               </p>
             </div>
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <div className="bg-neutral-900 rounded-lg shadow-lg p-8 border border-neutral-800">
-              <div className="text-neutral-400 mb-4">
+            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -272,10 +272,10 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">
+              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
                 {searchTerm ? 'No projects found' : 'You have no projects yet'}
               </h3>
-              <p className="text-neutral-300 mb-6">
+              <p className="mb-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 {searchTerm
                   ? 'Try a different search term.'
                   : 'Get started by creating your first project.'}
@@ -285,7 +285,7 @@ export default function DashboardPage() {
                   variant="default"
                   onClick={handleCreateProject}
                   disabled={creatingProject}
-                  className="flex items-center mx-auto bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                  className="flex items-center mx-auto"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {creatingProject ? 'Creating...' : 'Create Your First Project'}
@@ -316,7 +316,7 @@ export default function DashboardPage() {
             
             {/* 백그라운드 동기화 표시 */}
             {isLoading && projects.length > 0 && (
-              <div className="fixed top-4 right-4 text-xs text-blue-400 opacity-50 bg-neutral-800 px-2 py-1 rounded">
+              <div className="fixed top-4 right-4 text-xs opacity-50 px-2 py-1 rounded" style={{ color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--muted))' }}>
                 Background sync in progress
               </div>
             )}

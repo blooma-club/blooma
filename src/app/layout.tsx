@@ -49,35 +49,5 @@ export default function RootLayout({
       <ClerkSyncEffect />
       {appShell}
     </>
-  ) : (
-    appShell
-  );
-
-  return (
-    <PublishableClerkProvider>
-      <html lang="en" className="dark">
-        <body
-          className={`${inter.variable} ${instrumentSerif.variable} antialiased min-h-screen text-white font-sans`}
-          style={{ backgroundColor: 'hsl(var(--background))' }}
-        >
-          {shellWithProviders}
-        </body>
-      </html>
-    </PublishableClerkProvider>
-  );
+  ) : appShell
 }
-function PublishableClerkProvider({ children }: { children: React.ReactNode }) {
-  if (!clerkPublishableKey) {
-    return <>{children}</>;
-  }
-
-  return (
-    <ClerkProvider
-      publishableKey={clerkPublishableKey}
-      appearance={{ variables: { colorPrimary: '#000000' } }}
-    >
-      {children}
-    </ClerkProvider>
-  );
-}
-

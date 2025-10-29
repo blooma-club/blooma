@@ -17,28 +17,30 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   className = ''
 }) => {
   return (
-    <div className={`flex items-center bg-neutral-50 dark:bg-neutral-800 rounded p-0.5 ${className}`}>
+    <div 
+      className={`flex items-center h-[48px] rounded-lg border shadow-lg px-1 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 ${className}`}
+    >
       <button
         onClick={onSetGrid}
-        className={`p-1.5 rounded transition-colors ${
+        className={`h-[36px] px-3 rounded-md transition-all flex items-center justify-center ${
           viewMode === 'grid'
-            ? 'bg-neutral-100 dark:bg-white text-neutral-800 dark:text-neutral-900'
-            : 'text-neutral-400 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700'
+            ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+            : 'bg-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
         }`}
         aria-label="Grid view"
       >
-        <Grid className="w-3.5 h-3.5" />
+        <Grid className="w-4 h-4 text-current" />
       </button>
       <button
         onClick={onSetList}
-        className={`p-1.5 rounded transition-colors ${
+        className={`h-[36px] px-3 rounded-md transition-all flex items-center justify-center ${
           viewMode === 'list'
-            ? 'bg-neutral-100 dark:bg-white text-neutral-800 dark:text-neutral-900'
-            : 'text-neutral-400 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700'
+            ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+            : 'bg-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
         }`}
         aria-label="List view"
       >
-        <List className="w-3.5 h-3.5" />
+        <List className="w-4 h-4 text-current" />
       </button>
     </div>
   )

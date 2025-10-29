@@ -180,43 +180,28 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     }
   }
 
-  const baseControlTriggerClass =
-    'h-9 md:h-10 justify-between rounded-lg border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50/80 dark:bg-neutral-900/70 px-3 md:px-4 text-xs md:text-sm text-neutral-800 dark:text-neutral-100 transition-colors hover:bg-neutral-100/80 dark:hover:bg-neutral-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-0'
 
   return (
     <div
       className={clsx(
         'fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] pointer-events-none',
         // 13인치~23인치: 작은 크기 유지
-        'w-[min(480px,90%)]',
+        'w-[min(400px,90%)]',
         // 24인치부터: 큰 크기로 확장 (1536px 이상 - 24인치 모니터 기준)
-        '2xl:w-[min(720px,75%)]',
+        '2xl:w-[min(600px,75%)]',
         className
       )}
       aria-live="polite"
     >
       {/* 메인 입력 컨테이너 */}
       <div className="pointer-events-auto relative">
-        {/* 배경 그라데이션과 블러 효과 */}
-        <div
-          className="absolute inset-0 rounded-2xl blur-xl"
-          style={{ backgroundColor: `hsl(var(--glow-bg) / 0.1)` }}
-        ></div>
-        <div
-          className="absolute inset-0 backdrop-blur-xl rounded-2xl border"
-          style={{
-            backgroundColor: `hsl(var(--glow-bg) / 0.05)`,
-            borderColor: `hsl(var(--glow-border) / 0.1)`,
-          }}
-        ></div>
-
         {/* 실제 컨텐츠 */}
-        <div className="relative bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 shadow-xl p-4 md:p-5">
-          <div className="flex flex-col gap-3 md:gap-4">
+        <div className="relative rounded-lg border backdrop-blur-md p-3" style={{ backgroundColor: 'hsl(var(--background) / 0.95)', borderColor: 'hsl(var(--border))' }}>
+          <div className="flex flex-col gap-2.5">
             {/* 상단: 모드 탭, 배지, 모델 선택 */}
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-2">
               {/* 왼쪽: 탭과 배지 */}
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
                 <Tabs
                   value={currentMode}
                   onValueChange={v => {
@@ -226,34 +211,31 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   }}
                   className="flex-shrink-0"
                 >
-                  <TabsList className="bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300 h-9 md:h-10 gap-1 p-1 border border-neutral-200/50 dark:border-neutral-700/50">
+                  <TabsList 
+                    className="h-8 gap-0.5 p-0.5 bg-[#EDEDED] dark:bg-neutral-800" 
+                  >
                     <TabsTrigger
                       value="generate"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-900 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 px-2.5 py-1.5 rounded-md transition-colors data-[state=active]:border-b-2 data-[state=active]:border-blue-500 dark:data-[state=active]:border-blue-400"
+                      className="px-2.5 py-1 rounded-md h-7 text-xs transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
                       title="Generate new image"
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3.5 w-3.5" />
                     </TabsTrigger>
                     <TabsTrigger
                       value="edit"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-900 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 px-2.5 py-1.5 rounded-md transition-colors data-[state=active]:border-b-2 data-[state=active]:border-purple-500 dark:data-[state=active]:border-purple-400"
+                      className="px-2.5 py-1 rounded-md h-7 text-xs transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
                       title="Edit current image"
                     >
-                      <Edit3 className="h-4 w-4" />
+                      <Edit3 className="h-3.5 w-3.5" />
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
 
                 {typeof selectedShotNumber === 'number' && (
                   <span
-                    className={clsx(
-                      'px-2.5 py-1.5 rounded-md border text-xs font-medium flex-shrink-0 whitespace-nowrap',
-                      currentMode === 'edit'
-                        ? 'bg-purple-500/15 text-purple-300 border-purple-500/40'
-                        : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
-                    )}
+                    className="px-2 py-1 rounded text-xs font-medium flex-shrink-0 whitespace-nowrap bg-[#EDEDED] dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
                   >
-                    {currentMode === 'edit' ? 'Editing' : 'Shot'} {selectedShotNumber}
+                    {currentMode === 'edit' ? 'Edit' : 'Generate'} {selectedShotNumber}
                   </span>
                 )}
               </div>
@@ -264,24 +246,19 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className={clsx(
-                        baseControlTriggerClass,
-                        'min-w-[120px] md:min-w-[140px]',
-                        'border-neutral-700/50 hover:border-neutral-600/70'
-                      )}
+                      className="h-8 min-w-[100px] px-2.5 text-xs text-neutral-900 dark:text-white"
                     >
-                      <span className="truncate text-left text-xs md:text-sm">
-                        {selectedModel?.name || 'Select model'}
+                      <span className="truncate text-left">
+                        {selectedModel?.name || 'Model'}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-60 flex-shrink-0" />
+                      <ChevronDown className="h-3 w-3 ml-1 opacity-60 flex-shrink-0 text-current" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 rounded-lg border border-neutral-200/60 dark:border-neutral-800/60 bg-white/95 dark:bg-neutral-900/95 p-1 backdrop-blur-xl z-[80]">
+                  <DropdownMenuContent className="w-48 rounded-md p-1 z-[80]" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
                     {models.map(m => (
                       <DropdownMenuItem
                         key={m.id}
                         onClick={() => {
-                          // 모델이 유효하지 않으면 첫 번째 모델로 자동 선택
                           const validModelId = models.find(model => model.id === m.id)
                             ? m.id
                             : models[0]?.id
@@ -289,10 +266,11 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                             setModelId(validModelId)
                           }
                         }}
-                        className={clsx(
-                          'rounded-md px-2.5 py-1.5 text-xs text-neutral-700 dark:text-neutral-100 transition-colors focus:bg-neutral-100 dark:focus:bg-neutral-800 focus:text-neutral-800 dark:focus:text-neutral-100',
-                          modelId === m.id && 'bg-neutral-200/60 dark:bg-neutral-700/60'
-                        )}
+                        className="rounded-sm px-2 py-1.5 text-xs"
+                        style={{ 
+                          backgroundColor: modelId === m.id ? 'hsl(var(--accent))' : 'transparent',
+                          color: 'hsl(var(--popover-foreground))'
+                        }}
                       >
                         {m.name}
                       </DropdownMenuItem>
@@ -303,57 +281,45 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
             </div>
 
             {/* 중간: 프롬프트 입력 영역 */}
-            <div className="group relative isolate">
-              <div
-                className="absolute inset-0 rounded-lg opacity-0 transition-opacity duration-300 group-focus-within:opacity-100"
-                style={{ backgroundColor: `hsl(var(--glow-bg) / 0.15)` }}
-              ></div>
-              <div className="relative flex items-end gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50/80 dark:bg-neutral-900/80 px-3.5 py-2.5 md:px-4.5 md:py-3 shadow-[0_8px_25px_-12px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_25px_-12px_rgba(0,0,0,0.5)] transition-all duration-200 group-focus-within:border-neutral-300/80 dark:group-focus-within:border-neutral-700/100 group-focus-within:bg-neutral-100/90 dark:group-focus-within:bg-neutral-900/90">
-                <textarea
-                  ref={textareaRef}
-                  value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={currentMode === 'edit' ? 'Modify the image…' : 'Create a scene…'}
-                  aria-label="prompt input"
-                  className="w-full bg-transparent text-sm md:text-base text-neutral-800 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-500 focus:outline-none focus:ring-0 resize-none overflow-y-auto"
-                  disabled={submitting}
-                  rows={1}
-                  style={{
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: 'rgba(255,255,255,0.2) transparent',
-                    minHeight: '1.75rem',
-                    maxHeight: '8rem',
-                  }}
-                />
-                <Button
-                  type="button"
-                  onClick={() => void handleSubmit()}
-                  disabled={submitting || !prompt.trim()}
-                  className={clsx(
-                    'h-8 w-8 rounded-lg p-0 flex items-center justify-center transition-all duration-200 flex-shrink-0 aspect-square',
-                    currentMode === 'edit'
-                      ? 'bg-purple-500 hover:bg-purple-400 text-white focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-0'
-                      : 'bg-blue-500 hover:bg-blue-400 text-white focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-0',
-                    (submitting || !prompt.trim()) && 'cursor-not-allowed opacity-50'
-                  )}
-                  aria-label={currentMode === 'edit' ? 'Apply changes' : 'Generate'}
-                >
-                  {submitting ? (
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white/80"></div>
-                  ) : currentMode === 'edit' ? (
-                    <Edit3 className="h-4 w-4" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+            <div className="flex items-end gap-2 rounded-md border p-2 transition-colors focus-within:ring-2 focus-within:ring-offset-0" style={{ borderColor: 'hsl(var(--input))', backgroundColor: 'hsl(var(--background))' }}>
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={currentMode === 'edit' ? 'Modify the image…' : 'Create a scene…'}
+                aria-label="prompt input"
+                className="w-full bg-transparent text-sm resize-none overflow-y-auto focus:outline-none focus:ring-0"
+                style={{ 
+                  color: 'hsl(var(--foreground))',
+                  minHeight: '1.5rem',
+                  maxHeight: '8rem',
+                }}
+                disabled={submitting}
+                rows={1}
+              />
+              <Button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={submitting || !prompt.trim()}
+                className="h-8 w-8 rounded-md p-0 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
+                style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                aria-label={currentMode === 'edit' ? 'Apply changes' : 'Generate'}
+              >
+                {submitting ? (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                ) : currentMode === 'edit' ? (
+                  <Edit3 className="h-3.5 w-3.5" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+              </Button>
             </div>
 
             {/* 에러 메시지 */}
             {error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 animate-in fade-in">
-                <p className="text-xs text-red-300">{error}</p>
+              <div className="rounded-md border px-2.5 py-1.5 animate-in fade-in" style={{ borderColor: 'hsl(var(--destructive))', backgroundColor: 'hsl(var(--destructive) / 0.1)' }}>
+                <p className="text-xs" style={{ color: 'hsl(var(--destructive))' }}>{error}</p>
               </div>
             )}
           </div>

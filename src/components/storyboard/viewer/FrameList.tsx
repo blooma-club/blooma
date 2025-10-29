@@ -140,12 +140,12 @@ export const FrameList: React.FC<FrameListProps> = ({
         {/* Add new frame button */}
         <button
           onClick={() => onAddFrame()}
-          className="w-full p-8 border-2 border-dashed border-neutral-600 rounded-lg flex items-center justify-center text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 transition-colors bg-neutral-900/50"
+          className="w-full p-8 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg flex items-center justify-center hover:border-neutral-400 dark:hover:border-neutral-500 transition-colors bg-neutral-50 dark:bg-neutral-900/50"
           style={{ minHeight: maxHeight }}
           aria-label="Add new frame"
         >
-          <Plus className="w-8 h-8 mr-4" />
-          <span className="font-semibold text-xl">Add new scene</span>
+          <Plus className="w-8 h-8 mr-4 text-black dark:text-neutral-400" />
+          <span className="font-semibold text-xl text-black dark:text-neutral-400">Add new scene</span>
         </button>
       </div>
     </div>

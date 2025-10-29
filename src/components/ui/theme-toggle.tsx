@@ -28,13 +28,13 @@ export const ThemeToggle: React.FC = () => {
       variant="outline"
       size="sm"
       onClick={toggleTheme}
-      className="h-9 w-9 rounded-lg border-neutral-700/60 bg-neutral-900/70 text-neutral-100 transition-colors hover:bg-neutral-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-0"
+      className="h-[48px] w-[48px] rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-0 flex items-center justify-center"
       aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
     >
       {isDark ? (
-        <Sun className="h-4 w-4" />
+        <Sun className="h-4 w-4 text-neutral-900 dark:text-white" />
       ) : (
-        <Moon className="h-4 w-4" />
+        <Moon className="h-4 w-4 text-neutral-900 dark:text-white" />
       )}
     </Button>
   )

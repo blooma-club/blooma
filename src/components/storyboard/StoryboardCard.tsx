@@ -68,10 +68,6 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
           Shot {sceneNumber}
         </div>
       )}
-      <div
-        className={`absolute top-2 right-2 z-20 w-2.5 h-2.5 rounded-full ${statusDotClass} ring-2 ring-neutral-200 dark:ring-neutral-700`}
-        aria-hidden="true"
-      />
       {/* Hover actions (top-right) */}
       <div className="absolute top-2 right-2 z-30 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         {onEdit && (

@@ -1,8 +1,10 @@
 'use client'
 import React from 'react'
 import clsx from 'clsx'
-import { ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { useAuth } from '@clerk/nextjs'
+import { ChevronDown, SlidersHorizontal, Edit3, Check, X } from 'lucide-react'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
+import type { Project } from '@/types'
 
 interface FloatingHeaderProps {
   title: string
@@ -18,6 +20,7 @@ interface FloatingHeaderProps {
   layout?: 'floating' | 'inline'
   containerClassName?: string
   className?: string
+  projectId?: string
 }
 
 const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16']
@@ -36,10 +39,105 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   layout = 'floating',
   containerClassName,
   className,
+  projectId,
 }) => {
+  const { userId, isLoaded } = useAuth()
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const displayIndex = total > 0 ? index + 1 : 0
   const [navigationDropdownOpen, setNavigationDropdownOpen] = React.useState(false)
+  
+  // 프로젝트 제목 편집 관련 상태
+  const [projectTitle, setProjectTitle] = React.useState<string>('')
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [editValue, setEditValue] = React.useState('')
+  const [isUpdating, setIsUpdating] = React.useState(false)
+
+  // 프로젝트 제목 가져오기 (프로젝트 이름만 사용)
+  React.useEffect(() => {
+    const fetchProject = async () => {
+      if (!projectId || !userId) return
+      try {
+        const res = await fetch(`/api/projects?user_id=${userId}`)
+        if (!res.ok) return
+        const result = (await res.json().catch(() => ({}))) as {
+          success?: boolean
+          data?: Project[]
+        }
+        if (result.success && Array.isArray(result.data)) {
+          const existing = result.data.find(project => project.id === projectId)
+          if (existing && existing.title) {
+            setProjectTitle(existing.title)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch project title:', error)
+      }
+    }
+
+    if (isLoaded && projectId) fetchProject()
+  }, [projectId, userId, isLoaded])
+
+  React.useEffect(() => {
+    if (projectTitle) {
+      document.title = projectTitle
+    }
+  }, [projectTitle])
+
+  const handleEditStart = () => {
+    setEditValue(projectTitle)
+    setIsEditing(true)
+  }
+
+  const handleEditCancel = () => {
+    setEditValue(projectTitle)
+    setIsEditing(false)
+  }
+
+  const handleEditSave = async () => {
+    if (!editValue.trim() || editValue === projectTitle || !projectId || !userId) {
+      handleEditCancel()
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: projectId,
+          title: editValue.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update project')
+      }
+
+      setProjectTitle(editValue.trim())
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error updating project title:', error)
+      alert('Failed to update project title')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleEditSave()
+    } else if (e.key === 'Escape') {
+      handleEditCancel()
+    }
+  }
 
   // 외부 클릭 시 드롭다운 닫기
   React.useEffect(() => {
@@ -73,7 +171,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
     'storyboard'
 
   const containerClasses = clsx(
-    'pointer-events-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg px-6 py-3 flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 relative z-50',
+    'pointer-events-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg px-4 py-2.5 flex items-center justify-between gap-x-4 relative z-50 h-[48px]',
     className
   )
 
@@ -93,6 +191,57 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
           >
             <SlidersHorizontal className="h-4 w-4" />
           </button>
+        )}
+        
+        {/* 프로젝트 제목 편집 */}
+        {projectId && projectTitle && (
+          isEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0 max-w-xs transition-all"
+                style={{ color: 'hsl(var(--foreground))', borderColor: 'hsl(var(--border))' }}
+                autoFocus
+                disabled={isUpdating}
+                placeholder="Enter project title"
+              />
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleEditSave}
+                  disabled={isUpdating}
+                  className="inline-flex items-center justify-center px-2 py-2 text-xs font-medium rounded-lg transition-all disabled:opacity-50 bg-blue-600 hover:bg-blue-700 text-white disabled:cursor-not-allowed"
+                  title="Save changes"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={handleEditCancel}
+                  disabled={isUpdating}
+                  className="inline-flex items-center justify-center px-2 py-2 text-xs font-medium rounded-lg transition-all disabled:opacity-50 bg-neutral-700 dark:bg-neutral-600 hover:bg-neutral-600 dark:hover:bg-neutral-500 text-neutral-300 hover:text-white disabled:cursor-not-allowed"
+                  title="Cancel editing"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <span className="text-sm font-semibold truncate" style={{ color: 'hsl(var(--foreground))' }}>
+                {projectTitle}
+              </span>
+              <button
+                onClick={handleEditStart}
+                className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 opacity-0 group-hover:opacity-100 transition-all"
+                style={{ color: 'hsl(var(--muted-foreground))' }}
+                title="Edit project title"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )
         )}
       </div>
 

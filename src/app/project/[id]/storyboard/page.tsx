@@ -13,6 +13,8 @@ import FrameList from '@/components/storyboard/viewer/FrameList'
 import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import PromptDock from '@/components/storyboard/PromptDock'
+import ThemeToggle from '@/components/ui/theme-toggle'
+import { ArrowLeft } from 'lucide-react'
 import { cardToFrame } from '@/lib/utils'
 import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
@@ -440,70 +442,89 @@ export default function StoryboardPage() {
   return (
     <div>
       <div className="w-full px-4">
-        {/* Header 라인: FloatingHeader + ViewModeToggle */}
-        <div className="relative mx-auto mb-6 w-full max-w-[1280px]">
+        {/* Header 라인: Dashboard 버튼 + FloatingHeader + ViewModeToggle */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center gap-4">
+          {/* Dashboard 버튼 */}
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg shadow-lg transition-all flex-shrink-0 h-[48px]"
+            style={{ 
+              color: 'hsl(var(--foreground))'
+            }}
+            title="돌아가기"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </button>
+
           {/* FloatingHeader */}
-          <FloatingHeader
-            title={derived.title}
-            index={index}
-            total={derived.frames.length}
-            currentView={viewMode}
-            onNavigateToStoryboard={handleNavigateToStoryboard}
-            onNavigateToCharacters={handleNavigateToCharacters}
-            isWidthPanelOpen={showWidthControls}
-            onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
-            layout="inline"
-            containerClassName="mx-auto w-full sm:w-auto"
-            className="mx-auto w-full max-w-[1040px] sm:pr-16"
-          />
-
-          {canShowWidthControlsPanel && (
-            <>
-              <div
-                className="hidden sm:absolute sm:block sm:-translate-y-1/2 relative z-[60]"
-                style={{ top: '80px', left: 'calc(50% - min(100%, 65rem) / 2 - 13.5rem)' }}
-              >
-                <StoryboardWidthControls
-                  visible={showWidthControls}
-                  cardWidthMin={CARD_WIDTH_MIN}
-                  cardWidthMax={CARD_WIDTH_MAX}
-                  normalizedCardWidth={clampCardWidth(cardWidth)}
-                  onCardWidthChange={handleCardWidthChange}
-                  aspectRatio={ratio}
-                  onAspectRatioChange={setRatio}
-                  onClose={() => setShowWidthControls(false)}
-                  className="mx-auto sm:mx-0"
-                />
-              </div>
-              {showWidthControls ? (
-                <div className="mt-4 sm:hidden">
-                  <StoryboardWidthControls
-                    visible={showWidthControls}
-                    cardWidthMin={CARD_WIDTH_MIN}
-                    cardWidthMax={CARD_WIDTH_MAX}
-                    normalizedCardWidth={clampCardWidth(cardWidth)}
-                    onCardWidthChange={handleCardWidthChange}
-                    aspectRatio={ratio}
-                    onAspectRatioChange={setRatio}
-                    onClose={() => setShowWidthControls(false)}
-                  />
+          <div className="flex-1 flex justify-center min-w-0 relative">
+            <div className="relative w-full max-w-[1600px]">
+              <FloatingHeader
+                title={derived.title}
+                index={index}
+                total={derived.frames.length}
+                currentView={viewMode}
+                onNavigateToStoryboard={handleNavigateToStoryboard}
+                onNavigateToCharacters={handleNavigateToCharacters}
+                isWidthPanelOpen={showWidthControls}
+                onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
+                layout="inline"
+                containerClassName="w-full"
+                className="w-full max-w-[1600px]"
+                projectId={projectId}
+              />
+              
+              {/* Width Controls Panel - FloatingHeader 바로 아래, SlidersHorizontal 버튼 위치 기준 */}
+              {canShowWidthControlsPanel && (
+                <div className="absolute top-full left-0 mt-2 z-[60]" style={{ left: '16px' }}>
+                  <div className="hidden sm:block">
+                    <StoryboardWidthControls
+                      visible={showWidthControls}
+                      cardWidthMin={CARD_WIDTH_MIN}
+                      cardWidthMax={CARD_WIDTH_MAX}
+                      normalizedCardWidth={clampCardWidth(cardWidth)}
+                      onCardWidthChange={handleCardWidthChange}
+                      aspectRatio={ratio}
+                      onAspectRatioChange={setRatio}
+                      onClose={() => setShowWidthControls(false)}
+                    />
+                  </div>
                 </div>
-              ) : null}
-            </>
-          )}
-
-          {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
-          {viewMode === 'storyboard' && (
-            <div className="absolute top-0 right-0 pointer-events-auto">
-              <div className="bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg px-3 py-3">
-                <ViewModeToggle
-                  viewMode={isClient ? storyboardViewMode : 'grid'}
-                  onSetGrid={() => setStoryboardViewMode('grid')}
-                  onSetList={() => setStoryboardViewMode('list')}
-                />
-              </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Mobile Width Controls */}
+          {canShowWidthControlsPanel && showWidthControls && (
+            <div className="mt-4 sm:hidden w-full">
+              <StoryboardWidthControls
+                visible={showWidthControls}
+                cardWidthMin={CARD_WIDTH_MIN}
+                cardWidthMax={CARD_WIDTH_MAX}
+                normalizedCardWidth={clampCardWidth(cardWidth)}
+                onCardWidthChange={handleCardWidthChange}
+                aspectRatio={ratio}
+                onAspectRatioChange={setRatio}
+                onClose={() => setShowWidthControls(false)}
+              />
             </div>
           )}
+
+          {/* 우측 컨트롤: ViewModeToggle + ThemeToggle */}
+          <div className="flex-shrink-0 flex items-center gap-3 z-50">
+            {/* ThemeToggle */}
+            <ThemeToggle />
+            
+            {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
+            {viewMode === 'storyboard' && (
+              <ViewModeToggle
+                viewMode={isClient ? storyboardViewMode : 'grid'}
+                onSetGrid={() => setStoryboardViewMode('grid')}
+                onSetList={() => setStoryboardViewMode('list')}
+              />
+            )}
+          </div>
         </div>
 
         {/* 스토리보드 뷰 */}

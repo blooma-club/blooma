@@ -236,12 +236,12 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                 e.stopPropagation() // 이벤트 전파 방지
                 onAddFrame()
               }}
-              className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-600 bg-neutral-900/50 text-neutral-400 transition-colors hover:border-neutral-500 hover:text-neutral-300"
+              className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/50 text-black dark:text-neutral-400 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
               style={{ aspectRatio: aspectValue }}
               aria-label="Add new frame"
             >
-              <Plus className="mb-1 h-7 w-7" />
-              <span className="text-sm font-medium">Add new scene</span>
+              <Plus className="mb-1 h-7 w-7 text-black dark:text-neutral-400" />
+              <span className="text-sm font-medium text-black dark:text-neutral-400">Add new scene</span>
             </button>
           </div>
         </SortableContext>

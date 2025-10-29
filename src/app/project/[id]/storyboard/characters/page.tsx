@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import CharacterWizard from '@/components/project/setup/CharacterWizard'
 import { FloatingHeader } from '@/components/storyboard/FloatingHeader'
 import { useUser } from '@clerk/nextjs'
+import ThemeToggle from '@/components/ui/theme-toggle'
+import { ArrowLeft } from 'lucide-react'
 
 type CharacterWizardProps = ComponentProps<typeof CharacterWizard>
 type CharacterWizardCharacter = NonNullable<CharacterWizardProps['initial']>[number]
@@ -122,19 +124,41 @@ export default function ProjectCharactersPage() {
   return (
     <div>
       <div className="w-full px-4">
-        {/* Header 라인: FloatingHeader */}
-        <div className="relative mx-auto mb-6 w-full max-w-[1280px]">
-          <FloatingHeader
-            title="Models"
-            index={0}
-            total={1}
-            currentView="models"
-            onNavigateToCharacters={handleNavigateToCharacters}
-            onNavigateToStoryboard={handleNavigateToStoryboard}
-            layout="inline"
-            containerClassName="mx-auto w-full sm:w-auto"
-            className="mx-auto w-full max-w-[1040px] sm:pr-16"
-          />
+        {/* Header 라인: Dashboard 버튼 + FloatingHeader */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center gap-4">
+          {/* Dashboard 버튼 */}
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg border transition-all flex-shrink-0 h-[48px]"
+            style={{ 
+              color: 'hsl(var(--foreground))',
+              borderColor: 'hsl(var(--border))'
+            }}
+            title="돌아가기"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </button>
+
+          {/* FloatingHeader */}
+          <div className="flex-1 flex justify-center min-w-0">
+            <FloatingHeader
+              title="Models"
+              index={0}
+              total={1}
+              currentView="models"
+              onNavigateToCharacters={handleNavigateToCharacters}
+              onNavigateToStoryboard={handleNavigateToStoryboard}
+              layout="inline"
+              containerClassName="w-full"
+              className="w-full max-w-[1600px]"
+            />
+          </div>
+
+          {/* ThemeToggle */}
+          <div className="flex-shrink-0 z-50">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
       

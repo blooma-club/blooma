@@ -48,9 +48,10 @@ export const ProjectCard = ({
   // 공통 카드 스타일 함수
   const getCardClass = (padding: string) =>
     cn(
-      `relative z-10 rounded-lg border border-neutral-800 bg-neutral-900 ${padding} transition-colors`,
-      'text-white'
+      `relative z-10 rounded-lg border ${padding} transition-colors`,
+      'bg-card text-card-foreground'
     )
+    // border와 bg는 테마 변수 사용
 
   // 카드 메뉴 버튼
   const renderMenuButton = (mode: 'grid' | 'list') => (
@@ -59,16 +60,36 @@ export const ProjectCard = ({
         e.stopPropagation()
         setIsMenuOpen(!isMenuOpen)
       }}
-      className={cn(
-        'transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60',
+        className={cn(
+        'transition-all focus-visible:outline-none focus-visible:ring-2',
         mode === 'grid'
-          ? 'flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/50 backdrop-blur-md hover:bg-black/40'
-          : 'p-2 rounded-lg hover:bg-neutral-700'
+          ? 'flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-md'
+          : 'p-2 rounded-lg'
       )}
+      style={{
+        borderColor: mode === 'grid' ? 'hsl(var(--border))' : 'transparent',
+        backgroundColor: mode === 'grid' ? 'hsl(var(--background) / 0.5)' : 'transparent',
+        color: 'hsl(var(--foreground))'
+      }}
+      onMouseEnter={(e) => {
+        if (mode === 'grid') {
+          e.currentTarget.style.backgroundColor = 'hsl(var(--background) / 0.4)'
+        } else {
+          e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (mode === 'grid') {
+          e.currentTarget.style.backgroundColor = 'hsl(var(--background) / 0.5)'
+        } else {
+          e.currentTarget.style.backgroundColor = 'transparent'
+        }
+      }}
       aria-label="Project menu"
     >
       <MoreVertical
-        className={cn('h-4 w-4', mode === 'grid' ? 'text-white' : 'text-neutral-300')}
+        className="h-4 w-4"
+        style={{ color: 'hsl(var(--foreground))' }}
       />
     </button>
   )
@@ -79,9 +100,13 @@ export const ProjectCard = ({
       <div
         onClick={e => e.stopPropagation()}
         className={cn(
-          'absolute z-20 w-48 rounded-lg border border-neutral-700 bg-neutral-800/95 shadow-xl backdrop-blur-xl',
+          'absolute z-20 w-48 rounded-lg border shadow-xl backdrop-blur-xl',
           mode === 'grid' ? 'right-0 top-full mt-2' : 'right-0 mt-2 top-full'
         )}
+        style={{
+          backgroundColor: 'hsl(var(--popover) / 0.95)',
+          borderColor: 'hsl(var(--border))'
+        }}
       >
         <div className="py-1">
           <button
@@ -90,7 +115,14 @@ export const ProjectCard = ({
               setIsMenuOpen(false)
               setIsEditModalOpen(true)
             }}
-            className="flex w-full items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700"
+            className="flex w-full items-center px-4 py-2 text-sm transition-colors"
+            style={{ color: 'hsl(var(--popover-foreground))' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'hsl(var(--accent))'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
           >
             <Edit3 className="h-4 w-4 mr-2" />
             Edit
@@ -114,7 +146,14 @@ export const ProjectCard = ({
               setIsMenuOpen(false)
             }}
             disabled={isDeleting}
-            className="flex w-full items-center px-4 py-2 text-sm text-red-400 hover:bg-red-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ color: 'hsl(var(--destructive))' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'hsl(var(--destructive) / 0.1)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
           >
             <Trash2 className={`h-4 w-4 mr-2 ${isDeleting ? 'animate-spin' : ''}`} />
             {isDeleting ? 'Deleting...' : 'Delete'}
@@ -128,7 +167,7 @@ export const ProjectCard = ({
     const isActive = isHovered || isMenuOpen
     const overlayClasses = isActive
       ? 'inset-0 rounded-[28px] opacity-70 border border-white/5'
-      : 'bottom-6 left-6 right-auto top-auto h-35 w-90 rounded-[26px] opacity-70 border border-white/12'
+      : 'bottom-6 left-6 right-auto top-auto h-30 w-90 rounded-[26px] opacity-70 border border-white/12'
     const menuButtonClasses = isActive
       ? 'opacity-100 translate-y-0 pointer-events-auto'
       : 'pointer-events-none opacity-0 -translate-y-1'
@@ -138,23 +177,25 @@ export const ProjectCard = ({
 
     return (
       <div
-        className="relative mx-auto w-[300px] sm:w-[360px] lg:w-[420px] cursor-pointer"
+        className="relative mx-auto w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[440px] cursor-pointer"
         onClick={handleGoToProjectSetup}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         {(isDeleting || isDuplicating) && (
-          <div className="absolute inset-0 bg-neutral-900/70 flex items-center justify-center z-10 rounded-lg">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="absolute inset-0 flex items-center justify-center z-10 rounded-lg" style={{ backgroundColor: 'hsl(var(--background) / 0.7)' }}>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: 'hsl(var(--foreground))' }}></div>
           </div>
         )}
         <div
           className={cn(
-            'relative h-[26rem] overflow-hidden rounded-[28px] border bg-neutral-950 shadow-[0_20px_40px_rgba(0,0,0,0.45)] transition-all duration-500 ease-out transform',
-            isActive
-              ? 'border-neutral-700 -translate-y-1 shadow-[0_30px_60px_rgba(0,0,0,0.6)]'
-              : 'border-neutral-900'
+            'relative w-full aspect-[5/4] overflow-hidden rounded-[28px] border transition-all duration-500 ease-out transform',
+            isActive && '-translate-y-1'
           )}
+        style={{ 
+          backgroundColor: 'hsl(var(--card))',
+          borderColor: isActive ? 'hsl(var(--border))' : 'hsl(var(--border))'
+        }}
         >
           {/* Preview media */}
           <div className="absolute inset-0">
@@ -170,11 +211,11 @@ export const ProjectCard = ({
             ) : (
               <div
                 className={cn(
-                  'flex h-full w-full items-center justify-center text-neutral-600 transition-colors duration-500',
-                  isActive && 'text-white'
+                  'flex h-full w-full items-center justify-center transition-colors duration-500'
                 )}
+                style={{ color: isActive ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
               >
-                <ImageIcon className="h-14 w-14" />
+                <ImageIcon className="h-14 w-14" strokeWidth={1.5} />
               </div>
             )}
           </div>
@@ -182,36 +223,55 @@ export const ProjectCard = ({
           {/* Info overlay */}
           <div
             className={cn(
-              'pointer-events-none absolute z-20 bg-black/55 backdrop-blur-md transition-all duration-500 ease-out',
+              'pointer-events-none absolute z-20 backdrop-blur-md transition-all duration-500 ease-out',
               overlayClasses
             )}
+            style={{
+              backgroundColor: isActive 
+                ? 'hsl(var(--background) / 0.55)' 
+                : 'hsl(var(--background) / 0.55)',
+              borderColor: isActive 
+                ? 'hsl(var(--border))' 
+                : 'hsl(var(--border))'
+            }}
           />
 
           {/* Content */}
           <div className="relative z-40 flex h-full flex-col justify-end p-10">
-            <div className="flex items-end justify-between gap-4 text-white drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-all duration-500">
-              <div className="relative flex flex-1 flex-col items-start gap-4 text-left transition-all duration-500">
-                <div className="relative z-20 w-full max-w-[18rem] space-y-2 px-5 pt-5">
-                  <h3 className="text-xl font-semibold tracking-tight">{project.title}</h3>
-                  <div className="text-sm text-white/75">{formatDate(project.created_at)}</div>
-                </div>
-                <div
-                  className={cn(
-                    'relative z-20 self-end w-full max-w-[18rem] px-5 transition-all duration-300 overflow-hidden flex justify-end',
-                    moreButtonClasses
-                  )}
+            {/* 텍스트 영역을 absolute로 고정하여 More 버튼의 레이아웃 변화에 영향받지 않도록 */}
+            <div className="absolute bottom-12 left-12 z-20 w-full max-w-[18rem] space-y-3 drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)]" style={{ color: 'hsl(var(--card-foreground))' }}>
+              <h3 className="text-xl font-semibold tracking-tight">{project.title}</h3>
+              <div className="text-sm opacity-75">{formatDate(project.created_at)}</div>
+            </div>
+            {/* More 버튼 영역 - flex 레이아웃 사용 */}
+            <div className="flex items-end justify-end">
+              <div
+                className={cn(
+                  'z-20 transition-all duration-300 overflow-hidden flex justify-end',
+                  moreButtonClasses
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleGoToProjectSetup()
+                  }}
+                  className="inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur-md transition-colors"
+                  style={{ 
+                    borderColor: 'hsl(var(--border))',
+                    backgroundColor: 'hsl(var(--background) / 0.1)',
+                    color: 'hsl(var(--foreground))'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'hsl(var(--background) / 0.2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'hsl(var(--background) / 0.1)'
+                  }}
                 >
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleGoToProjectSetup()
-                    }}
-                    className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/20"
-                  >
-                    More
-                  </button>
-                </div>
+                  More
+                </button>
               </div>
             </div>
           </div>
@@ -245,7 +305,7 @@ export const ProjectCard = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* 미리보기 이미지 */}
-            <div className="relative w-16 h-16 bg-neutral-800 rounded-lg flex-shrink-0 overflow-hidden">
+            <div className="relative w-16 h-16 rounded-lg flex-shrink-0 overflow-hidden" style={{ backgroundColor: 'hsl(var(--muted))' }}>
               {project.preview_image ? (
                 <Image
                   src={project.preview_image}
@@ -256,20 +316,20 @@ export const ProjectCard = ({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon className="h-6 w-6 text-neutral-600" />
+                  <ImageIcon className="h-6 w-6" strokeWidth={1.5} style={{ color: 'hsl(var(--muted-foreground))' }} />
                 </div>
               )}
             </div>
 
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-white truncate mb-1">{project.title}</h3>
+              <h3 className="text-lg font-semibold truncate mb-1" style={{ color: 'hsl(var(--card-foreground))' }}>{project.title}</h3>
             </div>
 
             {/* 날짜 */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              <Calendar className="h-4 w-4 text-neutral-300" />
-              <span className="text-xs font-normal text-neutral-300">
+              <Calendar className="h-4 w-4" style={{ color: 'hsl(var(--muted-foreground))' }} />
+              <span className="text-xs font-normal" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 {formatDate(project.created_at)}
               </span>
             </div>
