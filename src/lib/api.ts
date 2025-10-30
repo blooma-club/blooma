@@ -1,4 +1,5 @@
 import useSWR from 'swr'
+import { useMemo, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import type { Project, ProjectInput, Card } from '@/types'
 
@@ -11,17 +12,45 @@ const fetcher = async (url: string) => {
 // 프로젝트 관리
 export const useProjects = () => {
   const { userId } = useAuth()
+  const storageKey = useMemo(() => (userId ? `projects_cache_${userId}` : null), [userId])
+  const cachedInitial = useMemo(() => {
+    try {
+      if (typeof window === 'undefined' || !storageKey) return undefined
+      const raw = window.sessionStorage.getItem(storageKey)
+      if (!raw) return undefined
+      const parsed = JSON.parse(raw)
+      if (parsed && Array.isArray(parsed)) {
+        return { data: parsed as Project[] }
+      }
+      return undefined
+    } catch {
+      return undefined
+    }
+  }, [storageKey])
+
   const { data, isLoading, mutate: mutateProjects } = useSWR(
     userId ? '/api/projects' : null, 
     fetcher,
     {
-      refreshInterval: 30000,
       revalidateOnFocus: false,
-      fallbackData: { data: [] }
+      revalidateOnReconnect: false,
+      keepPreviousData: true,
+      dedupingInterval: 2000,
+      fallbackData: cachedInitial
     }
   )
   
   const projects: Project[] = Array.isArray(data?.data) ? data.data : []
+
+  // 세션 캐시에 최신 프로젝트 목록 저장 (즉시 렌더용)
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined' || !storageKey) return
+      if (Array.isArray(projects)) {
+        window.sessionStorage.setItem(storageKey, JSON.stringify(projects))
+      }
+    } catch {}
+  }, [projects, storageKey])
   
   const createProject = async (projectData: ProjectInput) => {
     const tempId = 'temp-' + Date.now()

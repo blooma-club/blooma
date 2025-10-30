@@ -27,7 +27,7 @@ const PRESETS = [
 ] as const
 
 const sliderBaseClasses =
-  'w-full appearance-none rounded-full h-2 bg-neutral-800 accent-neutral-100 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:border-0'
+  'w-full appearance-none rounded-full h-2 bg-[hsl(var(--muted))] accent-[hsl(var(--foreground))] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[hsl(var(--foreground))] [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[hsl(var(--foreground))] [&::-moz-range-thumb]:border-0'
 
 const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
   visible,
@@ -80,40 +80,53 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
       <div
         ref={cardRef}
         className={clsx(
-          'rounded-xl border border-neutral-800/70 bg-[#1A1A1A] px-4 py-4 shadow-lg text-sm text-neutral-200 transition-all duration-150',
+          'rounded-xl border px-4 py-4 shadow-lg text-sm transition-all duration-150',
           visible
             ? 'visible opacity-100 pointer-events-auto'
             : 'invisible opacity-0 pointer-events-none'
         )}
         aria-hidden={!visible}
+        style={{
+          backgroundColor: 'hsl(var(--popover))',
+          borderColor: 'hsl(var(--border))',
+          color: 'hsl(var(--popover-foreground))',
+        }}
       >
         <div className="space-y-4">
           {/* 비율 드롭다운 */}
           {onAspectRatioChange && (
             <div className="space-y-2">
-              <span className="text-xs text-neutral-400">Aspect ratio</span>
+              <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Aspect ratio</span>
               <div className="relative aspect-dropdown-container">
                 <button
                   type="button"
-                  className="w-full appearance-none bg-neutral-800 rounded text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between border border-neutral-700 hover:bg-neutral-700 hover:text-white transition-colors"
+                  className="w-full appearance-none rounded-lg text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between border transition-colors"
+                  style={{
+                    backgroundColor: 'hsl(var(--muted))',
+                    color: 'hsl(var(--muted-foreground))',
+                    borderColor: 'hsl(var(--border))',
+                  }}
                   onClick={() => setAspectDropdownOpen(!aspectDropdownOpen)}
                 >
                   {aspectRatio}
-                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-300 text-xs">
+                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
                     <ChevronDown className="h-3 w-3" />
                   </span>
                 </button>
                 {aspectDropdownOpen && (
-                  <ul className="absolute z-10 mt-1 min-w-[80px] bg-neutral-800 border border-neutral-700 rounded shadow-lg">
+                  <ul className="absolute z-10 mt-1 min-w-[100px] rounded-lg border shadow-lg" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
                     {ASPECT_RATIO_OPTIONS.map(option => (
                       <li key={option}>
                         <button
                           type="button"
-                          className="block w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors whitespace-nowrap"
+                          className="block w-full text-left px-3 py-2 text-sm rounded-md transition-colors whitespace-nowrap"
+                          style={{ color: 'hsl(var(--popover-foreground))' }}
                           onClick={() => {
                             onAspectRatioChange(option)
                             setAspectDropdownOpen(false)
                           }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'hsl(var(--accent))')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                         >
                           {option}
                         </button>
@@ -127,7 +140,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
 
           {/* 프리셋 버튼들 */}
           <div className="space-y-2">
-            <span className="text-xs text-neutral-400">Quick presets</span>
+            <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Quick presets</span>
             <div className="flex gap-1">
               {PRESETS.map(preset => (
                 <button
@@ -136,10 +149,10 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
                   data-preset="true"
                   onClick={() => onCardWidthChange(preset.value)}
                   className={clsx(
-                    'flex-1 px-2 py-1 text-xs rounded-md transition-colors',
+                    'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
                     Math.abs(normalizedCardWidth - preset.value) < 20
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
+                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] border-[hsl(var(--accent))]'
+                      : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/70'
                   )}
                 >
                   {preset.label}
@@ -151,10 +164,10 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
           {/* 슬라이더 */}
           <label className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-neutral-100">Card size</span>
-              <span className="text-xs text-neutral-400">{normalizedCardWidth}px</span>
+              <span className="text-sm font-medium" style={{ color: 'hsl(var(--foreground))' }}>Card size</span>
+              <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{normalizedCardWidth}px</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-neutral-400">
+            <div className="flex items-center justify-between text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
               <span>{cardWidthMin}px</span>
               <span>{cardWidthMax}px</span>
             </div>

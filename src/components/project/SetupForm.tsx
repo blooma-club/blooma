@@ -9,7 +9,6 @@ import {
   saveDraftToLocal,
   loadDraftFromLocal,
   clearDraftFromLocal,
-  saveLastStoryboardId,
   saveProjectRatio,
 } from '@/lib/localStorage'
 import Image from 'next/image'
@@ -396,8 +395,6 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       if (newProjectId) {
         // Clear the draft since we've successfully generated a storyboard
         clearSavedDraft()
-        saveLastStoryboardId(newProjectId, newProjectId)
-        // Save the selected ratio for the storyboard page
         saveProjectRatio(newProjectId, ratio)
 
         const newUrl = `/project/${encodeURIComponent(newProjectId)}/storyboard?view=editor`
@@ -411,11 +408,7 @@ export default function SetupForm({ id, onSubmit }: SetupFormProps) {
       setStoryboardLoading(false)
     }
   }
-
-  // Removed polling in favor of SSE
-  // Removed storyboard grid logic; handled on storyboard page.
-  // Pre-built views for clarity
-  //<OptionalSettingsPanel settings={settings} onChange={handleSettingsChange} />
+  
   const scriptView = (
     <div className="gap-6 items-start">
       <ScriptEditor

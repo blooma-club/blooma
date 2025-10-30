@@ -41,7 +41,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   className,
   projectId,
 }) => {
-  const { userId, isLoaded } = useAuth()
+  const { userId } = useAuth()
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const displayIndex = total > 0 ? index + 1 : 0
   const [navigationDropdownOpen, setNavigationDropdownOpen] = React.useState(false)
@@ -52,30 +52,12 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   const [editValue, setEditValue] = React.useState('')
   const [isUpdating, setIsUpdating] = React.useState(false)
 
-  // 프로젝트 제목 가져오기 (프로젝트 이름만 사용)
+  // 상위에서 내려준 제목으로 초기화/동기화 (내부 fetch 제거)
   React.useEffect(() => {
-    const fetchProject = async () => {
-      if (!projectId || !userId) return
-      try {
-        const res = await fetch(`/api/projects?user_id=${userId}`)
-        if (!res.ok) return
-        const result = (await res.json().catch(() => ({}))) as {
-          success?: boolean
-          data?: Project[]
-        }
-        if (result.success && Array.isArray(result.data)) {
-          const existing = result.data.find(project => project.id === projectId)
-          if (existing && existing.title) {
-            setProjectTitle(existing.title)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch project title:', error)
-      }
+    if (typeof title === 'string' && title.trim()) {
+      setProjectTitle(title)
     }
-
-    if (isLoaded && projectId) fetchProject()
-  }, [projectId, userId, isLoaded])
+  }, [title])
 
   React.useEffect(() => {
     if (projectTitle) {
@@ -286,22 +268,25 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
           <div className="relative dropdown-container">
             <button
               type="button"
-              className="relative appearance-none bg-neutral-100 dark:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full navigation-dropdown border border-neutral-200 dark:border-neutral-700"
+              className="relative appearance-none rounded-lg text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full navigation-dropdown border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/70"
               onClick={() => setNavigationDropdownOpen(!navigationDropdownOpen)}
             >
               {navigationOptions.find(option => option.value === selectedView)?.label}
             </button>
             {navigationDropdownOpen && (
-              <ul className="absolute z-50 mt-1 min-w-[120px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded shadow-lg">
+              <ul className="absolute z-50 mt-1 min-w-[140px] rounded-lg border shadow-lg" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
                 {navigationOptions.map(option => (
                   <li key={option.value}>
                     <button
                       type="button"
-                      className="block w-full text-left px-3 py-2 text-sm text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-white transition-colors whitespace-nowrap"
+                      className="block w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                      style={{ color: 'hsl(var(--popover-foreground))' }}
                       onClick={() => {
                         option.onSelect()
                         setNavigationDropdownOpen(false)
                       }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'hsl(var(--accent))')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       {option.label}
                     </button>
@@ -309,7 +294,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
                 ))}
               </ul>
             )}
-            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-500 dark:text-[#DBDBDB] text-s">
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[hsl(var(--muted-foreground))] text-s">
               <ChevronDown className="h-3 w-3" />
             </span>
           </div>

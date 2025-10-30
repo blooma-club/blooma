@@ -38,16 +38,26 @@ export default function RootLayout({
 }>) {
   const appShell = (
     <ToasterProvider>
+      {clerkPublishableKey ? <ClerkSyncEffect /> : null}
       <div id="root" className="relative flex min-h-screen flex-col">
         <main className="flex-1">{children}</main>
       </div>
     </ToasterProvider>
   );
 
-  const shellWithProviders = clerkPublishableKey ? (
-    <>
-      <ClerkSyncEffect />
-      {appShell}
-    </>
-  ) : appShell
+  return (
+    <html
+      lang="en"
+      className={`${inter.variable} ${instrumentSerif.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen">
+        {clerkPublishableKey ? (
+          <ClerkProvider publishableKey={clerkPublishableKey}>{appShell}</ClerkProvider>
+        ) : (
+          appShell
+        )}
+      </body>
+    </html>
+  );
 }

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { ChevronDown, Plus, Edit3 } from 'lucide-react'
+import { ChevronDown, Plus, Edit3, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -21,6 +21,7 @@ type PromptDockProps = {
   onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
   onCreateFrame: (imageUrl: string) => Promise<void>
   selectedShotNumber?: number
+  onClearSelectedShot?: () => void
   className?: string
   // Optional external control for mode switching
   mode?: 'generate' | 'edit'
@@ -35,6 +36,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     aspectRatio = '16:9',
     onCreateFrame,
     selectedShotNumber,
+    onClearSelectedShot,
     className,
     mode,
     onModeChange,
@@ -201,7 +203,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
             {/* 상단: 모드 탭, 배지, 모델 선택 */}
             <div className="flex items-center justify-between gap-2">
               {/* 왼쪽: 탭과 배지 */}
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <Tabs
                   value={currentMode}
                   onValueChange={v => {
@@ -212,49 +214,61 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   className="flex-shrink-0"
                 >
                   <TabsList 
-                    className="h-8 gap-0.5 p-0.5 bg-[#EDEDED] dark:bg-neutral-800" 
+                    className="h-9 gap-1 p-1 bg-[#EDEDED] dark:bg-neutral-800" 
                   >
                     <TabsTrigger
                       value="generate"
-                      className="px-2.5 py-1 rounded-md h-7 text-xs transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
+                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
                       title="Generate new image"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="h-4 w-4" />
                     </TabsTrigger>
                     <TabsTrigger
                       value="edit"
-                      className="px-2.5 py-1 rounded-md h-7 text-xs transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
+                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
                       title="Edit current image"
                     >
-                      <Edit3 className="h-3.5 w-3.5" />
+                      <Edit3 className="h-4 w-4" />
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
 
                 {typeof selectedShotNumber === 'number' && (
                   <span
-                    className="px-2 py-1 rounded text-xs font-medium flex-shrink-0 whitespace-nowrap bg-[#EDEDED] dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                    className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] ring-1 ring-[hsl(var(--border))]/60 shadow-sm"
+                    role="status"
+                    aria-label={`Selected shot ${selectedShotNumber}`}
                   >
                     {currentMode === 'edit' ? 'Edit' : 'Generate'} {selectedShotNumber}
+                    {onClearSelectedShot && (
+                      <button
+                        type="button"
+                        onClick={onClearSelectedShot}
+                        className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] shadow-sm hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+                        aria-label="Clear selection"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </span>
                 )}
               </div>
 
               {/* 오른쪽: 모델 선택 */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2.5 flex-shrink-0">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-8 min-w-[100px] px-2.5 text-xs text-neutral-900 dark:text-white"
+                      className="h-9 min-w-[126px] px-3 text-sm text-neutral-900 dark:text-white"
                     >
                       <span className="truncate text-left">
                         {selectedModel?.name || 'Model'}
                       </span>
-                      <ChevronDown className="h-3 w-3 ml-1 opacity-60 flex-shrink-0 text-current" />
+                      <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-48 rounded-md p-1 z-[80]" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
+                  <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80]" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
                     {models.map(m => (
                       <DropdownMenuItem
                         key={m.id}
@@ -266,7 +280,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                             setModelId(validModelId)
                           }
                         }}
-                        className="rounded-sm px-2 py-1.5 text-xs"
+                        className="rounded-sm px-2.5 py-2 text-sm"
                         style={{ 
                           backgroundColor: modelId === m.id ? 'hsl(var(--accent))' : 'transparent',
                           color: 'hsl(var(--popover-foreground))'

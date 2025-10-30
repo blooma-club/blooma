@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Film, Sparkles, FileText } from 'lucide-react'
 import { useUser } from '@clerk/nextjs'
-import { loadDraftFromLocal, saveLastStoryboardId } from '@/lib/localStorage'
+import { loadDraftFromLocal } from '@/lib/localStorage'
 
 export default function StoryboardPage() {
   const params = useParams()
@@ -40,10 +40,8 @@ export default function StoryboardPage() {
         // This indicates that there are storyboards for this project
         console.log('[STORYBOARD] Checking for existing cards...')
         const cardsResponse = await fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/cards`,
-          {
-            credentials: 'include',
-          }
+          `/api/cards?project_id=${encodeURIComponent(projectId)}`,
+          { credentials: 'include' }
         )
 
         console.log('[STORYBOARD] Cards API response status:', cardsResponse.status)
@@ -53,15 +51,12 @@ export default function StoryboardPage() {
           throw new Error('Failed to check existing storyboards')
         }
 
-        const cardsPayload: { hasCards?: boolean; count?: number } =
-          await cardsResponse.json().catch(() => ({}))
+        const cardsPayload: { data?: unknown[] } = await cardsResponse.json().catch(() => ({}))
 
-        console.log(
-          '[STORYBOARD CHECK] Found cards:',
-          typeof cardsPayload.count === 'number' ? cardsPayload.count : 0
-        )
+        const count = Array.isArray(cardsPayload.data) ? cardsPayload.data.length : 0
+        console.log('[STORYBOARD CHECK] Found cards:', count)
 
-        if (cardsPayload.hasCards) {
+        if (count > 0) {
           console.log('[STORYBOARD CHECK] Navigating to project storyboard view')
           router.replace(`/project/${projectId}/storyboard`)
           // 리디렉션 중이므로 checkingStoryboard를 false로 설정하지 않음
@@ -100,7 +95,6 @@ export default function StoryboardPage() {
 
   const navigateToStoryboard = () => {
     if (!projectId) return
-    saveLastStoryboardId(projectId, projectId)
     router.push(`/project/${projectId}/storyboard`)
   }
 

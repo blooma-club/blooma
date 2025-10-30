@@ -6,14 +6,21 @@ import {
   DEFAULT_CARD_WIDTH, 
   clampCardWidth 
 } from '@/lib/constants'
-import { useCards } from '@/lib/api'
+// Note: to avoid duplicate SWR subscriptions, pass cards/updateCards from caller when available
 
-export const useCardWidth = (projectId: string, setFrames?: React.Dispatch<React.SetStateAction<any[]>>) => {
+type UpdateCardsFn = (patches: Array<Partial<any>>) => Promise<void> | void
+
+export const useCardWidth = (
+  projectId: string,
+  setFrames?: React.Dispatch<React.SetStateAction<any[]>>,
+  deps?: { cards?: any[]; updateCards?: UpdateCardsFn }
+) => {
   const [cardWidth, setCardWidth] = useState<number>(DEFAULT_CARD_WIDTH)
   const latestCardWidthRef = useRef<number>(DEFAULT_CARD_WIDTH)
   const persistCardWidthTimeout = useRef<number | null>(null)
   
-  const { cards, updateCards } = useCards(projectId)
+  const cards = deps?.cards
+  const updateCards = deps?.updateCards
 
   const readStoredCardWidth = useCallback((): number | null => {
     if (typeof window === 'undefined' || !projectId) {
@@ -58,15 +65,17 @@ export const useCardWidth = (projectId: string, setFrames?: React.Dispatch<React
 
       persistCardWidthTimeout.current = window.setTimeout(() => {
         const storeCards = cards || []
-        if (storeCards.length === 0) {
+        if (!updateCards || storeCards.length === 0) {
           persistCardWidthLocally(width)
           return
         }
 
-        updateCards(storeCards.map((card: any) => ({
-          id: card.id,
-          card_width: clampCardWidth(width),
-        })))
+        updateCards(
+          storeCards.map((card: any) => ({
+            id: card.id,
+            card_width: clampCardWidth(width),
+          }))
+        )
         persistCardWidthLocally(width)
       }, 400)
     },

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Project, type ProjectInput } from '@/types'
-import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon, Copy } from 'lucide-react'
+import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
@@ -30,6 +30,19 @@ export const ProjectCard = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isMenuOpen) return
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setIsMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [isMenuOpen])
 
   const handleGoToProjectSetup = () => {
     // 프로젝트 인덱스를 통해 적절한 페이지로 라우팅
@@ -98,6 +111,7 @@ export const ProjectCard = ({
   const renderMenu = (mode: 'grid' | 'list') =>
     isMenuOpen && (
       <div
+        ref={menuRef}
         onClick={e => e.stopPropagation()}
         className={cn(
           'absolute z-20 w-48 rounded-lg border shadow-xl backdrop-blur-xl',
@@ -127,18 +141,7 @@ export const ProjectCard = ({
             <Edit3 className="h-4 w-4 mr-2" />
             Edit
           </button>
-          <button
-            onClick={e => {
-              e.stopPropagation()
-              setIsMenuOpen(false)
-              onDuplicate(project.id).catch(() => {})
-            }}
-            disabled={isDuplicating}
-            className="flex w-full items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Copy className={`h-4 w-4 mr-2 ${isDuplicating ? 'animate-pulse' : ''}`} />
-            {isDuplicating ? 'Duplicating...' : 'Duplicate'}
-          </button>
+          {/* Duplicate 항목 제거 */}
           <button
             onClick={e => {
               e.stopPropagation()

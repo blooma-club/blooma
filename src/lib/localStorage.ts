@@ -37,21 +37,6 @@ export interface StoryboardPageData {
   lastSaved: number
 }
 
-// Remember last opened storyboard per project for navigation continuity
-export const saveLastStoryboardId = (projectId: string, storyboardId: string) => {
-  try {
-    localStorage.setItem(`last_sb_${projectId}`, storyboardId)
-  } catch {}
-}
-
-export const loadLastStoryboardId = (projectId: string): string | null => {
-  try {
-    return localStorage.getItem(`last_sb_${projectId}`)
-  } catch {
-    return null
-  }
-}
-
 // Save aspect ratio for project
 export const saveProjectRatio = (projectId: string, ratio: string) => {
   try {

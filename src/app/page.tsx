@@ -64,7 +64,7 @@ function useOptionalSignOut() {
 
 export default function Home() {
   const router = useRouter()
-  const { user } = useOptionalUser()
+  const { user, isLoaded } = useOptionalUser() as ReturnType<typeof useUser>
   const signOut = useOptionalSignOut()
 
   return (
@@ -128,7 +128,7 @@ export default function Home() {
                 variant="ghost"
                 className="text-white hover:bg-neutral-800"
                 onClick={() => {
-                  console.log('Login button clicked, navigating to /auth')
+                  if (!isLoaded) return
                   router.push('/auth')
                 }}
                 aria-label="Login"
@@ -261,8 +261,8 @@ export default function Home() {
               variant="default"
               size="lg"
               onClick={() => {
-                console.log('Hero Get Started button clicked, navigating to /auth')
-                router.push('/auth')
+                if (!isLoaded) return
+                router.push(user ? '/dashboard' : '/auth')
               }}
               aria-label="Get Started"
               tabIndex={0}

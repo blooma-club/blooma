@@ -25,7 +25,7 @@ import LoadingGrid from '@/components/storyboard/LoadingGrid'
 import { useCardWidth } from '@/hooks/useCardWidth'
 import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
 import { useFrameManagement } from '@/hooks/useFrameManagement'
-import { useCards } from '@/lib/api'
+import { useCards, useProjects } from '@/lib/api'
 import {
   DEFAULT_RATIO,
   CARD_WIDTH_MIN,
@@ -96,6 +96,9 @@ export default function StoryboardPage() {
     }
   }, [projectId, setProjectId])
 
+  // SWR cards first (used by downstream hooks)
+  const { cards: queryCards, updateCards, isLoading: cardsLoading } = useCards(projectId!)
+
   // Custom hooks
   const {
     cardWidth,
@@ -106,7 +109,7 @@ export default function StoryboardPage() {
     readStoredCardWidth,
     persistCardWidthLocally,
     schedulePersistCardWidth,
-  } = useCardWidth(projectId)
+  } = useCardWidth(projectId, undefined, { cards: queryCards, updateCards })
   const { handleNavigateToStoryboard, handleNavigateToCharacters, handleOpenFrame } =
     useStoryboardNavigation(projectId, index, setViewMode)
   const {
@@ -122,8 +125,8 @@ export default function StoryboardPage() {
     handlePlayVideo,
   } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
 
-  // SWR 훅 사용 (SWR이 캐싱/동기화 관리)
-  const { cards: queryCards, updateCards, isLoading: cardsLoading } = useCards(projectId!)
+  // SWR 훅 사용 moved above
+  const { projects } = useProjects()
 
   // 안정적인 이미지 업데이트 콜백
   // 통일된 카드 패치 함수
@@ -180,6 +183,10 @@ export default function StoryboardPage() {
     return clampCardWidth(widthFromCards ?? storedWidth ?? DEFAULT_CARD_WIDTH)
   }, [queryCards, readStoredCardWidth])
 
+  // 현재 프로젝트 제목 (derived 생성 후 계산)
+  // 대시보드의 프로젝트 타이틀을 우선 사용, 없으면 derived.title 사용
+  // 위치를 derived 선언 이후로 옮겨 참조 에러 방지
+
   useEffect(() => {
     latestCardWidthRef.current = resolvedCardWidth
     setCardWidth(resolvedCardWidth)
@@ -204,6 +211,15 @@ export default function StoryboardPage() {
         : 'New Storyboard'
     return { frames, title }
   }, [queryCards, resolvedCardWidth])
+
+  // 현재 프로젝트 제목 (대시보드와 동기화)
+  const currentProjectTitle = useMemo(() => {
+    const fromProjects = projects.find((p: any) => p.id === projectId)?.title
+    if (typeof fromProjects === 'string' && fromProjects.trim().length > 0) {
+      return fromProjects
+    }
+    return derived?.title
+  }, [projects, projectId, derived?.title])
 
   useEffect(() => {
     framesRef.current = derived.frames
@@ -461,7 +477,7 @@ export default function StoryboardPage() {
           <div className="flex-1 flex justify-center min-w-0 relative">
             <div className="relative w-full max-w-[1600px]">
               <FloatingHeader
-                title={derived.title}
+                title={currentProjectTitle}
                 index={index}
                 total={derived.frames.length}
                 currentView={viewMode}
@@ -658,6 +674,7 @@ export default function StoryboardPage() {
               ? derived.frames[index].scene || index + 1
               : undefined
           }
+          onClearSelectedShot={() => setIndex(-1)}
           mode={promptDockMode}
           onModeChange={setPromptDockMode}
           referenceImageUrl={
