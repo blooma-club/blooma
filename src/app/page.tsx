@@ -101,7 +101,7 @@ export default function Home() {
               Features
             </a>
             <a
-              href="#pricing"
+              href="pricing"
               className="text-neutral-300 hover:text-white font-medium transition-colors"
             >
               Pricing
@@ -164,9 +164,15 @@ export default function Home() {
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48 border-neutral-700" style={{ backgroundColor: 'hsl(var(--background))' }} align="end">
+                <DropdownMenuContent
+                  className="w-48 border-neutral-700"
+                  style={{ backgroundColor: 'hsl(var(--background))' }}
+                  align="end"
+                >
                   <div className="px-3 py-2 border-b border-neutral-700">
-                    <p className="text-sm text-neutral-300 truncate">{user.primaryEmailAddress?.emailAddress}</p>
+                    <p className="text-sm text-neutral-300 truncate">
+                      {user.primaryEmailAddress?.emailAddress}
+                    </p>
                   </div>
                   <DropdownMenuItem
                     onClick={() => signOut()}
@@ -187,7 +193,10 @@ export default function Home() {
             Blooma Studio • Storyboard
           </div>
 
-          <h1 className="mt-8 text-8xl font-regular tracking-tight font-instrument-serif" style={{ color: 'hsl(var(--foreground))' }}>
+          <h1
+            className="mt-8 text-8xl font-regular tracking-tight font-instrument-serif"
+            style={{ color: 'hsl(var(--foreground))' }}
+          >
             Now, you are a director
           </h1>
 
@@ -195,13 +204,13 @@ export default function Home() {
           <div className="mt-10 w-full max-w-7xl relative px-4">
             <div className="group relative flex items-center justify-center gap-6 perspective-1500 transform-style-3d">
               {/* 왼쪽 카드 */}
-              <div 
+              <div
                 className="absolute left-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
-                style={{ 
+                style={{
                   aspectRatio: '16/9',
                   backgroundColor: 'hsl(var(--card))',
                   borderColor: 'hsl(var(--border))',
-                  zIndex: 1
+                  zIndex: 1,
                 }}
               >
                 <Image
@@ -215,13 +224,13 @@ export default function Home() {
               </div>
 
               {/* 중앙 메인 카드 */}
-              <div 
+              <div
                 className="relative w-full max-w-3xl rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border-2 transition-all duration-700 ease-out group-hover:scale-[1.02] hover:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)] cursor-pointer overflow-hidden"
-                style={{ 
+                style={{
                   aspectRatio: '16/9',
                   backgroundColor: 'hsl(var(--card))',
                   borderColor: 'hsl(var(--border))',
-                  zIndex: 3
+                  zIndex: 3,
                 }}
               >
                 <Image
@@ -235,13 +244,13 @@ export default function Home() {
               </div>
 
               {/* 오른쪽 카드 */}
-              <div 
+              <div
                 className="absolute right-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
-                style={{ 
+                style={{
                   aspectRatio: '16/9',
                   backgroundColor: 'hsl(var(--card))',
                   borderColor: 'hsl(var(--border))',
-                  zIndex: 1
+                  zIndex: 1,
                 }}
               >
                 <Image
@@ -273,7 +282,10 @@ export default function Home() {
         </div>
 
         {/* 스크롤 힌트 */}
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+        <div
+          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-sm"
+          style={{ color: 'hsl(var(--muted-foreground))' }}
+        >
           <div className="h-6 w-px mb-2" style={{ backgroundColor: 'hsl(var(--border))' }} />
           Scroll
         </div>

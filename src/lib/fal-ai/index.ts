@@ -20,7 +20,7 @@ export interface FalAIModel {
   id: string
   name: string
   description: string
-  category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting'
+  category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting' | 'video-generation'
   maxResolution: string
   stylePresets: string[]
   quality: 'fast' | 'balanced' | 'high'
@@ -184,11 +184,117 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       sync_mode: 'boolean?',
       enable_safety_checker: 'boolean?'
     }
+  },
+  {
+    id: 'fal-ai/vidu/q1/start-end-to-video',
+    name: 'VIDU Start-End to Video Q1',
+    description: 'Generate a video by combining selected start and end frames.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'dynamic'],
+    quality: 'high',
+    cost: 4,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      reference_images: 'list<string>?',
+      prompt: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/wan-flf2v',
+    name: 'WAN FLF2V',
+    description: 'WAN start-end frame aware image-to-video generation.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'stylized'],
+    quality: 'high',
+    cost: 4,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      prompt: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/vidu/start-end-to-video',
+    name: 'VIDU Start-End to Video',
+    description: 'VIDU start/end guided video synthesis from storyboard frames.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'photorealistic'],
+    quality: 'high',
+    cost: 4,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      prompt: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+    name: 'Kling Video v2.5 Turbo',
+    description: 'Kling Video v2.5 Turbo start/end frame guided video generation.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'dynamic'],
+    quality: 'high',
+    cost: 4,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      prompt: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/kling-video/v1.6/pro/image-to-video',
+    name: 'Kling Video v1.6 Pro',
+    description: 'Kling Video v1.6 Pro start/end frame aware video generator.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'dynamic'],
+    quality: 'high',
+    cost: 3,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      prompt: 'string?'
+    }
+  },
+  {
+    id: 'fal-ai/kling-video/v2.1/pro/image-to-video',
+    name: 'Kling Video v2.1 Pro',
+    description: 'Kling Video v2.1 Pro video creation between selected frames.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'dynamic'],
+    quality: 'high',
+    cost: 3,
+    inputSchema: {
+      start_frame: 'number',
+      end_frame: 'number',
+      frames: 'list<string>?',
+      prompt: 'string?'
+    }
   }
 ]
 
 // 기본 모델 설정 (프로덕션용)
 export const DEFAULT_MODEL = 'fal-ai/flux-pro/kontext'
+
+export const START_TO_END_FRAME_MODEL_IDS = [
+  'fal-ai/vidu/q1/start-end-to-video',
+  'fal-ai/wan-flf2v',
+  'fal-ai/vidu/start-end-to-video',
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+  'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'fal-ai/kling-video/v2.1/pro/image-to-video'
+]
 
 // Fal AI 클라이언트 초기화
 let falConfigured = false
@@ -965,7 +1071,13 @@ export function isTextToImageModel(modelId: string): boolean {
 }
 
 // PromptDock에서 사용할 모델 목록 (generate는 t2i만, edit는 i2i만)
-export function getModelsForMode(mode: 'generate' | 'edit'): FalAIModel[] {
+export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIModel[] {
+  if (mode === 'video') {
+    return START_TO_END_FRAME_MODEL_IDS.map(id => getModelInfo(id)).filter(
+      (model): model is FalAIModel => Boolean(model)
+    )
+  }
+
   if (mode === 'edit') {
     return FAL_AI_MODELS.filter(m => isImageToImageModel(m.id))
   }

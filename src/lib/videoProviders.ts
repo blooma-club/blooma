@@ -1,10 +1,13 @@
 import { fal } from '@fal-ai/client'
+import { START_TO_END_FRAME_MODEL_IDS } from '@/lib/fal-ai'
 import { uploadVideoToR2, UploadResult } from './r2'
 
 export interface VideoGenerationParams {
   projectId: string
   frameId: string
   imageUrl: string
+  startImageUrl?: string | null
+  endImageUrl?: string | null
   prompt?: string
   modelId?: string
   aspectRatio?: string
@@ -24,6 +27,13 @@ export interface VideoGenerationResult {
 }
 
 const DEFAULT_MODEL = 'fal-ai/minimax/video-01'
+
+const START_END_MODELS = new Set(START_TO_END_FRAME_MODEL_IDS)
+const KLING_START_END_MODELS = new Set([
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+  'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'fal-ai/kling-video/v2.1/pro/image-to-video',
+])
 
 function ensureFalConfigured() {
   const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
@@ -159,6 +169,8 @@ export async function generateVideoFromImage({
   projectId,
   frameId,
   imageUrl,
+  startImageUrl,
+  endImageUrl,
   prompt,
   modelId,
   aspectRatio = '16:9',
@@ -167,23 +179,45 @@ export async function generateVideoFromImage({
   negativePrompt,
   seed,
 }: VideoGenerationParams): Promise<VideoGenerationResult> {
-  if (!imageUrl || imageUrl.trim().length === 0) {
-    throw new Error('An image URL is required to generate a video')
-  }
-
   ensureFalConfigured()
   const resolvedModel = resolveModelId(modelId)
+  const requiresStartEnd = START_END_MODELS.has(resolvedModel)
+
+  const startImage = (startImageUrl || imageUrl || '').trim()
+  const endImage = (endImageUrl || '').trim()
+
+  if (!startImage) {
+    throw new Error('A start image URL is required to generate a video')
+  }
+
+  if (requiresStartEnd && !endImage) {
+    throw new Error(`Model "${resolvedModel}" requires an end image URL.`)
+  }
+
+  const input: Record<string, unknown> = {
+    prompt: prompt || 'Animate this storyboard frame as a short cinematic clip',
+    aspect_ratio: aspectRatio,
+    seconds: durationSeconds,
+  }
+
+  if (guidanceScale !== undefined) input.guidance_scale = guidanceScale
+  if (negativePrompt) input.negative_prompt = negativePrompt
+  if (seed !== undefined) input.seed = seed
+
+  if (requiresStartEnd) {
+    if (KLING_START_END_MODELS.has(resolvedModel)) {
+      input.image_url = startImage
+      input.tail_image_url = endImage
+    } else {
+      input.start_image_url = startImage
+      input.end_image_url = endImage
+    }
+  } else {
+    input.image_url = startImage
+  }
 
   const submission: unknown = await fal.subscribe(resolvedModel, {
-    input: {
-      image_url: imageUrl,
-      prompt: prompt || 'Animate this storyboard frame as a short cinematic clip',
-      aspect_ratio: aspectRatio,
-      seconds: durationSeconds,
-      guidance_scale: guidanceScale,
-      negative_prompt: negativePrompt,
-      seed,
-    },
+    input,
     logs: true,
     onQueueUpdate(status) {
       if (status.status === 'IN_PROGRESS') {

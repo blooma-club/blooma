@@ -272,8 +272,17 @@ export const useFrameManagement = (
     [projectId, cards, mutate, updateCards]
   )
 
+  type VideoGenerationOptions = {
+    modelId?: string
+    startFrameId?: string
+    endFrameId?: string
+    startImageUrl?: string | null
+    endImageUrl?: string | null
+    prompt?: string
+  }
+
   const handleGenerateVideo = useCallback(
-    async (frameId: string, frames: StoryboardFrame[]) => {
+    async (frameId: string, frames: StoryboardFrame[], options?: VideoGenerationOptions) => {
       if (!projectId) return
       const frame = frames.find(f => f.id === frameId)
       if (!frame) return
@@ -289,7 +298,22 @@ export const useFrameManagement = (
       try {
         setGeneratingVideoId(frameId)
 
-        const requestPrompt = (frame.imagePrompt || frame.shotDescription || '').trim()
+        const requestPrompt =
+          typeof options?.prompt === 'string' && options.prompt.trim().length > 0
+            ? options.prompt.trim()
+            : (frame.imagePrompt || frame.shotDescription || '').trim()
+        const startFrame =
+          options?.startFrameId && options.startFrameId !== frameId
+            ? frames.find(f => f.id === options.startFrameId)
+            : frame
+        const endFrame =
+          options?.endFrameId && options.endFrameId !== frameId
+            ? frames.find(f => f.id === options.endFrameId)
+            : undefined
+
+        const startImageUrl =
+          options?.startImageUrl ?? startFrame?.imageUrl ?? frame.imageUrl ?? null
+        const endImageUrl = options?.endImageUrl ?? endFrame?.imageUrl ?? null
 
         const response = await fetch('/api/video/generate', {
           method: 'POST',
@@ -300,7 +324,11 @@ export const useFrameManagement = (
             frameId,
             projectId,
             imageUrl: frame.imageUrl,
+            startImageUrl,
+            endImageUrl,
+            endFrameId: options?.endFrameId,
             prompt: requestPrompt,
+            modelId: options?.modelId,
           }),
         })
 

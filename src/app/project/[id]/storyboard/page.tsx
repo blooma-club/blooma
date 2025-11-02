@@ -79,7 +79,7 @@ export default function StoryboardPage() {
   // 컨테이너 폭 제어 제거 (DND 정렬 + 자동 래핑 사용)
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
-  const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit'>('generate')
+  const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit' | 'video'>('generate')
 
   // View mode 상태: 'storyboard' | 'models'
   const [viewMode, setViewMode] = useState<'storyboard' | 'models'>('storyboard')
@@ -674,12 +674,38 @@ export default function StoryboardPage() {
               ? derived.frames[index].scene || index + 1
               : undefined
           }
+          selectedFrameId={index >= 0 && derived.frames[index] ? derived.frames[index].id : undefined}
           onClearSelectedShot={() => setIndex(-1)}
           mode={promptDockMode}
           onModeChange={setPromptDockMode}
           referenceImageUrl={
             index >= 0 && derived.frames[index] ? derived.frames[index].imageUrl : undefined
           }
+          onGenerateVideo={async ({
+            modelId,
+            prompt: videoPromptOverride,
+            startFrameId,
+            endFrameId,
+            startImageUrl,
+            endImageUrl,
+          }) => {
+            if (!startFrameId) {
+              setError('Select a start frame before generating a video.')
+              return
+            }
+            try {
+              await handleGenerateVideo(startFrameId, derived.frames, {
+                modelId,
+                startFrameId,
+                endFrameId,
+                startImageUrl,
+                endImageUrl,
+                prompt: videoPromptOverride,
+              })
+            } catch (error) {
+              setError(error instanceof Error ? error.message : 'Failed to generate video')
+            }
+          }}
           onCreateFrame={async (imageUrl: string) => {
             try {
               const hasSelection = index >= 0 && Boolean(derived.frames[index])
