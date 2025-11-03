@@ -199,7 +199,7 @@ export default function AccountDropdown() {
                     Billing &amp; payment
                   </p>
                   <a
-                    href="env.POLAR_API_BASE_URL"
+                    href={process.env.NEXT_PUBLIC_POLAR_API_BASE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-1 inline-flex items-center text-neutral-800 dark:text-neutral-200 underline hover:text-neutral-600 dark:hover:text-neutral-100"
