@@ -10,8 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
-import ThemeToggle from '@/components/ui/theme-toggle'
-import CreditsIndicator from '@/components/ui/CreditsIndicator'
 
 const FALLBACK_USER = {
   isLoaded: true,
@@ -93,38 +91,8 @@ export default function Home() {
             </Button>
           </div>
 
-          {/* 중앙: 네비게이션 */}
-          <nav className="hidden md:flex gap-10 absolute left-1/2 -translate-x-1/2">
-            <a
-              href="#features"
-              className="text-neutral-300 hover:text-white font-medium transition-colors"
-            >
-              Features
-            </a>
-            <a
-              href="pricing"
-              className="text-neutral-300 hover:text-white font-medium transition-colors"
-            >
-              Pricing
-            </a>
-            <a
-              href="#about"
-              className="text-neutral-300 hover:text-white font-medium transition-colors"
-            >
-              About
-            </a>
-            <a
-              href="#contact"
-              className="text-neutral-300 hover:text-white font-medium transition-colors"
-            >
-              Contact
-            </a>
-          </nav>
-
           {/* 우측: Login만 */}
           <div className="flex-shrink-0 flex items-center gap-4">
-            <CreditsIndicator />
-            <ThemeToggle />
             {!user ? (
               <Button
                 variant="ghost"
@@ -192,7 +160,7 @@ export default function Home() {
       <section className="relative" style={{ backgroundColor: 'hsl(var(--background))' }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-32 pb-24 flex flex-col items-center text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-neutral-700/60 bg-neutral-900/70 px-4 py-2 text-sm uppercase tracking-[0.15em] text-neutral-300">
-            Blooma Studio • Storyboard
+            Your AI Studio is here
           </div>
 
           <h1

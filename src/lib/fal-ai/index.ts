@@ -1,31 +1,18 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Fal client responses are highly dynamic and currently lack stable typings */
-
 import { fal } from '@fal-ai/client'
+import type { FalAIModel, FalAIInputSchema, FalAISubmission, FalAIGenerationOptions, FalAIGenerationResult, FalAISubmissionUpdate, FalAIImageResult } from './types'
+import { isFalAIModel } from './types'
 
 const FALLBACK_PLACEHOLDER_IMAGE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAAAAgAB9HFkPgAAAABJRU5ErkJggg=='
 
-function createPlaceholderImageResult(reason: string) {
+function createPlaceholderImageResult(reason: string): FalAIGenerationResult {
   const warning = reason && reason.trim().length > 0 ? reason : 'Image generation placeholder used.'
   return {
-    success: true as const,
+    success: true,
     imageUrl: FALLBACK_PLACEHOLDER_IMAGE,
     imageUrls: [FALLBACK_PLACEHOLDER_IMAGE],
     warning,
   }
-}
-
-// Fal AI 모델 정의
-export interface FalAIModel {
-  id: string
-  name: string
-  description: string
-  category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting' | 'video-generation'
-  maxResolution: string
-  stylePresets: string[]
-  quality: 'fast' | 'balanced' | 'high'
-  cost: number
-  inputSchema: Record<string, any>
 }
 
 // 지원하는 Fal AI 모델들 
@@ -62,23 +49,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       width: 'number?',
       height: 'number?',
       num_inference_steps: 'number?'
-    }
-  },
-  {
-    id: 'fal-ai/flux-pro/kontext',
-    name: 'Flux.1 Kontext [pro]',
-    description: 'Kontext [pro] with strong prompt adherence and reference fidelity',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'cinematic', 'artistic', 'commercial'],
-    quality: 'high',
-    cost: 3,
-    inputSchema: {
-      prompt: 'string',
-      aspect_ratio: 'string?',
-      guidance_scale: 'number?',
-      num_images: 'number?',
-      output_format: 'string?'
     }
   },
   {
@@ -134,24 +104,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     }
   },
   {
-    id: 'fal-ai/flux-pro/v1.1-ultra/redux',
-    name: 'FLUX 1.1 Ultra Redux',
-    description: 'FLUX 1.1 [pro] ultra Redux - high-performance image-to-image transformation',
-    category: 'inpainting',
-    maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'high',
-    cost: 3,
-    inputSchema: {
-      prompt: 'string',
-      image_url: 'string',
-      aspect_ratio: 'string?',
-      guidance_scale: 'number?',
-      num_images: 'number?',
-      output_format: 'string?'
-    }
-  },
-  {
     id: 'fal-ai/gemini-25-flash-image',
     name: 'Gemini 2.5 Flash Image',
     description: 'Google Gemini 2.5 Flash Image for generation',
@@ -184,6 +136,20 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       sync_mode: 'boolean?',
       enable_safety_checker: 'boolean?'
     }
+  },
+  {
+    id: 'fal-ai/minimax/video-01',
+    name: 'Minimax Image-to-Video',
+    description: 'Generate a short video from a single image.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    stylePresets: ['cinematic', 'dynamic'],
+    quality: 'balanced',
+    cost: 2,
+    inputSchema: {
+      image_url: 'string',
+      prompt: 'string?',
+    },
   },
   {
     id: 'fal-ai/vidu/q1/start-end-to-video',
@@ -285,7 +251,11 @@ export const FAL_AI_MODELS: FalAIModel[] = [
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/flux-pro/kontext'
+export const DEFAULT_MODEL = 'fal-ai/gemini-25-flash-image'
+
+export const IMAGE_TO_VIDEO_MODEL_IDS = [
+  'fal-ai/minimax/video-01',
+]
 
 export const START_TO_END_FRAME_MODEL_IDS = [
   'fal-ai/vidu/q1/start-end-to-video',
@@ -343,9 +313,6 @@ export function generateModelSpecificPrompt(
     case 'fal-ai/imagen4-ultra':
       enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting, maximum quality`
       break
-    case 'fal-ai/flux-pro/kontext':
-      enhancedPrompt = `${basePrompt}, maximum quality, frontier image generation, highly detailed, professional photography, flawless typography`
-      break
     case 'fal-ai/flux-pro/v1.1-ultra':
       enhancedPrompt = `${basePrompt}, ultra detailed, photorealistic rendering, strong prompt adherence`
       break
@@ -360,9 +327,6 @@ export function generateModelSpecificPrompt(
       break
     case 'fal-ai/bytedance/seedream/v4/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images, Seedream 4.0 edit optimized`
-      break
-    case 'fal-ai/flux-pro/v1.1-ultra/redux':
-      enhancedPrompt = `${basePrompt}, high-performance transformation, maintain core elements while applying style changes, FLUX ultra redux optimized`
       break
   }
 
@@ -460,7 +424,7 @@ export async function generateImageWithModel(
   const { enhancePrompt = true, ...generationOptions } = options
   const fallbackModels = [
     modelId,
-    'fal-ai/flux-pro/kontext',
+    'fal-ai/gemini-25-flash-image',
     'fal-ai/flux-pro/v1.1-ultra',
     'fal-ai/bytedance/seedream/v4/text-to-image',
   ].filter((id, idx, arr) => arr.indexOf(id) === idx)
@@ -486,7 +450,10 @@ export async function generateImageWithModel(
         console.log('[FAL] Prompt enhancement disabled; using raw prompt.')
       }
 
-      const result = await generateImageByModel(candidateModel, promptForModel, generationOptions)
+      const result = await generateImageByModel(candidateModel, promptForModel, {
+        ...generationOptions,
+        prompt: promptForModel,
+      })
 
       return {
         success: true,
@@ -605,7 +572,7 @@ function isAccessOrQuotaError(error: unknown): boolean {
 async function generateImageByModel(
   modelId: string,
   prompt: string,
-  options: any
+  options: FalAIGenerationOptions
 ): Promise<string | string[]> {
 
   switch (modelId) {
@@ -614,9 +581,6 @@ async function generateImageByModel(
     
     case 'fal-ai/imagen4-ultra':
       return await generateWithImagen4Ultra(prompt, options)
-    
-    case 'fal-ai/flux-pro/kontext':
-      return await generateWithFluxProKontextPro(prompt, options)
     
     case 'fal-ai/flux-pro/v1.1-ultra':
       return await generateWithFluxProV11Ultra(prompt, options)
@@ -633,132 +597,101 @@ async function generateImageByModel(
     case 'fal-ai/bytedance/seedream/v4/edit':
       return await generateWithSeedreamV4Edit(prompt, options)
     
-    case 'fal-ai/flux-pro/v1.1-ultra/redux':
-      return await generateWithFluxProUltraRedux(prompt, options)
-    
     default:
       throw new Error(`Unsupported model: ${modelId}`)
   }
 }
 
 // Imagen 4 모델
-async function generateWithImagen4(prompt: string, options: any): Promise<string> {
+async function generateWithImagen4(prompt: string, options: FalAIGenerationOptions): Promise<string> {
   const aspectRatio = (options.aspectRatio || '1:1').replace(/\s+/g, '')
-  const submission: any = await fal.subscribe('fal-ai/imagen4/preview', {
+  const submission = (await fal.subscribe('fal-ai/imagen4/preview', {
     input: {
       prompt,
+      // @ts-expect-error - Fal client types may not include all model-specific fields
       aspect_ratio: aspectRatio,
       negative_prompt: options.negativePrompt || 'blurry, low quality, distorted'
     }
-  })
+  })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'imagen4')
 }
 
 // Imagen 4 Ultra 모델
-async function generateWithImagen4Ultra(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/imagen4/preview/ultra', {
+async function generateWithImagen4Ultra(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+  const submission = (await fal.subscribe('fal-ai/imagen4/preview/ultra', {
     input: {
       prompt,
       negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
     }
-  })
+  })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'imagen4-ultra')
 }
 
 // Flux 1.1 Pro 모델
-async function generateWithFluxProV11Ultra(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
+async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+  const submission = (await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
     input: {
       prompt,
-      aspect_ratio: options.aspectRatio || '1:1',
+      aspect_ratio: (options.aspectRatio || '1:1') as string,
+      // @ts-expect-error - Fal client types may not include all model-specific fields
       guidance_scale: options.guidanceScale || 3.5,
       num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg',
-      safety_tolerance: options.safetyTolerance || '2'
-    } as any,
+      output_format: (options.outputFormat || 'jpeg') as 'jpeg' | 'png',
+      safety_tolerance: (options.safetyTolerance || '2') as '1' | '2' | '3' | '4' | '5' | '6'
+    },
     logs: true,
-    onQueueUpdate(update: any) {
+    onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][flux-pro-v1.1-ultra]', update.status)
       }
     }
-  })
+  })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'flux-pro-v1.1-ultra')
 }
 
-// Flux.1 Kontext [pro] 모델 (이미지-투-이미지)
-async function generateWithFluxProKontextPro(prompt: string, options: any): Promise<string> {
-  const inputPayload: any = {
-    prompt,
-    aspect_ratio: options.aspectRatio || '1:1',
-    guidance_scale: options.guidanceScale || 3.5,
-    num_images: options.numImages || 1,
-    output_format: options.outputFormat || 'jpeg',
-    safety_tolerance: options.safetyTolerance || '2'
-  }
-
-  // Add image input if available (for image-to-image generation)
-  if (options.imageUrls && options.imageUrls.length > 0) {
-    inputPayload.image_url = options.imageUrls[0]
-    inputPayload.strength = 0.75 // Controls how much the input image influences the result
-  }
-
-  const submission: any = await fal.subscribe('fal-ai/flux-pro/kontext', {
-    input: inputPayload,
-    logs: true,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-pro-kontext-pro]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'flux-pro-kontext-pro')
-}
-
 // Gemini 2.5 Flash Image Edit 모델 (멀티 이미지 편집)
-async function generateWithGemini25FlashImageEdit(prompt: string, options: any): Promise<string[]> {
-  const submission: any = await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
+async function generateWithGemini25FlashImageEdit(prompt: string, options: FalAIGenerationOptions): Promise<string[]> {
+  const submission = await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
     input: {
       prompt,
       image_urls: options.imageUrls || [],
       num_images: options.numImages || 1,
       output_format: options.outputFormat || 'jpeg'
     },
-    onQueueUpdate(update: any) {
+    onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][gemini-25-flash-image-edit]', update.status)
       }
     }
-  })
+  }) as FalAISubmission
 
   return extractImageUrls(submission, 'gemini-25-flash-image-edit')
 }
 
 // Gemini 2.5 Flash Image Text to Image 모델 (텍스트에서 이미지 생성)
-async function generateWithGemini25FlashImageTextToImage(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/gemini-25-flash-image', {
+async function generateWithGemini25FlashImageTextToImage(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+  const submission = await fal.subscribe('fal-ai/gemini-25-flash-image', {
     input: {
       prompt,
       num_images: options.numImages || 1,
       output_format: options.outputFormat || 'jpeg'
     },
-    onQueueUpdate(update: any) {
+    onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][gemini-25-flash-image-text-to-image]', update.status)
       }
     }
-  })
+  }) as FalAISubmission
 
   return extractImageUrl(submission, 'gemini-25-flash-image-text-to-image')
 }
 
 
 // Seedream 4.0 Text to Image 모델
-async function generateWithSeedreamV4(prompt: string, options: any): Promise<string> {
+async function generateWithSeedreamV4(prompt: string, options: FalAIGenerationOptions): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
   let imageSize: string | { width: number; height: number } = 'square_hd'
   
@@ -789,7 +722,7 @@ async function generateWithSeedreamV4(prompt: string, options: any): Promise<str
     }
   }
 
-  const submission: any = await fal.subscribe('fal-ai/bytedance/seedream/v4/text-to-image', {
+  const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/text-to-image', {
     input: {
       prompt,
       image_size: imageSize,
@@ -800,18 +733,18 @@ async function generateWithSeedreamV4(prompt: string, options: any): Promise<str
       enable_safety_checker: options.enableSafetyChecker !== false
     },
     logs: true,
-    onQueueUpdate(update: any) {
+    onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][seedream-v4]', update.status)
       }
     }
-  })
+  })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'seedream-v4')
 }
 
 // Seedream 4.0 Edit 모델
-async function generateWithSeedreamV4Edit(prompt: string, options: any): Promise<string> {
+async function generateWithSeedreamV4Edit(prompt: string, options: FalAIGenerationOptions): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
   let imageSize: string | { width: number; height: number } = 'square_hd'
   
@@ -842,7 +775,7 @@ async function generateWithSeedreamV4Edit(prompt: string, options: any): Promise
     }
   }
 
-  const submission: any = await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
+  const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
     input: {
       prompt,
       image_urls: options.imageUrls || [],
@@ -853,54 +786,35 @@ async function generateWithSeedreamV4Edit(prompt: string, options: any): Promise
       enable_safety_checker: options.enableSafetyChecker !== false
     },
     logs: true,
-    onQueueUpdate(update: any) {
+    onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][seedream-v4-edit]', update.status)
       }
     }
-  })
+  })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'seedream-v4-edit')
 }
 
-// FLUX 1.1 Ultra Redux 모델
-async function generateWithFluxProUltraRedux(prompt: string, options: any): Promise<string> {
-  const submission: any = await fal.subscribe('fal-ai/flux-pro/v1.1-ultra/redux', {
-    input: {
-      prompt,
-      image_url: options.imageUrl || '',
-      aspect_ratio: options.aspectRatio || '1:1',
-      guidance_scale: options.guidanceScale || 3.5,
-      num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg'
-    },
-    logs: true,
-    onQueueUpdate(update: any) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-pro-ultra-redux]', update.status)
-      }
-    }
-  })
-
-  return extractImageUrl(submission, 'flux-pro-ultra-redux')
-}
-
 // 이미지 URL 추출 (모든 모델 공통)
-function extractImageUrl(submission: any, modelName: string): string {
+function extractImageUrl(submission: FalAISubmission, modelName: string): string {
   const elapsed = Date.now()
+  
+  // data 필드가 배열인지 확인
+  const dataArray = Array.isArray(submission?.data) ? submission.data as FalAIImageResult[] : undefined
   
   let imageUrl: string | undefined = submission?.images?.[0]?.url
     || submission?.output?.[0]?.url
     || submission?.image?.url
-    || submission?.data?.[0]?.url
+    || dataArray?.[0]?.url
     || submission?.result?.[0]?.url
     || submission?.artifacts?.[0]?.url
 
   // 깊은 스캔으로 URL 찾기
   if (!imageUrl && submission && typeof submission === 'object') {
     try {
-      const stack: any[] = [submission]
-      const seen = new Set<any>()
+      const stack: unknown[] = [submission]
+      const seen = new Set<unknown>()
       
       while (stack.length) {
         const current = stack.pop()
@@ -912,13 +826,14 @@ function extractImageUrl(submission: any, modelName: string): string {
           continue
         }
         
-        if (!imageUrl && typeof current.url === 'string' && /^https?:\/\//.test(current.url)) {
-          imageUrl = current.url
+        const currentObj = current as Record<string, unknown>
+        if (!imageUrl && typeof currentObj.url === 'string' && /^https?:\/\//.test(currentObj.url)) {
+          imageUrl = currentObj.url
           break
         }
         
-        for (const key of Object.keys(current)) {
-          stack.push(current[key])
+        for (const key of Object.keys(currentObj)) {
+          stack.push(currentObj[key])
         }
       }
     } catch (scanError) {
@@ -953,30 +868,31 @@ function extractImageUrl(submission: any, modelName: string): string {
 }
 
 // 여러 이미지 URL 추출 (멀티 이미지 모델용)
-function extractImageUrls(submission: any, modelName: string): string[] {
+function extractImageUrls(submission: FalAISubmission, modelName: string): string[] {
   const elapsed = Date.now()
   
-  let images: any[] = submission?.images || submission?.output || submission?.data || submission?.result || submission?.artifacts || []
+  let images: FalAIImageResult[] = submission?.images || (submission?.output as FalAIImageResult[]) || submission?.data || submission?.result || submission?.artifacts || []
   
   // 깊은 스캔으로 이미지 배열 찾기
   if (!Array.isArray(images) || images.length === 0) {
     if (submission && typeof submission === 'object') {
       try {
-        const stack: any[] = [submission]
-        const seen = new Set<any>()
+        const stack: unknown[] = [submission]
+        const seen = new Set<unknown>()
         
         while (stack.length) {
           const current = stack.pop()
           if (!current || typeof current !== 'object' || seen.has(current)) continue
           
           seen.add(current)
-          if (Array.isArray(current) && current.length > 0 && typeof current[0] === 'object' && current[0].url) {
-            images = current
+          const currentObj = current as Record<string, unknown>
+          if (Array.isArray(currentObj) && currentObj.length > 0 && typeof currentObj[0] === 'object' && currentObj[0] !== null && 'url' in currentObj[0]) {
+            images = currentObj as FalAIImageResult[]
             break
           }
           
-          for (const key of Object.keys(current)) {
-            stack.push(current[key])
+          for (const key of Object.keys(currentObj)) {
+            stack.push(currentObj[key])
           }
         }
       } catch (scanError) {
@@ -1041,12 +957,7 @@ export function isImageToImageModel(modelId: string): boolean {
   switch (modelId) {
     case 'fal-ai/gemini-25-flash-image/edit':
       return true
-    case 'fal-ai/flux-pro/kontext':
-      // Kontext는 image_url 제공 시 i2i를 지원함
-      return true
     case 'fal-ai/bytedance/seedream/v4/edit':
-      return true
-    case 'fal-ai/flux-pro/v1.1-ultra/redux':
       return true
     default:
       return false
@@ -1061,9 +972,6 @@ export function isTextToImageModel(modelId: string): boolean {
     case 'fal-ai/flux-pro/v1.1-ultra':
     case 'fal-ai/gemini-25-flash-image':
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
-      return true
-    case 'fal-ai/flux-pro/kontext':
-      // i2i도 지원하지만 t2i도 가능
       return true
     default:
       return false
@@ -1083,6 +991,22 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
   }
   // generate 모드: 텍스트-투-이미지 모델만 노출
   return FAL_AI_MODELS.filter(m => isTextToImageModel(m.id))
+}
+
+// 비디오 선택 개수에 따른 모델 목록 반환
+export function getVideoModelsForSelection(count: number): FalAIModel[] {
+  const ids = count >= 2 ? START_TO_END_FRAME_MODEL_IDS : IMAGE_TO_VIDEO_MODEL_IDS
+  return ids
+    .map(id => getModelInfo(id))
+    .filter((model): model is FalAIModel => Boolean(model))
+}
+
+export function isStartEndVideoModel(id: string): boolean {
+  return START_TO_END_FRAME_MODEL_IDS.includes(id)
+}
+
+export function isImageToVideoModelId(id: string): boolean {
+  return IMAGE_TO_VIDEO_MODEL_IDS.includes(id)
 }
 
 // 모델 비용 계산

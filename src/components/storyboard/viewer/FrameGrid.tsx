@@ -46,6 +46,10 @@ interface FrameGridProps {
   onReorder?: (fromIndex: number, toIndex: number) => void
   selectedFrameId?: string
   onBackgroundClick?: () => void
+  // 추가: 비디오 모드 멀티선택 지원
+  mode?: 'generate' | 'edit' | 'video'
+  selectedFrameIds?: string[]
+  onCardSelect?: (id: string, e: React.MouseEvent) => void
 }
 
 const SideInsertButton = ({
@@ -99,6 +103,9 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   onReorder,
   selectedFrameId,
   onBackgroundClick,
+  mode,
+  selectedFrameIds,
+  onCardSelect,
 }) => {
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
@@ -234,9 +241,20 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
                   onStopVideo={onStopVideo ? () => onStopVideo(frame.id) : undefined}
                   isGeneratingVideo={generatingVideoId === frame.id}
-                  highlight={activeId === frame.id || selectedFrameId === frame.id}
+                  highlight={
+                    activeId === frame.id ||
+                    selectedFrameId === frame.id ||
+                    (Array.isArray(selectedFrameIds) && selectedFrameIds.includes(frame.id))
+                  }
                   isVideoActive={isVideoActive}
                   videoPlayingUrl={playingUrl}
+                  onCardClick={e => {
+                    if (onCardSelect) {
+                      e.stopPropagation()
+                      onCardSelect(frame.id, e)
+                      return
+                    }
+                  }}
                 />
               )
             })}
@@ -302,6 +320,7 @@ type SortableFrameCardProps = {
   highlight: boolean
   isVideoActive: boolean
   videoPlayingUrl?: string
+  onCardClick?: (e: React.MouseEvent) => void
 }
 
 const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
@@ -322,6 +341,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
   highlight,
   isVideoActive,
   videoPlayingUrl,
+  onCardClick,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: frame.id,
@@ -365,6 +385,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
+        onCardClick={onCardClick}
         videoUrl={frame.videoUrl}
         onGenerateVideo={onGenerateVideo}
         onPlayVideo={onPlayVideo}

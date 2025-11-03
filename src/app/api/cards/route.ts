@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { NextRequest } from 'next/server'
 import { randomUUID } from 'crypto'
-import { CardInput } from '@/types'
+import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors/handlers'
+import { ApiError } from '@/lib/errors/api'
+import { cardInputSchema, cardsUpdateSchema, cardDeleteSchema, projectIdSchema } from '@/lib/validation/schemas'
 import { deleteImageFromR2 } from '@/lib/r2'
 import { queryD1, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
+
+const handleError = createErrorHandler('api/cards')
 
 // 허용 컬럼 화이트리스트 (DB 컬럼과 1:1 매핑)
 const ALLOWED_KEYS = new Set([
@@ -14,17 +17,16 @@ const ALLOWED_KEYS = new Set([
   'title',
   'content',
   'user_input',
-  'image_url', // 단일 이미지 URL
-  'image_urls', // 기존 배열 방식 (하위 호환성)
-  'selected_image_url', // 기존 인덱스 방식 (하위 호환성)
-  'image_key', // R2 키 (삭제용)
-  'image_size', // 파일 크기
-  'image_type', // uploaded/generated
+  'image_url',
+  'image_urls',
+  'selected_image_url',
+  'image_key',
+  'image_size',
+  'image_type',
   'order_index',
   'card_width',
   'next_card_id',
   'prev_card_id',
-  // 메타데이터 필드
   'scene_number',
   'shot_type',
   'angle',
@@ -48,13 +50,17 @@ const INTEGER_COLUMNS = new Set([
   'scene_number',
   'card_width',
 ])
-const FLOAT_COLUMNS = new Set([])
 
 class CardValidationError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'CardValidationError'
   }
+}
+
+// CardValidationError를 ApiError로 변환하는 헬퍼
+function convertCardValidationError(error: CardValidationError): ApiError {
+  return ApiError.badRequest(error.message)
 }
 
 type CardRow = {
@@ -99,23 +105,50 @@ type CardLinkInfo = {
   next_card_id: string | null
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const { userId } = await requireAuth()
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const { searchParams } = new URL(request.url)
+    const projectId = searchParams.get('project_id')
+
+    if (!projectId) {
+      throw ApiError.badRequest('project_id parameter is required')
     }
 
-    const body: (CardInput & { project_id?: string }) | (CardInput & { project_id?: string })[] =
-      await request.json()
+    const validatedProjectId = projectIdSchema.parse(projectId)
 
+    const sql = `SELECT *
+                 FROM cards
+                 WHERE project_id = ?1
+                   AND user_id = ?2
+                 ORDER BY order_index ASC`
+    const rows = await queryD1<CardRow>(sql, [validatedProjectId, userId])
+    const data = rows.map(normalizeCardRow)
+
+    return createApiResponse(data)
+  } catch (error) {
+    if (error instanceof CardValidationError) {
+      return handleError(convertCardValidationError(error))
+    }
+    return handleError(error)
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await requireAuth()
+
+    const body = await request.json()
+
+    // 단일 카드 또는 배열 처리
     if (Array.isArray(body)) {
       if (body.length === 0) {
-        return NextResponse.json({ error: 'At least one card is required' }, { status: 400 })
+        throw ApiError.badRequest('At least one card is required')
       }
 
-      const prepared = body.map(card => prepareCardInsert(card, userId))
+      const validatedCards = body.map(card => cardInputSchema.parse(card))
+      const prepared = validatedCards.map(card => prepareCardInsert(card, userId))
 
       for (const { sql, params } of prepared) {
         await queryD1(sql, params)
@@ -124,35 +157,32 @@ export async function POST(request: NextRequest) {
       const ids = prepared.map(entry => entry.id)
       const inserted = await fetchCardsByIds(ids, userId)
 
-      return NextResponse.json({ data: inserted, success: true })
+      return createApiResponse(inserted)
     }
 
-    const single = prepareCardInsert(body, userId)
+    const validatedCard = cardInputSchema.parse(body)
+    const single = prepareCardInsert(validatedCard, userId)
     await queryD1(single.sql, single.params)
 
     const [inserted] = await fetchCardsByIds([single.id], userId)
 
-    return NextResponse.json({ data: inserted ?? null, success: true })
+    return createApiResponse(inserted ?? null)
   } catch (error) {
-    return handleCardsRouteError('POST', error, 'Failed to create cards')
+    if (error instanceof CardValidationError) {
+      return handleError(convertCardValidationError(error))
+    }
+    return handleError(error)
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const { userId } = await requireAuth()
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const body = await request.json()
+    const validated = cardsUpdateSchema.parse(body)
 
-    const body: { cards: (CardInput & { id: string })[] } = await request.json()
-
-    if (!body.cards || !Array.isArray(body.cards) || body.cards.length === 0) {
-      return NextResponse.json({ error: 'Cards array is required' }, { status: 400 })
-    }
-
-    const statements = body.cards.map(card => prepareCardUpdate(card, userId))
+    const statements = validated.cards.map(card => prepareCardUpdate(card, userId))
 
     for (const statement of statements) {
       if (statement.setClauses.length === 0) {
@@ -161,32 +191,28 @@ export async function PUT(request: NextRequest) {
       await queryD1(statement.sql, statement.params)
     }
 
-    const ids = body.cards.map(card => card.id)
+    const ids = validated.cards.map(card => card.id)
     const updated = await fetchCardsByIds(ids, userId)
 
-    return NextResponse.json({ data: updated, success: true })
+    return createApiResponse(updated)
   } catch (error) {
-    return handleCardsRouteError('PUT', error, 'Failed to update cards')
+    if (error instanceof CardValidationError) {
+      return handleError(convertCardValidationError(error))
+    }
+    return handleError(error)
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const { userId } = await requireAuth()
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const body = await request.json()
+    const validated = cardDeleteSchema.parse(body)
 
-    const body: { cardIds: string[] } = await request.json()
-
-    if (!body.cardIds || !Array.isArray(body.cardIds) || body.cardIds.length === 0) {
-      return NextResponse.json({ error: 'cardIds array is required' }, { status: 400 })
-    }
-
-    const cards = await loadCardsForDeletion(body.cardIds, userId)
+    const cards = await loadCardsForDeletion(validated.cardIds, userId)
     if (cards.length === 0) {
-      return NextResponse.json({ success: true, deletedCount: 0, deletedImages: 0 })
+      return createApiResponse({ deletedCount: 0, deletedImages: 0 })
     }
 
     const idSet = new Set(cards.map(card => card.id))
@@ -285,52 +311,25 @@ export async function DELETE(request: NextRequest) {
       await Promise.allSettled(deletePromises)
     }
 
-    const deletePlaceholders = createNumberedPlaceholders(body.cardIds.length)
+    const deletePlaceholders = createNumberedPlaceholders(validated.cardIds.length)
     const deleteSql = `DELETE FROM cards WHERE id IN (${deletePlaceholders.join(', ')}) AND user_id = ?${
-      body.cardIds.length + 1
+      validated.cardIds.length + 1
     }`
-    await queryD1(deleteSql, [...body.cardIds, userId])
+    await queryD1(deleteSql, [...validated.cardIds, userId])
 
-    return NextResponse.json({
-      success: true,
-      deletedCount: body.cardIds.length,
+    return createApiResponse({
+      deletedCount: validated.cardIds.length,
       deletedImages: imageKeys.length,
     })
   } catch (error) {
-    return handleCardsRouteError('DELETE', error, 'Failed to delete cards')
+    if (error instanceof CardValidationError) {
+      return handleError(convertCardValidationError(error))
+    }
+    return handleError(error)
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const { userId } = await auth()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const projectId = searchParams.get('project_id')
-
-    if (!projectId) {
-      return NextResponse.json({ error: 'project_id parameter is required' }, { status: 400 })
-    }
-
-    const sql = `SELECT *
-                 FROM cards
-                 WHERE project_id = ?1
-                   AND user_id = ?2
-                 ORDER BY order_index ASC`
-    const rows = await queryD1<CardRow>(sql, [projectId, userId])
-    const data = rows.map(normalizeCardRow)
-
-    return NextResponse.json({ data, success: true })
-  } catch (error) {
-    return handleCardsRouteError('GET', error, 'Failed to fetch cards')
-  }
-}
-
-function prepareCardInsert(cardInput: CardInput & { project_id?: string }, userId: string) {
+function prepareCardInsert(cardInput: ReturnType<typeof cardInputSchema.parse>, userId: string) {
   if (!cardInput.project_id) {
     throw new CardValidationError('project_id is required')
   }
@@ -342,7 +341,7 @@ function prepareCardInsert(cardInput: CardInput & { project_id?: string }, userI
   }
 
   const now = new Date().toISOString()
-  const id = (cardInput as { id?: string }).id ?? randomUUID()
+  const id = cardInput.id ?? randomUUID()
   const card = cardInput as unknown as Record<string, unknown>
 
   const record: Record<string, unknown> = {
@@ -383,7 +382,7 @@ function prepareCardInsert(cardInput: CardInput & { project_id?: string }, userI
   return { id, sql, params }
 }
 
-function prepareCardUpdate(cardInput: CardInput & { id: string }, userId: string) {
+function prepareCardUpdate(cardInput: ReturnType<typeof cardsUpdateSchema.parse>['cards'][0], userId: string) {
   if (!cardInput.id) {
     throw new CardValidationError('id is required for card updates')
   }
@@ -452,14 +451,6 @@ function transformValueForDb(key: string, value: unknown): unknown {
       return null
     }
     return Math.trunc(parsed)
-  }
-
-  if (FLOAT_COLUMNS.has(key as never)) {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) {
-      return null
-    }
-    return parsed
   }
 
   return value
@@ -571,25 +562,3 @@ function createNumberedPlaceholders(length: number, startIndex = 1) {
   return Array.from({ length }, (_, index) => `?${startIndex + index}`)
 }
 
-function handleCardsRouteError(
-  action: 'GET' | 'POST' | 'PUT' | 'DELETE',
-  error: unknown,
-  fallbackMessage = 'Internal server error',
-) {
-  if (error instanceof CardValidationError) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
-  }
-
-  if (error instanceof D1ConfigurationError) {
-    console.error(`[cards:${action}] D1 configuration error`, error)
-    return NextResponse.json({ error: 'Cloudflare D1 is not configured' }, { status: 500 })
-  }
-
-  if (error instanceof D1QueryError) {
-    console.error(`[cards:${action}] D1 query failed`, error)
-    return NextResponse.json({ error: fallbackMessage }, { status: 500 })
-  }
-
-  console.error(`[cards:${action}] Unexpected error`, error)
-  return NextResponse.json({ error: fallbackMessage }, { status: 500 })
-}

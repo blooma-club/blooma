@@ -1,5 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { createErrorHandler, createApiResponse } from '@/lib/errors/handlers'
+import { ApiError } from '@/lib/errors/api'
+import { imageGenerationSchema } from '@/lib/validation/schemas'
 import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/fal-ai'
+
+const handleError = createErrorHandler('api/generate-image')
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,51 +13,42 @@ export async function POST(request: NextRequest) {
       console.warn('[API] FAL_KEY is not configured. Image requests will use placeholder output.')
     }
 
-    const { 
-      prompt, 
-      modelId = DEFAULT_MODEL,
-      style,
-      aspectRatio,
-      quality = 'balanced',
-      width,
-      height,
-      image_url,
-      imageUrls,
-      enhancePrompt = false,
-    } = await request.json()
+    const body = await request.json()
+    const validated = imageGenerationSchema.parse(body)
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      )
-    }
+    const modelId = validated.modelId || DEFAULT_MODEL
 
     if (!getModelInfo(modelId)) {
-      return NextResponse.json(
-        { error: `Unsupported model: ${modelId}` },
-        { status: 400 }
-      )
+      throw ApiError.badRequest(`Unsupported model: ${modelId}`)
     }
 
     console.log(`[API] Requested model: ${modelId}`)
-    console.log(`[API] Options:`, { style, aspectRatio, quality, width, height, image_url, imageUrls, enhancePrompt })
+    console.log(`[API] Options:`, {
+      style: validated.style,
+      aspectRatio: validated.aspectRatio,
+      quality: validated.quality,
+      width: validated.width,
+      height: validated.height,
+      image_url: validated.image_url,
+      imageUrls: validated.imageUrls,
+      enhancePrompt: validated.enhancePrompt,
+    })
 
     // Prepare image URLs for the generation
     let inputImageUrls: string[] = []
-    if (image_url) {
-      inputImageUrls = [image_url]
-    } else if (imageUrls && Array.isArray(imageUrls)) {
-      inputImageUrls = imageUrls
+    if (validated.image_url) {
+      inputImageUrls = [validated.image_url]
+    } else if (validated.imageUrls && Array.isArray(validated.imageUrls)) {
+      inputImageUrls = validated.imageUrls
     }
 
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
 
+    // Note: kontext model was removed, but keeping this check for safety
     if (modelId === 'fal-ai/flux-pro/kontext' && inputImageUrls.length === 0) {
       effectiveModelId = DEFAULT_MODEL
-      modelOverrideWarning =
-        `Model fal-ai/flux-pro/kontext requires a reference image. Using ${DEFAULT_MODEL} instead.`
+      modelOverrideWarning = `Model fal-ai/flux-pro/kontext requires a reference image. Using ${DEFAULT_MODEL} instead.`
     }
 
     if (effectiveModelId !== modelId) {
@@ -64,66 +60,42 @@ export async function POST(request: NextRequest) {
 
     const modelInfo = getModelInfo(effectiveModelId)
     if (!modelInfo) {
-      return NextResponse.json(
-        { error: `Unsupported model: ${effectiveModelId}` },
-        { status: 400 }
-      )
+      throw ApiError.badRequest(`Unsupported model: ${effectiveModelId}`)
     }
 
     console.log(`[API] Generating image with model: ${effectiveModelId}`)
 
-    // 통합된 이미지 생성 함수 사용
-    const result = await generateImageWithModel(prompt, effectiveModelId, {
-      style,
-      aspectRatio,
-      width,
-      height,
-      quality,
+    const result = await generateImageWithModel(validated.prompt, effectiveModelId, {
+      style: validated.style,
+      aspectRatio: validated.aspectRatio,
+      width: validated.width,
+      height: validated.height,
+      quality: validated.quality || 'balanced',
       imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined,
-      enhancePrompt,
+      enhancePrompt: validated.enhancePrompt,
     })
 
     if (!result.success) {
       const status = typeof result.status === 'number' && result.status >= 400 ? result.status : 500
-      return NextResponse.json(
-        {
-          error: result.error || 'Image generation failed',
-          ...(result.warning ? { warning: result.warning } : {}),
-        },
-        { status }
-      )
+      throw ApiError.externalApiError(result.error || 'Image generation failed', { status })
     }
 
     const warnings = [result.warning, modelOverrideWarning].filter(
       (value): value is string => Boolean(value)
     )
 
-    return NextResponse.json({
-      success: true,
+    return createApiResponse({
       imageUrl: result.imageUrl,
-      prompt,
+      prompt: validated.prompt,
       modelUsed: effectiveModelId,
       modelInfo: {
         name: modelInfo.name,
         description: modelInfo.description,
-        quality: modelInfo.quality
+        quality: modelInfo.quality,
       },
       ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
     })
-    
   } catch (error) {
-    console.error('Image generation error:', error)
-    
-    let errorMessage = 'Failed to generate image'
-    if (error instanceof Error) {
-      errorMessage = error.message
-    } else if (typeof error === 'object' && error !== null) {
-      errorMessage = JSON.stringify(error)
-    }
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    )
+    return handleError(error)
   }
 }

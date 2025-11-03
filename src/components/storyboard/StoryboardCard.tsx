@@ -28,6 +28,7 @@ interface StoryboardCardProps {
   aspectRatio?: StoryboardAspectRatio
   isVideoActive?: boolean
   videoPlayingUrl?: string
+  onCardClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
 const StoryboardCard: React.FC<StoryboardCardProps> = ({
@@ -50,6 +51,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   aspectRatio = '16:9',
   isVideoActive = false,
   videoPlayingUrl,
+  onCardClick,
 }) => {
   void description
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
@@ -185,6 +187,10 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             type="button"
             onClick={e => {
               e.stopPropagation() // 이벤트 전파 방지
+              if (onCardClick) {
+                onCardClick(e)
+                return
+              }
               onOpen()
             }}
             className="absolute inset-0"
@@ -193,6 +199,11 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             onKeyDown={e => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.stopPropagation()
+                // 키보드 접근성: onCardClick 우선
+                if (onCardClick) {
+                  onCardClick(e as unknown as React.MouseEvent<HTMLButtonElement>)
+                  return
+                }
                 onOpen()
               }
             }}

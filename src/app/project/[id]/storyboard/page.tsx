@@ -82,6 +82,9 @@ export default function StoryboardPage() {
   const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
   const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit' | 'video'>('generate')
 
+  // 비디오 모드 전용: 멀티 선택 상태(최대 2개)
+  const [videoSelectedIds, setVideoSelectedIds] = useState<string[]>([])
+
   // View mode 상태: 'storyboard' | 'models'
   const [viewMode, setViewMode] = useState<'storyboard' | 'models'>('storyboard')
   // UI Store 연결 - 뷰 모드 관리 (hydration 안전)
@@ -400,6 +403,23 @@ export default function StoryboardPage() {
   // 현재 프레임 안정적 참조
   const currentFrame = useMemo(() => derived.frames[index] || null, [derived.frames, index])
 
+  // 비디오 모드에서 선택된 카드들의 상세 정보 매핑
+  const videoSelection = useMemo(
+    () =>
+      videoSelectedIds
+        .map(id => {
+          const f = derived.frames.find(fr => fr.id === id)
+          if (!f) return null
+          return {
+            id: f.id,
+            shotNumber: typeof f.scene === 'number' ? f.scene : derived.frames.indexOf(f) + 1,
+            imageUrl: f.imageUrl ?? null,
+          }
+        })
+        .filter(Boolean) as Array<{ id: string; shotNumber?: number; imageUrl?: string | null }>,
+    [videoSelectedIds, derived.frames]
+  )
+
   // 공통 프레임 조작 핸들러
   const handleFrameDeleteLocal = useCallback(
     async (frameId: string) => {
@@ -435,7 +455,49 @@ export default function StoryboardPage() {
   // 카드 선택 취소 함수
   const handleDeselectCard = useCallback(() => {
     setIndex(-1) // 선택 해제
+    setVideoSelectedIds([])
   }, [])
+
+  // 모드 전환 시 비디오 선택 초기화
+  useEffect(() => {
+    if (promptDockMode !== 'video' && videoSelectedIds.length > 0) {
+      setVideoSelectedIds([])
+    }
+  }, [promptDockMode, videoSelectedIds.length])
+
+  // Grid에서 카드 클릭(Shift 멀티선택 포함) 처리
+  const handleGridCardSelect = useCallback(
+    (id: string, e: React.MouseEvent) => {
+      if (promptDockMode !== 'video') {
+        // 비디오 모드가 아니면 단일 선택만 유지
+        setIndex(derived.frames.findIndex(fr => fr.id === id))
+        return
+      }
+
+      const isShift = e.shiftKey === true
+      // Shift가 아니면 단일 선택으로 전환
+      if (!isShift) {
+        setVideoSelectedIds([id])
+        setIndex(derived.frames.findIndex(fr => fr.id === id))
+        return
+      }
+
+      // Shift인 경우 토글 + 최대 2 제한
+      setVideoSelectedIds(prev => {
+        const exists = prev.includes(id)
+        if (exists) {
+          const next = prev.filter(x => x !== id)
+          return next
+        }
+        if (prev.length >= 2) {
+          // 2개 초과 금지: 유지
+          return prev
+        }
+        return [...prev, id]
+      })
+    },
+    [promptDockMode, derived.frames]
+  )
 
   return (
     <div>
@@ -554,6 +616,7 @@ export default function StoryboardPage() {
             {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
               <FrameGrid
                 frames={derived.frames}
+                mode={promptDockMode}
                 onFrameOpen={frameIndex => {
                   setIndex(frameIndex)
                 }}
@@ -594,6 +657,8 @@ export default function StoryboardPage() {
                 cardWidth={cardWidth}
                 selectedFrameId={index >= 0 ? derived.frames[index]?.id : undefined}
                 onBackgroundClick={handleDeselectCard}
+                selectedFrameIds={videoSelectedIds}
+                onCardSelect={handleGridCardSelect}
                 onReorder={(fromIndex, toIndex) => {
                   const result = handleReorderFrames(fromIndex, toIndex)
                   if (result) {
@@ -679,6 +744,7 @@ export default function StoryboardPage() {
           referenceImageUrl={
             index >= 0 && derived.frames[index] ? derived.frames[index].imageUrl : undefined
           }
+          videoSelection={videoSelection}
           onGenerateVideo={async ({
             modelId,
             prompt: videoPromptOverride,

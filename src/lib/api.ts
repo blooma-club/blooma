@@ -176,8 +176,9 @@ export const useCards = (projectId: string) => {
     userId && projectId ? `/api/cards?project_id=${projectId}` : null,
     fetcher,
     {
-      refreshInterval: 15000,
+      // refreshInterval: 0, // 주기적 자동 새로고침 비활성화 (필요시 수동으로 mutate 호출)
       revalidateOnFocus: false,
+      revalidateOnReconnect: true, // 네트워크 재연결 시에만 새로고침
       fallbackData: { data: [] }
     }
   )

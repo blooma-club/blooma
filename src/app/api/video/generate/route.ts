@@ -1,54 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { NextRequest } from 'next/server'
+import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors/handlers'
+import { ApiError } from '@/lib/errors/api'
+import { videoGenerationSchema } from '@/lib/validation/schemas'
 import { generateVideoFromImage } from '@/lib/videoProviders'
 import { START_TO_END_FRAME_MODEL_IDS } from '@/lib/fal-ai'
 import { queryD1 } from '@/lib/db/d1'
 
+const handleError = createErrorHandler('api/video/generate')
+
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const { userId } = await requireAuth()
 
     const body = await request.json()
+    const validated = videoGenerationSchema.parse(body)
+
     const normalizeUrl = (value?: string | null) =>
       typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 
-    const {
-      frameId,
-      projectId,
-      imageUrl,
-      startImageUrl,
-      endImageUrl,
-      endFrameId,
-      prompt,
-      modelId,
-    } = body ?? {}
-
-    const normalizedImageUrl = normalizeUrl(imageUrl)
-    const normalizedStartImageUrl = normalizeUrl(startImageUrl)
-    const normalizedEndImageUrl = normalizeUrl(endImageUrl)
+    const normalizedImageUrl = normalizeUrl(validated.imageUrl)
+    const normalizedStartImageUrl = normalizeUrl(validated.startImageUrl)
+    const normalizedEndImageUrl = normalizeUrl(validated.endImageUrl)
 
     const effectiveImageUrl = normalizedImageUrl || normalizedStartImageUrl
 
-    if (!frameId || !projectId || !effectiveImageUrl) {
-      return NextResponse.json(
-        { error: 'frameId, projectId, and a start image URL are required' },
-        { status: 400 }
-      )
+    if (!effectiveImageUrl) {
+      throw ApiError.badRequest('At least one image URL is required')
     }
 
     if (
-      modelId &&
-      START_TO_END_FRAME_MODEL_IDS.includes(modelId) &&
+      validated.modelId &&
+      START_TO_END_FRAME_MODEL_IDS.includes(validated.modelId) &&
       !normalizedEndImageUrl
     ) {
-      return NextResponse.json(
-        { error: 'Selected model requires both start and end image URLs.' },
-        { status: 400 }
-      )
+      throw ApiError.badRequest('Selected model requires both start and end image URLs.')
     }
 
     type CardRow = {
@@ -66,31 +51,28 @@ export async function POST(request: NextRequest) {
       return rows.length > 0 ? rows[0] : null
     }
 
-    const primaryCard = await fetchCard(frameId)
+    const primaryCard = await fetchCard(validated.frameId)
     if (!primaryCard) {
-      return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
+      throw ApiError.notFound('Frame not found')
     }
 
-    if (primaryCard.user_id !== userId || primaryCard.project_id !== projectId) {
-      return NextResponse.json({ error: 'Access denied for this frame' }, { status: 403 })
+    if (primaryCard.user_id !== userId || primaryCard.project_id !== validated.projectId) {
+      throw ApiError.forbidden('Access denied for this frame')
     }
 
     let verifiedEndCard: CardRow | null = null
-    if (typeof endFrameId === 'string' && endFrameId.trim().length > 0) {
-      verifiedEndCard = await fetchCard(endFrameId)
+    if (validated.endFrameId) {
+      verifiedEndCard = await fetchCard(validated.endFrameId)
       if (!verifiedEndCard) {
-        return NextResponse.json({ error: 'End frame not found' }, { status: 404 })
+        throw ApiError.notFound('End frame not found')
       }
-      if (verifiedEndCard.user_id !== userId || verifiedEndCard.project_id !== projectId) {
-        return NextResponse.json(
-          { error: 'Access denied for the selected end frame' },
-          { status: 403 }
-        )
+      if (verifiedEndCard.user_id !== userId || verifiedEndCard.project_id !== validated.projectId) {
+        throw ApiError.forbidden('Access denied for the selected end frame')
       }
     }
 
-    const videoPrompt: string = typeof prompt === 'string' && prompt.trim().length > 0
-      ? prompt.trim()
+    const videoPrompt: string = validated.prompt && validated.prompt.trim().length > 0
+      ? validated.prompt.trim()
       : 'Animate this storyboard frame as a short cinematic clip'
 
     const resolvedStartImageUrl =
@@ -98,16 +80,16 @@ export async function POST(request: NextRequest) {
     const resolvedEndImageUrl = normalizedEndImageUrl ?? verifiedEndCard?.image_url ?? null
 
     const videoResult = await generateVideoFromImage({
-      projectId,
-      frameId,
+      projectId: validated.projectId,
+      frameId: validated.frameId,
       imageUrl: effectiveImageUrl,
       startImageUrl: resolvedStartImageUrl,
       endImageUrl: resolvedEndImageUrl,
       prompt: videoPrompt,
-      modelId,
+      modelId: validated.modelId,
     })
 
-    return NextResponse.json({
+    return createApiResponse({
       videoUrl: videoResult.videoUrl,
       videoKey: videoResult.key,
       videoPrompt,
@@ -117,10 +99,6 @@ export async function POST(request: NextRequest) {
       contentType: videoResult.contentType,
     })
   } catch (error) {
-    console.error('[video][generate] error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate video' },
-      { status: 500 }
-    )
+    return handleError(error)
   }
 }

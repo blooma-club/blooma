@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import ToasterProvider from '@/components/ui/toast';
 import type { Metadata } from 'next';
 import { Instrument_Serif, Inter } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect';
 
@@ -52,8 +53,49 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen">
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const THEME_STORAGE_KEY = 'blooma_theme_preference';
+                
+                function getStoredTheme() {
+                  try {
+                    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+                    if (stored === 'dark' || stored === 'light') return stored;
+                  } catch (e) {}
+                  return null;
+                }
+                
+                function getSystemTheme() {
+                  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                  }
+                  return 'light';
+                }
+                
+                function getInitialTheme() {
+                  return getStoredTheme() || getSystemTheme() || 'dark';
+                }
+                
+                const theme = getInitialTheme();
+                if (theme === 'dark') {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              })();
+            `,
+          }}
+        />
         {clerkPublishableKey ? (
-          <ClerkProvider publishableKey={clerkPublishableKey}>{appShell}</ClerkProvider>
+          <ClerkProvider
+            publishableKey={clerkPublishableKey}
+          >
+            {appShell}
+          </ClerkProvider>
         ) : (
           appShell
         )}

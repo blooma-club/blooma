@@ -1,6 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { uploadImageToR2 } from '../../../lib/r2'
-import { generateImageWithModel } from '../../../lib/fal-ai'
+import { NextRequest } from 'next/server'
+import { createErrorHandler, createApiResponse } from '@/lib/errors/handlers'
+import { ApiError } from '@/lib/errors/api'
+import { imageEditSchema } from '@/lib/validation/schemas'
+import { uploadImageToR2 } from '@/lib/r2'
+import { generateImageWithModel } from '@/lib/fal-ai'
+
+const handleError = createErrorHandler('api/image-edit')
 
 // 헬퍼: 여러 이미지 업로드
 async function uploadImagesToR2(imageUrls: string[], projectId: string, frameId: string) {
@@ -11,69 +16,43 @@ async function uploadImagesToR2(imageUrls: string[], projectId: string, frameId:
 // Multi-image edit via Gemini 2.5 Flash Image
 export async function POST(req: NextRequest) {
   try {
-    const {
-      prompt,
-      image_urls,
-      projectId,
-      storyboardId,
-      frameId,
-      numImages = 1,
-      output_format = 'jpeg',
-    } = await req.json()
+    const body = await req.json()
+    const validated = imageEditSchema.parse(body)
 
-    const resolvedProjectId = projectId || storyboardId
+    const resolvedProjectId = validated.projectId || validated.storyboardId
 
-    // 유효성 검증
-    if (
-      !prompt?.trim() ||
-      !Array.isArray(image_urls) ||
-      image_urls.length === 0 ||
-      !resolvedProjectId ||
-      !frameId
-    ) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!resolvedProjectId) {
+      throw ApiError.badRequest('projectId or storyboardId is required')
     }
 
     // 참조 이미지 제한 (최대 6장)
-    const refs = image_urls.slice(0, 6)
+    const refs = validated.image_urls.slice(0, 6)
 
     // Gemini 모델 호출
-    const result = await generateImageWithModel(prompt, 'fal-ai/gemini-25-flash-image/edit', {
+    const result = await generateImageWithModel(validated.prompt, 'fal-ai/gemini-25-flash-image/edit', {
       imageUrls: refs,
-      numImages: Math.min(Math.max(numImages, 1), 4),
-      outputFormat: output_format
+      numImages: Math.min(Math.max(validated.numImages || 1, 1), 4),
+      outputFormat: validated.output_format || 'jpeg',
     })
 
     if (!result.success || !result.imageUrls?.length) {
       const status = typeof result.status === 'number' && result.status >= 400 ? result.status : 500
-      return NextResponse.json(
-        {
-          error: result.error || 'No images generated',
-          ...(result.warning ? { warning: result.warning } : {}),
-        },
-        { status }
-      )
+      throw ApiError.externalApiError(result.error || 'No images generated', { status })
     }
 
     // 생성된 이미지들 R2에 업로드
-    const uploadedUrls = await uploadImagesToR2(result.imageUrls, resolvedProjectId, frameId)
+    const uploadedUrls = await uploadImagesToR2(result.imageUrls, resolvedProjectId, validated.frameId)
 
     if (!uploadedUrls.length) {
-      return NextResponse.json({ error: 'Failed to upload images' }, { status: 500 })
+      throw ApiError.internal('Failed to upload images')
     }
 
-    return NextResponse.json({
-      success: true,
+    return createApiResponse({
       images: uploadedUrls,
       description: 'Images edited successfully',
       ...(result.warning ? { warning: result.warning } : {}),
     })
-
-  } catch (err) {
-    console.error('Image edit error:', err)
-    return NextResponse.json({
-      error: 'Image edit failed',
-      message: err instanceof Error ? err.message : 'Unknown error'
-    }, { status: 500 })
+  } catch (error) {
+    return handleError(error)
   }
 }

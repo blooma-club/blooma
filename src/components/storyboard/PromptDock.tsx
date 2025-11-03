@@ -13,13 +13,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useToast } from '@/components/ui/toast'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
-import { DEFAULT_MODEL, getModelsForMode, isImageToImageModel } from '@/lib/fal-ai'
+import { DEFAULT_MODEL, getModelsForMode, isImageToImageModel, getVideoModelsForSelection } from '@/lib/fal-ai'
 
 type VideoGenerationRequest = {
   modelId: string
   prompt?: string
   startFrameId: string
-  endFrameId: string
+  endFrameId?: string
   startImageUrl?: string | null
   endImageUrl?: string | null
 }
@@ -39,6 +39,8 @@ type PromptDockProps = {
   // Reference image URL for edit mode
   referenceImageUrl?: string
   onGenerateVideo?: (request: VideoGenerationRequest) => Promise<void>
+  // External video selection (up to two frames when in video mode)
+  videoSelection?: Array<{ id: string; shotNumber?: number; imageUrl?: string | null }>
 }
 
 export const PromptDock: React.FC<PromptDockProps> = props => {
@@ -54,6 +56,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     referenceImageUrl,
     selectedFrameId,
     onGenerateVideo,
+    videoSelection = [],
   } = props
   const [internalMode, setInternalMode] = React.useState<'generate' | 'edit' | 'video'>('generate')
   const isControlled = typeof mode !== 'undefined'
@@ -66,17 +69,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const [videoStartSelection, setVideoStartSelection] = React.useState<{
-    id: string
-    shotNumber?: number
-    imageUrl?: string | null
-  } | null>(null)
-  const [videoEndSelection, setVideoEndSelection] = React.useState<{
-    id: string
-    shotNumber?: number
-    imageUrl?: string | null
-  } | null>(null)
-  const [videoSelectionTarget, setVideoSelectionTarget] = React.useState<'start' | 'end' | null>(null)
+  // Start/End 수동 선택 로직 제거됨 (Grid 멀티선택 사용)
 
   React.useEffect(() => {
     if (isControlled && mode) {
@@ -111,69 +104,22 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const usingImageToImage =
     currentMode !== 'video' && (currentMode === 'edit' || Boolean(promptImageDataUrl))
 
-  React.useEffect(() => {
-    if (currentMode !== 'video') {
-      setVideoSelectionTarget(null)
-    }
-  }, [currentMode])
+  // 비디오 모드 보조 상태 제거됨
 
   const models = React.useMemo(() => {
     if (currentMode === 'video') {
-      return getModelsForMode('video')
+      const count = Array.isArray(videoSelection) && videoSelection.length > 0
+        ? videoSelection.length
+        : (selectedFrameId ? 1 : 0)
+      return getVideoModelsForSelection(count)
     }
     if (usingImageToImage) {
       return getModelsForMode('edit')
     }
     return getModelsForMode('generate')
-  }, [currentMode, usingImageToImage])
+  }, [currentMode, usingImageToImage, videoSelection, selectedFrameId])
 
-  const beginVideoSelection = React.useCallback(
-    (target: 'start' | 'end') => {
-      if (currentMode !== 'video') return
-
-      if (videoSelectionTarget === target) {
-        setVideoSelectionTarget(null)
-        return
-      }
-
-      setVideoSelectionTarget(target)
-
-      if (onClearSelectedShot) {
-        onClearSelectedShot()
-      }
-    },
-    [currentMode, onClearSelectedShot, videoSelectionTarget]
-  )
-
-  React.useEffect(() => {
-    if (currentMode !== 'video') return
-    if (!videoSelectionTarget) return
-    if (!selectedFrameId) return
-
-    const selection = {
-      id: selectedFrameId,
-      shotNumber: typeof selectedShotNumber === 'number' ? selectedShotNumber : undefined,
-      imageUrl: referenceImageUrl ?? null,
-    }
-
-    if (videoSelectionTarget === 'start') {
-      setVideoStartSelection(selection)
-    } else {
-      setVideoEndSelection(selection)
-    }
-
-    setVideoSelectionTarget(null)
-  }, [currentMode, videoSelectionTarget, selectedFrameId, selectedShotNumber, referenceImageUrl])
-
-  const handleVideoChipKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>, target: 'start' | 'end') => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault()
-        beginVideoSelection(target)
-      }
-    },
-    [beginVideoSelection]
-  )
+  // Start/End 수동 선택 핸들러 제거됨
 
   // 모델 ID state - 초기값을 고정값으로 설정
   const [modelId, setModelId] = React.useState<string>(DEFAULT_MODEL)
@@ -189,30 +135,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     }
   }, [matchedModel, selectedModel?.id])
 
-  const videoChipClass =
-    'group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[hsl(var(--primary))]'
-  const isSelectingStart = currentMode === 'video' && videoSelectionTarget === 'start'
-  const isSelectingEnd = currentMode === 'video' && videoSelectionTarget === 'end'
-  const startFrameLabel =
-    typeof videoStartSelection?.shotNumber === 'number' ? videoStartSelection.shotNumber : 'Select'
-  const endFrameLabel =
-    typeof videoEndSelection?.shotNumber === 'number' ? videoEndSelection.shotNumber : 'Select'
-  const startChipClasses = clsx(
-    videoChipClass,
-    !videoStartSelection
-      ? 'bg-transparent border border-dashed border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'
-      : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] ring-1 ring-[hsl(var(--border))]/60 shadow-sm',
-    isSelectingStart &&
-      'ring-2 ring-[hsl(var(--primary))] ring-offset-2 ring-offset-[hsl(var(--background))]'
-  )
-  const endChipClasses = clsx(
-    videoChipClass,
-    !videoEndSelection
-      ? 'bg-transparent border border-dashed border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'
-      : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] ring-1 ring-[hsl(var(--border))]/60 shadow-sm',
-    isSelectingEnd &&
-      'ring-2 ring-[hsl(var(--primary))] ring-offset-2 ring-offset-[hsl(var(--background))]'
-  )
+  // Start/End Chip UI 관련 클래스 제거됨
 
   const handlePromptImageSelect = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,13 +194,17 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         return
       }
 
-      if (!videoStartSelection || !videoEndSelection || !selectedModel?.id) {
-        const message = 'Select both start and end frames before generating a video.'
+      const count = videoCount
+      if (!selectedModel?.id) {
+        const message = 'Select a model to generate a video.'
         setError(message)
-        showToast({
-          title: 'Select start and end frames',
-          description: message,
-        })
+        showToast({ title: 'Select a model', description: message })
+        return
+      }
+      if (count === 0) {
+        const message = 'Select at least one frame.'
+        setError(message)
+        showToast({ title: 'Select frame', description: message })
         return
       }
 
@@ -285,13 +212,17 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       setError(null)
 
       try {
+        const start = (Array.isArray(videoSelection) && videoSelection.length > 0)
+          ? videoSelection[0]
+          : (selectedFrameId ? { id: selectedFrameId, imageUrl: referenceImageUrl ?? null } : undefined)
+        const end = (Array.isArray(videoSelection) && videoSelection.length > 1) ? videoSelection[1] : undefined
         await onGenerateVideo({
           modelId: selectedModel.id,
           prompt: trimmed.length > 0 ? trimmed : undefined,
-          startFrameId: videoStartSelection.id,
-          endFrameId: videoEndSelection.id,
-          startImageUrl: videoStartSelection.imageUrl,
-          endImageUrl: videoEndSelection.imageUrl,
+          startFrameId: start?.id as string,
+          endFrameId: count >= 2 && end ? (end.id as string) : (undefined as unknown as string),
+          startImageUrl: start?.imageUrl ?? null,
+          endImageUrl: count >= 2 ? end?.imageUrl ?? null : null,
         })
       } catch (e) {
         const msg =
@@ -392,10 +323,13 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   }
 
   const isVideoMode = currentMode === 'video'
+  const videoCount = Array.isArray(videoSelection) && videoSelection.length > 0
+    ? videoSelection.length
+    : (isVideoMode && selectedFrameId ? 1 : 0)
   const buttonDisabled =
     submitting ||
     (isVideoMode
-      ? !videoStartSelection || !videoEndSelection || !selectedModel
+      ? (videoCount === 1 ? !selectedModel : videoCount === 2 ? !selectedModel : true)
       : !prompt.trim())
 
   return (
@@ -414,11 +348,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       <div className="pointer-events-auto relative">
         {/* 실제 컨텐츠 */}
         <div
-          className="relative rounded-lg border backdrop-blur-md p-3"
-          style={{
-            backgroundColor: 'hsl(var(--background) / 0.95)',
-            borderColor: 'hsl(var(--border))',
-          }}
+          className="relative rounded-lg border border-border bg-background/95 backdrop-blur-md p-3 shadow-lg"
         >
           <div className="flex flex-col gap-2.5">
             {/* 상단: 모드 탭, 배지, 모델 선택 */}
@@ -434,24 +364,24 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   }}
                   className="flex-shrink-0"
                 >
-                  <TabsList className="h-9 gap-1 p-1 bg-[#EDEDED] dark:bg-neutral-800">
+                  <TabsList className="h-9 gap-1 p-1 bg-muted">
                     <TabsTrigger
                       value="generate"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
+                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
                       title="Generate new image"
                     >
                       <Plus className="h-4 w-4" />
                     </TabsTrigger>
                     <TabsTrigger
                       value="edit"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
+                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
                       title="Edit current image"
                     >
                       <Edit3 className="h-4 w-4" />
                     </TabsTrigger>
                     <TabsTrigger
                       value="video"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background dark:data-[state=active]:bg-[hsl(var(--background))]"
+                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
                       title="Generate video"
                     >
                       <Video className="h-4 w-4" />
@@ -460,82 +390,37 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 </Tabs>
 
                 {currentMode === 'video' ? (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={startChipClasses}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => beginVideoSelection('start')}
-                        onKeyDown={event => handleVideoChipKeyDown(event, 'start')}
-                        aria-pressed={isSelectingStart}
-                        aria-label={
-                          videoStartSelection
-                            ? `Start frame selected: ${videoStartSelection.shotNumber ?? videoStartSelection.id}`
-                            : 'Select start frame (currently not set)'
-                        }
-                      >
-                        <span className="pointer-events-none">Start {startFrameLabel}</span>
-                        {videoStartSelection && (
-                          <button
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation()
-                              setVideoStartSelection(null)
-                              setVideoSelectionTarget(null)
-                            }}
-                            className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] shadow-sm hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] focus:outline-none"
-                            aria-label="Clear start frame"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">-&gt;</span>
-                      <div
-                        className={endChipClasses}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => beginVideoSelection('end')}
-                        onKeyDown={event => handleVideoChipKeyDown(event, 'end')}
-                        aria-pressed={isSelectingEnd}
-                        aria-label={
-                          videoEndSelection
-                            ? `End frame selected: ${videoEndSelection.shotNumber ?? videoEndSelection.id}`
-                            : 'Select end frame (currently not set)'
-                        }
-                      >
-                        <span className="pointer-events-none">End {endFrameLabel}</span>
-                        {videoEndSelection && (
-                          <button
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation()
-                              setVideoEndSelection(null)
-                              setVideoSelectionTarget(null)
-                            }}
-                            className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] shadow-sm hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] focus:outline-none"
-                            aria-label="Clear end frame"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {videoSelectionTarget && (
+                  (Array.isArray(videoSelection) && videoSelection.length > 0) ? (
+                    <span
+                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
+                      role="status"
+                      aria-label={
+                        videoCount === 1
+                          ? `Video ${videoSelection[0]?.shotNumber ?? ''}`
+                          : `Start ${videoSelection[0]?.shotNumber ?? ''} -> End ${videoSelection[1]?.shotNumber ?? ''}`
+                      }
+                    >
+                      {videoCount === 1 ? (
+                        <>Video {videoSelection[0]?.shotNumber ?? ''}</>
+                      ) : (
+                        <>Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End {videoSelection[1]?.shotNumber ?? ''}</>
+                      )}
+                    </span>
+                  ) : (
+                    selectedFrameId && typeof selectedShotNumber === 'number' ? (
                       <span
-                        className="text-xs text-[hsl(var(--muted-foreground))]"
-                        aria-live="polite"
+                        className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
+                        role="status"
+                        aria-label={`Video ${selectedShotNumber}`}
                       >
-                        Click a scene to set the{' '}
-                        {videoSelectionTarget === 'start' ? 'start' : 'end'} frame.
+                        <>Video {selectedShotNumber}</>
                       </span>
-                    )}
-                  </div>
+                    ) : null
+                  )
                 ) : (
                   typeof selectedShotNumber === 'number' && (
                     <span
-                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] ring-1 ring-[hsl(var(--border))]/60 shadow-sm"
+                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
                       role="status"
                       aria-label={`Selected ${currentMode} shot ${selectedShotNumber}`}
                     >
@@ -544,7 +429,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                         <button
                           type="button"
                           onClick={onClearSelectedShot}
-                          className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] shadow-sm hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+                          className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-muted-foreground border border-border shadow-sm hover:bg-accent hover:text-accent-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
                           aria-label="Clear selection"
                         >
                           <X className="h-3 w-3" />
@@ -561,18 +446,14 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 min-w-[126px] px-3 text-sm text-neutral-900 dark:text-white"
+                      className="h-9 min-w-[126px] px-3 text-sm"
                     >
                       <span className="truncate text-left">{selectedModel?.name || 'Model'}</span>
                       <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className="w-56 rounded-md p-1.5 z-[80]"
-                    style={{
-                      backgroundColor: 'hsl(var(--popover))',
-                      borderColor: 'hsl(var(--border))',
-                    }}
+                    className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground"
                   >
                     {models.map(m => (
                       <DropdownMenuItem
@@ -585,11 +466,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                             setModelId(validModelId)
                           }
                         }}
-                        className="rounded-sm px-2.5 py-2 text-sm"
-                        style={{
-                          backgroundColor: modelId === m.id ? 'hsl(var(--accent))' : 'transparent',
-                          color: 'hsl(var(--popover-foreground))',
-                        }}
+                        className={clsx(
+                          'rounded-sm px-2.5 py-2 text-sm',
+                          modelId === m.id && 'bg-accent text-accent-foreground'
+                        )}
                       >
                         {m.name}
                       </DropdownMenuItem>
@@ -601,11 +481,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
             {/* 중간: 프롬프트 입력 영역 */}
             <div
-              className="flex items-end gap-2 rounded-md border p-2 transition-colors focus-within:ring-2 focus-within:ring-offset-0"
-              style={{
-                borderColor: 'hsl(var(--input))',
-                backgroundColor: 'hsl(var(--background))',
-              }}
+              className="flex items-end gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0"
             >
               {currentMode !== 'video' && (
                 <>
@@ -631,8 +507,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
               )}
               {currentMode !== 'video' && promptImageDataUrl && (
                 <div
-                  className="relative group overflow-hidden rounded-md border animate-in fade-in"
-                  style={{ borderColor: 'hsl(var(--input))' }}
+                  className="relative group overflow-hidden rounded-md border border-input animate-in fade-in"
                 >
                   <img
                     src={promptImageDataUrl}
@@ -642,7 +517,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   <button
                     type="button"
                     onClick={() => setPromptImageDataUrl(null)}
-                    className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-transparent bg-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/90 text-[hsl(var(--destructive-foreground))] shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-transparent bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                     aria-label="Remove reference image"
                   >
                     <X className="h-4 w-4" />
@@ -662,12 +537,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                     : 'Create a scene…'
                 }
                 aria-label="prompt input"
-                className="w-full bg-transparent text-sm resize-none overflow-y-auto focus:outline-none focus:ring-0"
-                style={{
-                  color: 'hsl(var(--foreground))',
-                  minHeight: '1.5rem',
-                  maxHeight: '8rem',
-                }}
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-6 max-h-32"
                 disabled={submitting}
                 rows={1}
               />
@@ -676,10 +546,6 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 onClick={() => void handleSubmit()}
                 disabled={buttonDisabled}
                 className="h-8 w-8 rounded-md p-0 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
-                style={{
-                  backgroundColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary-foreground))',
-                }}
                 aria-label={
                   currentMode === 'edit'
                     ? 'Apply changes'
@@ -702,16 +568,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
             {/* 에러 메시지 */}
             {error && (
-              <div
-                className="rounded-md border px-2.5 py-1.5 animate-in fade-in"
-                style={{
-                  borderColor: 'hsl(var(--destructive))',
-                  backgroundColor: 'hsl(var(--destructive) / 0.1)',
-                }}
-              >
-                <p className="text-xs" style={{ color: 'hsl(var(--destructive))' }}>
-                  {error}
-                </p>
+              <div className="rounded-md border border-destructive bg-destructive/10 px-2.5 py-1.5 animate-in fade-in">
+                <p className="text-xs text-destructive">{error}</p>
               </div>
             )}
           </div>
