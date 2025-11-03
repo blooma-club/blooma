@@ -6,6 +6,7 @@ import CharacterWizard from '@/components/project/setup/CharacterWizard'
 import { FloatingHeader } from '@/components/storyboard/FloatingHeader'
 import { useUser } from '@clerk/nextjs'
 import ThemeToggle from '@/components/ui/theme-toggle'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
 import { ArrowLeft } from 'lucide-react'
 
 type CharacterWizardProps = ComponentProps<typeof CharacterWizard>
@@ -130,9 +131,9 @@ export default function ProjectCharactersPage() {
           <button
             onClick={() => router.push('/dashboard')}
             className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg border transition-all flex-shrink-0 h-[48px]"
-            style={{ 
+            style={{
               color: 'hsl(var(--foreground))',
-              borderColor: 'hsl(var(--border))'
+              borderColor: 'hsl(var(--border))',
             }}
             title="돌아가기"
           >
@@ -156,31 +157,32 @@ export default function ProjectCharactersPage() {
           </div>
 
           {/* ThemeToggle */}
-          <div className="flex-shrink-0 z-50">
+          <div className="flex-shrink-0 flex items-center gap-3 z-50">
+            <CreditsIndicator />
             <ThemeToggle />
           </div>
         </div>
       </div>
-      
+
       <div className="px-6 py-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        {error ? (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
-        {loading || initialCharacters === null ? (
-          <div className="flex items-center justify-center py-12 text-sm text-neutral-400">
-            Loading characters...
-          </div>
-        ) : (
-          <CharacterWizard
-            initial={initialCharacters}
-            onChange={() => {}}
-            projectId={projectId}
-            userId={user?.id}
-          />
-        )}
+          {error ? (
+            <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
+            </div>
+          ) : null}
+          {loading || initialCharacters === null ? (
+            <div className="flex items-center justify-center py-12 text-sm text-neutral-400">
+              Loading characters...
+            </div>
+          ) : (
+            <CharacterWizard
+              initial={initialCharacters}
+              onChange={() => {}}
+              projectId={projectId}
+              userId={user?.id}
+            />
+          )}
         </div>
       </div>
     </div>

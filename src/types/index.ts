@@ -71,6 +71,14 @@ export interface Card {
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>
 
+  // Video metadata
+  video_url?: string
+  video_key?: string | null
+  video_prompt?: string | null
+  videoUrl?: string
+  videoKey?: string | null
+  videoPrompt?: string | null
+
   created_at?: string
   updated_at?: string
 }
@@ -140,6 +148,11 @@ export interface CardInput {
   storyboard_status?: string
   shot_description?: string
   background?: string  // Background description
+
+  // Video metadata (write-friendly camelCase for client forms)
+  video_url?: string
+  video_key?: string | null
+  video_prompt?: string | null
 
   // 확장성을 위한 메타데이터
   metadata?: Record<string, unknown>

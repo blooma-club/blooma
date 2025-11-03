@@ -14,13 +14,13 @@ import ViewModeToggle from '@/components/storyboard/ViewModeToggle'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import PromptDock from '@/components/storyboard/PromptDock'
 import ThemeToggle from '@/components/ui/theme-toggle'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
 import { ArrowLeft } from 'lucide-react'
 import { cardToFrame } from '@/lib/utils'
 import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
 import EmptyStoryboardState from '@/components/storyboard/EmptyStoryboardState'
-import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
 import LoadingGrid from '@/components/storyboard/LoadingGrid'
 import { useCardWidth } from '@/hooks/useCardWidth'
 import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
@@ -35,6 +35,7 @@ import {
 } from '@/lib/constants'
 import { loadProjectRatio, saveProjectRatio } from '@/lib/localStorage'
 import { useBackgroundStore } from '@/store/backgrounds'
+import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 
 // Removed legacy local caches; SWR가 카드 데이터를 관리합니다.
 type CardImageUpdate = Partial<
@@ -396,25 +397,6 @@ export default function StoryboardPage() {
 
   // 비디오 관련 핸들러 (커스텀 훅에서 가져옴)
 
-  useEffect(() => {
-    if (!videoPreview) return
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setVideoPreview(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [videoPreview])
-
   // 현재 프레임 안정적 참조
   const currentFrame = useMemo(() => derived.frames[index] || null, [derived.frames, index])
 
@@ -464,8 +446,8 @@ export default function StoryboardPage() {
           <button
             onClick={() => router.push('/dashboard')}
             className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg shadow-lg transition-all flex-shrink-0 h-[48px]"
-            style={{ 
-              color: 'hsl(var(--foreground))'
+            style={{
+              color: 'hsl(var(--foreground))',
             }}
             title="돌아가기"
           >
@@ -490,7 +472,7 @@ export default function StoryboardPage() {
                 className="w-full max-w-[1600px]"
                 projectId={projectId}
               />
-              
+
               {/* Width Controls Panel - FloatingHeader 바로 아래, SlidersHorizontal 버튼 위치 기준 */}
               {canShowWidthControlsPanel && (
                 <div className="absolute top-full left-0 mt-2 z-[60]" style={{ left: '16px' }}>
@@ -510,7 +492,7 @@ export default function StoryboardPage() {
               )}
             </div>
           </div>
-          
+
           {/* Mobile Width Controls */}
           {canShowWidthControlsPanel && showWidthControls && (
             <div className="mt-4 sm:hidden w-full">
@@ -531,7 +513,7 @@ export default function StoryboardPage() {
           <div className="flex-shrink-0 flex items-center gap-3 z-50">
             {/* ThemeToggle */}
             <ThemeToggle />
-            
+
             {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
             {viewMode === 'storyboard' && (
               <ViewModeToggle
@@ -600,6 +582,13 @@ export default function StoryboardPage() {
                     setError(error instanceof Error ? error.message : 'No video available')
                   }
                 }}
+                onStopVideo={frameId => {
+                  if (videoPreview?.frameId === frameId) {
+                    setVideoPreview(null)
+                  }
+                }}
+                activeVideoFrameId={videoPreview?.frameId}
+                activeVideoUrl={videoPreview?.url}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
                 cardWidth={cardWidth}
@@ -641,6 +630,13 @@ export default function StoryboardPage() {
                     setError(error instanceof Error ? error.message : 'No video available')
                   }
                 }}
+                onStopVideo={frameId => {
+                  if (videoPreview?.frameId === frameId) {
+                    setVideoPreview(null)
+                  }
+                }}
+                activeVideoFrameId={videoPreview?.frameId}
+                activeVideoUrl={videoPreview?.url}
                 generatingVideoId={generatingVideoId}
                 aspectRatio={ratio}
                 selectedFrameId={index >= 0 ? derived.frames[index]?.id : undefined}
@@ -674,7 +670,9 @@ export default function StoryboardPage() {
               ? derived.frames[index].scene || index + 1
               : undefined
           }
-          selectedFrameId={index >= 0 && derived.frames[index] ? derived.frames[index].id : undefined}
+          selectedFrameId={
+            index >= 0 && derived.frames[index] ? derived.frames[index].id : undefined
+          }
           onClearSelectedShot={() => setIndex(-1)}
           mode={promptDockMode}
           onModeChange={setPromptDockMode}
@@ -741,10 +739,6 @@ export default function StoryboardPage() {
             }
           }}
         />
-      )}
-
-      {videoPreview && (
-        <VideoPreviewModal url={videoPreview.url} onClose={() => setVideoPreview(null)} />
       )}
     </div>
   )

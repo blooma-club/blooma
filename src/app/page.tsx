@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
 import ThemeToggle from '@/components/ui/theme-toggle'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
 
 const FALLBACK_USER = {
   isLoaded: true,
@@ -122,6 +123,7 @@ export default function Home() {
 
           {/* 우측: Login만 */}
           <div className="flex-shrink-0 flex items-center gap-4">
+            <CreditsIndicator />
             <ThemeToggle />
             {!user ? (
               <Button

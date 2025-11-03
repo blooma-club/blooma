@@ -16,9 +16,12 @@ interface FrameListProps {
   deletingFrameId?: string | null
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
+  onStopVideo?: (frameId: string) => void
   generatingVideoId?: string | null
   aspectRatio?: StoryboardAspectRatio
   selectedFrameId?: string
+  activeVideoFrameId?: string
+  activeVideoUrl?: string
 }
 
 const BetweenInsertRow = ({
@@ -55,9 +58,12 @@ export const FrameList: React.FC<FrameListProps> = ({
   deletingFrameId = null,
   onGenerateVideo,
   onPlayVideo,
+  onStopVideo,
   generatingVideoId = null,
   aspectRatio = '16:9',
   selectedFrameId,
+  activeVideoFrameId,
+  activeVideoUrl,
 }) => {
   const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
   const maxHeight = PORTRAIT_RATIOS.includes(aspectRatio) ? 520 : 360
@@ -70,72 +76,79 @@ export const FrameList: React.FC<FrameListProps> = ({
             label="Add scene at the beginning"
           />
         )}
-        {frames.map((frame, i) => (
-          <React.Fragment key={frame.id}>
-            <div className={`flex items-center gap-6 p-6 bg-neutral-900 border rounded-lg hover:bg-neutral-800 transition-colors ${selectedFrameId === frame.id ? 'border-blue-500/60 ring-2 ring-blue-400/60' : 'border-neutral-800'}`}>
-              {/* 왼쪽: StoryboardCard */}
-              <div className={`${previewWidthClass} flex-shrink-0`}>
-                <StoryboardCard
-                  sceneNumber={i + 1}
-                  imageUrl={frame.imageUrl}
-                  status={frame.status}
-                  imageFit="cover"
-                  deleting={deletingFrameId === frame.id}
-                  onOpen={() => onFrameEdit(i)}
-                  onEdit={() => onFrameEditMetadata(frame.id)}
-                  onDelete={() => onFrameDelete(frame.id)}
-                  videoUrl={frame.videoUrl}
-                  onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
-                  onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
-                  isGeneratingVideo={generatingVideoId === frame.id}
-                  aspectRatio={aspectRatio}
-                />
-              </div>
-
-              {/* 오른쪽: 메타데이터 정보 */}
-              <div className="flex-1 min-h-[384px] flex flex-col justify-center">
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="text-2xl font-bold text-white">
-                    Scene {i + 1}
-                  </span>
-                  <div
-                    className={`w-4 h-4 rounded-full ${
-                      frame.status === 'ready'
-                        ? 'bg-green-500'
-                        : frame.status === 'error'
-                        ? 'bg-red-500'
-                        : 'bg-yellow-500'
-                    }`}
+        {frames.map((frame, i) => {
+          const isActive = activeVideoFrameId === frame.id
+          const playingUrl = isActive ? activeVideoUrl : undefined
+          return (
+            <React.Fragment key={frame.id}>
+              <div className={`flex items-center gap-6 p-6 bg-neutral-900 border rounded-lg hover:bg-neutral-800 transition-colors ${selectedFrameId === frame.id ? 'border-blue-500/60 ring-2 ring-blue-400/60' : 'border-neutral-800'}`}>
+                {/* 왼쪽: StoryboardCard */}
+                <div className={`${previewWidthClass} flex-shrink-0`}>
+                  <StoryboardCard
+                    sceneNumber={i + 1}
+                    imageUrl={frame.imageUrl}
+                    status={frame.status}
+                    imageFit="cover"
+                    deleting={deletingFrameId === frame.id}
+                    onOpen={() => onFrameEdit(i)}
+                    onEdit={() => onFrameEditMetadata(frame.id)}
+                    onDelete={() => onFrameDelete(frame.id)}
+                    videoUrl={frame.videoUrl}
+                    onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
+                    onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+                    onStopVideo={onStopVideo ? () => onStopVideo(frame.id) : undefined}
+                    isGeneratingVideo={generatingVideoId === frame.id}
+                    aspectRatio={aspectRatio}
+                    isVideoActive={isActive}
+                    videoPlayingUrl={playingUrl}
                   />
                 </div>
 
-                <p className="text-neutral-200 text-lg line-clamp-4 leading-relaxed mb-4">
-                  {frame.shotDescription || 'No description available for this scene.'}
-                </p>
-
-                {/* 추가 메타데이터 표시 */}
-                {(frame.shot || frame.dialogue) && (
-                  <div className="flex flex-wrap gap-3">
-                    {frame.shot && (
-                      <span className="px-3 py-2 bg-neutral-800 text-neutral-200 text-base rounded-lg font-medium">
-                        {frame.shot}
-                      </span>
-                    )}
-                    {frame.dialogue && (
-                      <span className="px-3 py-2 bg-blue-900/40 text-blue-200 text-base rounded-lg font-medium">
-                        Dialogue
-                      </span>
-                    )}
+                {/* 오른쪽: 메타데이터 정보 */}
+                <div className="flex-1 min-h-[384px] flex flex-col justify-center">
+                  <div className="flex items-center gap-4 mb-4">
+                    <span className="text-2xl font-bold text-white">
+                      Scene {i + 1}
+                    </span>
+                    <div
+                      className={`w-4 h-4 rounded-full ${
+                        frame.status === 'ready'
+                          ? 'bg-green-500'
+                          : frame.status === 'error'
+                          ? 'bg-red-500'
+                          : 'bg-yellow-500'
+                      }`}
+                    />
                   </div>
-                )}
+
+                  <p className="text-neutral-200 text-lg line-clamp-4 leading-relaxed mb-4">
+                    {frame.shotDescription || 'No description available for this scene.'}
+                  </p>
+
+                  {/* 추가 메타데이터 표시 */}
+                  {(frame.shot || frame.dialogue) && (
+                    <div className="flex flex-wrap gap-3">
+                      {frame.shot && (
+                        <span className="px-3 py-2 bg-neutral-800 text-neutral-200 text-base rounded-lg font-medium">
+                          {frame.shot}
+                        </span>
+                      )}
+                      {frame.dialogue && (
+                        <span className="px-3 py-2 bg-blue-900/40 text-blue-200 text-base rounded-lg font-medium">
+                          Dialogue
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <BetweenInsertRow
-              onAdd={() => onAddFrame(i + 1, frame.id)}
-              label={`Add scene after scene ${i + 1}`}
-            />
-          </React.Fragment>
-        ))}
+              <BetweenInsertRow
+                onAdd={() => onAddFrame(i + 1, frame.id)}
+                label={`Add scene after scene ${i + 1}`}
+              />
+            </React.Fragment>
+          )
+        })}
 
         {/* Add new frame button */}
         <button

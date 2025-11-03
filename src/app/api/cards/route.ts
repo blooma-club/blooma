@@ -35,6 +35,9 @@ const ALLOWED_KEYS = new Set([
   'image_prompt',
   'storyboard_status',
   'shot_description',
+  'video_url',
+  'video_key',
+  'video_prompt',
 ])
 
 const JSON_COLUMNS = new Set(['image_urls'])
@@ -81,6 +84,9 @@ type CardRow = {
   image_prompt?: string | null
   storyboard_status?: string | null
   shot_description?: string | null
+  video_url?: string | null
+  video_key?: string | null
+  video_prompt?: string | null
   card_width?: number | string | null
   created_at?: string | null
   updated_at?: string | null

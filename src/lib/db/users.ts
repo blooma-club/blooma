@@ -9,6 +9,9 @@ export type D1UserRecord = {
   image_url?: string | null
   avatar_url?: string | null
   subscription_tier?: string | null
+  credits?: number | null
+  credits_used?: number | null
+  credits_reset_date?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -298,6 +301,18 @@ function buildUserSelectColumns(metadata: UsersTableMetadata): string {
     selectColumns.push('subscription_tier')
   }
 
+  if (columns.has('credits')) {
+    selectColumns.push('credits')
+  }
+
+  if (columns.has('credits_used')) {
+    selectColumns.push('credits_used')
+  }
+
+  if (columns.has('credits_reset_date')) {
+    selectColumns.push('credits_reset_date')
+  }
+
   if (columns.has('created_at')) {
     selectColumns.push('created_at')
   }
@@ -321,6 +336,9 @@ function normaliseUserRecord(row: Record<string, unknown>): D1UserRecord {
     image_url: imageUrl,
     avatar_url: toNullableString(record.avatar_url),
     subscription_tier: toNullableString(record.subscription_tier),
+    credits: toNullableNumber(record.credits),
+    credits_used: toNullableNumber(record.credits_used),
+    credits_reset_date: toNullableString(record.credits_reset_date),
     created_at: toNullableString(record.created_at),
     updated_at: toNullableString(record.updated_at),
   }

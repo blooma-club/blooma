@@ -350,22 +350,17 @@ export const useFrameManagement = (
           throw new Error('Video generation completed without returning a usable URL')
         }
 
-        const storeState = { cards: { [projectId]: cards || [] } }
-        const existingCards = storeState.cards[projectId] || []
-        const updatedCards = existingCards.map((card: Card) =>
-          card.id === frameId
-            ? {
-                ...card,
-                video_url: videoUrl,
-                videoUrl,
-                video_key: videoKey,
-                videoKey,
-                video_prompt: updatedVideoPrompt,
-                videoPrompt: updatedVideoPrompt,
-              }
-            : card
-        )
-        await updateCards(updatedCards)
+        await updateCards([
+          {
+            id: frameId,
+            video_url: videoUrl,
+            videoUrl,
+            video_key: videoKey ?? null,
+            videoKey: videoKey ?? null,
+            video_prompt: updatedVideoPrompt ?? null,
+            videoPrompt: updatedVideoPrompt ?? null,
+          } as Partial<Card>,
+        ])
 
         setVideoPreview({ frameId, url: videoUrl })
 

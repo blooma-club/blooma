@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import HobbyPlanCard from '@/components/billing/HobbyPlanCard'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import ThemeToggle from '@/components/ui/theme-toggle'
-import HobbyPlanCard from '@/components/billing/HobbyPlanCard'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
 
 export default function BillingPage() {
   return (
@@ -28,6 +29,7 @@ export default function BillingPage() {
           />
         </Link>
         <div className="flex items-center gap-6">
+          <CreditsIndicator />
           <ThemeToggle />
           <AccountDropdown />
         </div>

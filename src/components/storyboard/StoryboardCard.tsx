@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Trash2, Info, LoaderCircle, Play } from 'lucide-react'
+import { Trash2, Info, LoaderCircle, Play, X } from 'lucide-react'
 import Image from 'next/image'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { RATIO_TO_CSS } from '@/lib/constants'
@@ -23,10 +23,12 @@ interface StoryboardCardProps {
   videoUrl?: string
   onGenerateVideo?: () => void
   onPlayVideo?: () => void
+  onStopVideo?: () => void
   isGeneratingVideo?: boolean
   aspectRatio?: StoryboardAspectRatio
+  isVideoActive?: boolean
+  videoPlayingUrl?: string
 }
-
 
 const StoryboardCard: React.FC<StoryboardCardProps> = ({
   title,
@@ -43,28 +45,23 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   videoUrl,
   onGenerateVideo,
   onPlayVideo,
+  onStopVideo,
   isGeneratingVideo = false,
   aspectRatio = '16:9',
+  isVideoActive = false,
+  videoPlayingUrl,
 }) => {
   void description
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
-  const statusDotClass =
-    status === 'ready'
-      ? 'bg-green-500'
-      : status === 'processing'
-        ? 'bg-blue-500'
-        : status === 'enhancing'
-          ? 'bg-amber-500'
-          : status === 'error'
-            ? 'bg-red-500'
-            : 'bg-neutral-600'
   const imageBoxStyle: React.CSSProperties = {
     aspectRatio: RATIO_TO_CSS[aspectRatio],
   }
+  const isVideoShowing = Boolean(isVideoActive && videoPlayingUrl)
+
   return (
     <div className="group relative flex flex-col rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-black shadow-lg hover:shadow-xl transition-shadow overflow-hidden h-full">
       {typeof sceneNumber === 'number' && (
-        <div className="absolute top-2 left-2 z-20 px-1.5 py-0.5 rounded-md bg-black/20 dark:bg-white/20 text-black dark:text-white text-[10px] font-medium tracking-wide select-none">
+        <div className="absolute top-2 left-2 z-40 px-1.5 py-0.5 rounded-md bg-black/20 dark:bg-white/20 text-black dark:text-white text-[10px] font-medium tracking-wide select-none">
           Shot {sceneNumber}
         </div>
       )}
@@ -73,7 +70,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         {onEdit && (
           <button
             type="button"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation() // 이벤트 전파 방지
               onEdit()
             }}
@@ -86,7 +83,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         {onDelete && (
           <button
             type="button"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation() // 이벤트 전파 방지
               onDelete()
             }}
@@ -109,7 +106,10 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       </div>
 
       {/* Image area */}
-      <div className="relative w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden" style={imageBoxStyle}>
+      <div
+        className="relative w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+        style={imageBoxStyle}
+      >
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -156,10 +156,34 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             {sceneLabel}
           </div>
         )}
-        {onOpen && (
+        {isVideoShowing && videoPlayingUrl && (
+          <div className="absolute inset-0 z-30 bg-black">
+            <video
+              src={videoPlayingUrl}
+              controls
+              autoPlay
+              playsInline
+              className="h-full w-full object-cover"
+            />
+            {onStopVideo && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation()
+                  onStopVideo()
+                }}
+                aria-label="Close video"
+                className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-white hover:text-black opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+        {onOpen && !isVideoShowing && (
           <button
             type="button"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation() // 이벤트 전파 방지
               onOpen()
             }}
@@ -177,44 +201,43 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       </div>
 
       {/* Content removed (title/description hidden for image-only cards) */}
-      {(onGenerateVideo || onPlayVideo) && (
-        <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-2 pointer-events-none">
-          <div className="flex gap-2">
-            {videoUrl && onPlayVideo ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation() // 이벤트 전파 방지
-                  onPlayVideo()
-                }}
-                className="flex-1 px-3 py-2 rounded-md bg-white/90 text-black text-xs font-semibold uppercase tracking-wide shadow pointer-events-auto hover:bg-white"
-              >
-                Play Video
-              </button>
-            ) : null}
+      {(onGenerateVideo || videoUrl) && (
+        <div className="absolute bottom-3 right-3 flex gap-2 pointer-events-none z-40">
+          {!isVideoShowing && videoUrl && onPlayVideo ? (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation()
+                onPlayVideo()
+              }}
+              aria-label="Play video"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/40 transition pointer-events-auto bg-black/70 text-white hover:bg-white hover:text-black"
+            >
+              <Play className="h-4 w-4" />
+            </button>
+          ) : null}
 
-            {!videoUrl && onGenerateVideo ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation() // 이벤트 전파 방지
-                  onGenerateVideo()
-                }}
-                disabled={isGeneratingVideo}
-                className={`absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-xs font-semibold pointer-events-auto transition-opacity opacity-0 group-hover:opacity-100 ${
-                  isGeneratingVideo
-                    ? 'bg-neutral-700 text-neutral-300 cursor-not-allowed'
-                    : 'bg-black/70 text-white border border-white/40 hover:bg-white hover:text-black'
-                }`}
-              >
-                {isGeneratingVideo ? (
-                  <LoaderCircle className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Play className="h-3 w-3" />
-                )}
-              </button>
-            ) : null}
-          </div>
+          {!videoUrl && onGenerateVideo ? (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation() // 이벤트 전파 방지
+                onGenerateVideo()
+              }}
+              disabled={isGeneratingVideo}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold pointer-events-auto transition opacity-0 group-hover:opacity-100 ${
+                isGeneratingVideo
+                  ? 'bg-neutral-700 text-neutral-300 cursor-not-allowed'
+                  : 'bg-black/70 text-white border border-white/40 hover:bg-white hover:text-black'
+              }`}
+            >
+              {isGeneratingVideo ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </button>
+          ) : null}
         </div>
       )}
     </div>

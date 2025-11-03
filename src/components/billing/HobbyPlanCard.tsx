@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { hobbyplanscription } from '@/lib/server/product'
 
 type HobbyPlanCardProps = {
   className?: string
@@ -116,30 +117,7 @@ export default function HobbyPlanCard({ className }: HobbyPlanCardProps) {
     setError(null)
 
     try {
-      const response = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          plan: 'hobby',
-        }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        const message =
-          (payload && typeof payload.error === 'string' && payload.error) ||
-          'Unable to start checkout session.'
-        throw new Error(message)
-      }
-
-      const payload = (await response.json()) as { url?: string }
-      if (!payload?.url) {
-        throw new Error('Checkout URL was not returned.')
-      }
-
-      window.location.href = payload.url
+      hobbyplanscription()
     } catch (subscribeError) {
       const message =
         subscribeError instanceof Error ? subscribeError.message : 'Unknown error occurred.'
@@ -196,12 +174,7 @@ export default function HobbyPlanCard({ className }: HobbyPlanCardProps) {
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
       <CardFooter className="pt-0">
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={handleSubscribe}
-          disabled={buttonDisabled}
-        >
+        <Button size="lg" className="w-full" onClick={handleSubscribe} disabled={buttonDisabled}>
           {buttonLabel}
         </Button>
       </CardFooter>

@@ -8,9 +8,11 @@ import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
+import { useProjects } from '@/lib/api'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import ThemeToggle from '@/components/ui/theme-toggle'
-import { useProjects } from '@/lib/api'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
+import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -25,14 +27,8 @@ export default function DashboardPage() {
   const userId = user?.id || null
 
   // SWR 훅 사용
-  const {
-    projects,
-    isLoading,
-    createProject,
-    deleteProject,
-    updateProject,
-    duplicateProject,
-  } = useProjects()
+  const { projects, isLoading, createProject, deleteProject, updateProject, duplicateProject } =
+    useProjects()
 
   const handleCreateProject = async () => {
     if (!userId) {
@@ -47,9 +43,9 @@ export default function DashboardPage() {
         description: '',
         is_public: false,
       }
-      
+
       const data = await createProject(projectData)
-      
+
       // 프로젝트 생성 후 프로젝트 인덱스로 이동 (리디렉션 처리)
       router.push(`/project/${data.id}`)
     } catch (error) {
@@ -116,32 +112,13 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="w-full min-h-screen flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
+    <div
+      className="w-full min-h-screen flex flex-col"
+      style={{ backgroundColor: 'hsl(var(--background))' }}
+    >
       {/* 헤더: Projects 타이틀 + Account Settings */}
-      <header className="w-full h-14 border-b px-6 flex items-center justify-between" style={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}>
-        <button
-          onClick={() => router.push('/')}
-          className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
-        >
-          <Image
-            src="/blooma_logo.svg"
-            alt="Blooma Logo"
-            width={28}
-            height={28}
-            className="w-7 h-7 object-contain select-none"
-            draggable={false}
-          />
-        </button>
+      <SiteNavbarSignedIn />
 
-        {/* 오른쪽: 계정 설정 */}
-        <div className="flex items-center gap-6">
-          {/* 테마 토글 */}
-          <ThemeToggle />
-          
-          {/* 계정 설정 드롭다운 */}
-          <AccountDropdown />
-        </div>
-      </header>
       {/* Main Content */}
       <main className="flex-1 w-full max-w-7xl mx-auto py-8">
         {/* 제목/버튼/부제목 */}
@@ -175,7 +152,10 @@ export default function DashboardPage() {
               aria-label="Search projects"
               tabIndex={0}
             />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: 'hsl(var(--muted-foreground))' }} />
+            <Search
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
+              style={{ color: 'hsl(var(--muted-foreground))' }}
+            />
           </div>
           <div className="flex flex-row-reverse gap-4 flex-shrink-0">
             <Button
@@ -206,7 +186,10 @@ export default function DashboardPage() {
         {/* Loading states and error handling */}
         {!isLoaded ? (
           <div className="text-center py-12">
-            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <div
+              className="rounded-lg shadow-lg p-8 border"
+              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
               <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
@@ -224,7 +207,9 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>Loading...</h3>
+              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+                Loading...
+              </h3>
               <p style={{ color: 'hsl(var(--muted-foreground))' }}>
                 Please wait while we check your authentication status.
               </p>
@@ -232,7 +217,10 @@ export default function DashboardPage() {
           </div>
         ) : !userId ? (
           <div className="text-center py-12">
-            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <div
+              className="rounded-lg shadow-lg p-8 border"
+              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
               <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg
                   className="mx-auto h-12 w-12"
@@ -248,7 +236,9 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>Please sign in</h3>
+              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+                Please sign in
+              </h3>
               <p className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 You need to be signed in to view your projects.
               </p>
@@ -256,7 +246,10 @@ export default function DashboardPage() {
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <div className="rounded-lg shadow-lg p-8 border" style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}>
+            <div
+              className="rounded-lg shadow-lg p-8 border"
+              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+            >
               <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 <svg
                   className="mx-auto h-12 w-12"
@@ -313,10 +306,13 @@ export default function DashboardPage() {
                 isDuplicating={duplicatingProjects.has(project.id)}
               />
             ))}
-            
+
             {/* 백그라운드 동기화 표시 */}
             {isLoading && projects.length > 0 && (
-              <div className="fixed top-4 right-4 text-xs opacity-50 px-2 py-1 rounded" style={{ color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--muted))' }}>
+              <div
+                className="fixed top-4 right-4 text-xs opacity-50 px-2 py-1 rounded"
+                style={{ color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--muted))' }}
+              >
                 Background sync in progress
               </div>
             )}

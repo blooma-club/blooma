@@ -36,6 +36,9 @@ interface FrameGridProps {
   cardsLength?: number
   onGenerateVideo?: (frameId: string) => void
   onPlayVideo?: (frameId: string) => void
+  onStopVideo?: (frameId: string) => void
+  activeVideoFrameId?: string
+  activeVideoUrl?: string
   generatingVideoId?: string | null
   aspectRatio?: StoryboardAspectRatio
   containerMaxWidth?: number
@@ -86,6 +89,9 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   cardsLength = 0,
   onGenerateVideo,
   onPlayVideo,
+  onStopVideo,
+  activeVideoFrameId,
+  activeVideoUrl,
   generatingVideoId = null,
   aspectRatio = '16:9',
   containerMaxWidth,
@@ -208,6 +214,8 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                 typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
                   ? clampCardWidth(frame.cardWidth)
                   : normalizedCardWidth
+              const isVideoActive = activeVideoFrameId === frame.id
+              const playingUrl = isVideoActive ? activeVideoUrl : undefined
 
               return (
                 <SortableFrameCard
@@ -224,8 +232,11 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onAddAfter={() => onAddFrame(index + 1, frame.id)}
                   onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
                   onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
+                  onStopVideo={onStopVideo ? () => onStopVideo(frame.id) : undefined}
                   isGeneratingVideo={generatingVideoId === frame.id}
                   highlight={activeId === frame.id || selectedFrameId === frame.id}
+                  isVideoActive={isVideoActive}
+                  videoPlayingUrl={playingUrl}
                 />
               )
             })}
@@ -286,8 +297,11 @@ type SortableFrameCardProps = {
   onAddAfter: () => void
   onGenerateVideo?: () => void
   onPlayVideo?: () => void
+  onStopVideo?: () => void
   isGeneratingVideo: boolean
   highlight: boolean
+  isVideoActive: boolean
+  videoPlayingUrl?: string
 }
 
 const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
@@ -303,8 +317,11 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
   onAddAfter,
   onGenerateVideo,
   onPlayVideo,
+  onStopVideo,
   isGeneratingVideo,
   highlight,
+  isVideoActive,
+  videoPlayingUrl,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: frame.id,
@@ -351,8 +368,11 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         videoUrl={frame.videoUrl}
         onGenerateVideo={onGenerateVideo}
         onPlayVideo={onPlayVideo}
+        onStopVideo={onStopVideo}
         isGeneratingVideo={isGeneratingVideo}
         aspectRatio={aspectRatio}
+        isVideoActive={isVideoActive}
+        videoPlayingUrl={videoPlayingUrl}
       />
 
       <SideInsertButton
