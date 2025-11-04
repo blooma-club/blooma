@@ -145,7 +145,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'dynamic'],
     quality: 'balanced',
-    cost: 2,
+    cost: 20,
     inputSchema: {
       image_url: 'string',
       prompt: 'string?',
@@ -159,7 +159,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'dynamic'],
     quality: 'high',
-    cost: 4,
+    cost: 40,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',
@@ -176,7 +176,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'stylized'],
     quality: 'high',
-    cost: 4,
+    cost: 40,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',
@@ -192,7 +192,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'photorealistic'],
     quality: 'high',
-    cost: 4,
+    cost: 40,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',
@@ -208,7 +208,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'dynamic'],
     quality: 'high',
-    cost: 4,
+    cost: 40,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',
@@ -224,7 +224,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'dynamic'],
     quality: 'high',
-    cost: 3,
+    cost: 30,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',
@@ -240,7 +240,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     maxResolution: '1920x1080',
     stylePresets: ['cinematic', 'dynamic'],
     quality: 'high',
-    cost: 3,
+    cost: 30,
     inputSchema: {
       start_frame: 'number',
       end_frame: 'number',

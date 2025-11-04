@@ -199,7 +199,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
       modifiers={[]}
     >
       <div 
-        className="flex justify-center pt-10"
+        className="flex justify-center"
         onClick={(e) => {
           // 카드나 버튼이 아닌 배경 영역을 클릭했을 때만 실행
           if (e.target === e.currentTarget) {

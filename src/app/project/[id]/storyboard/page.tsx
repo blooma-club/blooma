@@ -15,7 +15,7 @@ import FloatingHeader from '@/components/storyboard/FloatingHeader'
 import PromptDock from '@/components/storyboard/PromptDock'
 import ThemeToggle from '@/components/ui/theme-toggle'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, SlidersHorizontal } from 'lucide-react'
 import { cardToFrame } from '@/lib/utils'
 import { createAndLinkCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
@@ -81,6 +81,7 @@ export default function StoryboardPage() {
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [projectCharacters, setProjectCharacters] = useState<Character[]>([])
   const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit' | 'video'>('generate')
+  const [isPromptDockVisible, setIsPromptDockVisible] = useState(true)
 
   // 비디오 모드 전용: 멀티 선택 상태(최대 2개)
   const [videoSelectedIds, setVideoSelectedIds] = useState<string[]>([])
@@ -501,57 +502,163 @@ export default function StoryboardPage() {
 
   return (
     <div>
-      <div className="w-full px-4">
-        {/* Header 라인: Dashboard 버튼 + FloatingHeader + ViewModeToggle */}
-        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center gap-4">
-          {/* Dashboard 버튼 */}
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg shadow-lg transition-all flex-shrink-0 h-[48px]"
-            style={{
-              color: 'hsl(var(--foreground))',
-            }}
-            title="돌아가기"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </button>
+      <div className="w-full">
+        {/* Header Container */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center justify-between gap-4">
+          {/* 좌측: 프로젝트 제목 헤더 */}
+          <div className="flex-shrink-0 z-10">
+            <FloatingHeader
+              title={currentProjectTitle}
+              index={index}
+              total={derived.frames.length}
+              currentView={viewMode}
+              onNavigateToStoryboard={handleNavigateToStoryboard}
+              onNavigateToCharacters={handleNavigateToCharacters}
+              layout="inline"
+              containerClassName=""
+              className=""
+              projectId={projectId}
+            />
+          </div>
 
-          {/* FloatingHeader */}
-          <div className="flex-1 flex justify-center min-w-0 relative">
-            <div className="relative w-full max-w-[1600px]">
-              <FloatingHeader
-                title={currentProjectTitle}
-                index={index}
-                total={derived.frames.length}
-                currentView={viewMode}
-                onNavigateToStoryboard={handleNavigateToStoryboard}
-                onNavigateToCharacters={handleNavigateToCharacters}
-                isWidthPanelOpen={showWidthControls}
-                onToggleWidthPanel={() => setShowWidthControls(prev => !prev)}
-                layout="inline"
-                containerClassName="w-full"
-                className="w-full max-w-[1600px]"
-                projectId={projectId}
-              />
-
-              {/* Width Controls Panel - FloatingHeader 바로 아래, SlidersHorizontal 버튼 위치 기준 */}
-              {canShowWidthControlsPanel && (
-                <div className="absolute top-full left-0 mt-2 z-[60]" style={{ left: '16px' }}>
-                  <div className="hidden sm:block">
-                    <StoryboardWidthControls
-                      visible={showWidthControls}
-                      cardWidthMin={CARD_WIDTH_MIN}
-                      cardWidthMax={CARD_WIDTH_MAX}
-                      normalizedCardWidth={clampCardWidth(cardWidth)}
-                      onCardWidthChange={handleCardWidthChange}
-                      aspectRatio={ratio}
-                      onAspectRatioChange={setRatio}
-                      onClose={() => setShowWidthControls(false)}
-                    />
+          {/* 중앙: 뷰 전환 탭 (Storyboard/Models) */}
+          <div className="absolute left-1/2 -translate-x-1/2 z-10">
+            <div className="h-[48px] flex items-center rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 p-1">
+              <button
+                onClick={handleNavigateToStoryboard}
+                className={`h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium ${
+                  viewMode === 'storyboard'
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                }`}
+              >
+                Storyboard
+              </button>
+              <button
+                onClick={handleNavigateToCharacters}
+                className={`h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium ${
+                  viewMode === 'models'
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                }`}
+              >
+                Models
+              </button>
+            </div>
+          </div>
+          
+          {/* 우측: 통합 설정 헤더 그룹 */}
+          <div className="flex-shrink-0 z-10">
+            <div className="h-[48px] rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 flex items-center gap-1 px-2">
+              {/* View Mode Toggle - 스토리보드 뷰에서만 표시 */}
+              {viewMode === 'storyboard' && (
+                <>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => setStoryboardViewMode('grid')}
+                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${
+                        (isClient ? storyboardViewMode : 'grid') === 'grid'
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                      }`}
+                      aria-label="Grid view"
+                      title="Grid view"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setStoryboardViewMode('list')}
+                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${
+                        (isClient ? storyboardViewMode : 'grid') === 'list'
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                      }`}
+                      aria-label="List view"
+                      title="List view"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </button>
                   </div>
+
+                  {/* 구분선 */}
+                  <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
+                </>
+              )}
+
+              {/* Theme Toggle */}
+              <div className="flex items-center">
+                <ThemeToggle />
+              </div>
+
+              {/* 구분선 */}
+              <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
+              {/* Card Width 조절 버튼 */}
+              {canShowWidthControlsPanel && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowWidthControls(prev => !prev)}
+                    className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${
+                      showWidthControls
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                    }`}
+                    aria-label={showWidthControls ? 'Hide layout controls' : 'Show layout controls'}
+                    title="Card size"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </button>
+
+                  {/* Width Controls Panel */}
+                  {showWidthControls && (
+                    <div className="absolute top-full right-0 mt-2 z-[60]">
+                      <div className="hidden sm:block">
+                        <StoryboardWidthControls
+                          visible={showWidthControls}
+                          cardWidthMin={CARD_WIDTH_MIN}
+                          cardWidthMax={CARD_WIDTH_MAX}
+                          normalizedCardWidth={clampCardWidth(cardWidth)}
+                          onCardWidthChange={handleCardWidthChange}
+                          aspectRatio={ratio}
+                          onAspectRatioChange={setRatio}
+                          onClose={() => setShowWidthControls(false)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* 구분선 */}
+              <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
+              {/* PromptDock 숨기기 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsPromptDockVisible(prev => !prev)}
+                className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${
+                  !isPromptDockVisible
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                }`}
+                aria-label={isPromptDockVisible ? 'Hide PromptDock' : 'Show PromptDock'}
+                title={isPromptDockVisible ? 'Hide prompt dock' : 'Show prompt dock'}
+              >
+                {isPromptDockVisible ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
 
@@ -570,21 +677,6 @@ export default function StoryboardPage() {
               />
             </div>
           )}
-
-          {/* 우측 컨트롤: ViewModeToggle + ThemeToggle */}
-          <div className="flex-shrink-0 flex items-center gap-3 z-50">
-            {/* ThemeToggle */}
-            <ThemeToggle />
-
-            {/* ViewModeToggle - 스토리보드 뷰에서만 표시, 클라이언트에서만 실제 상태 표시 */}
-            {viewMode === 'storyboard' && (
-              <ViewModeToggle
-                viewMode={isClient ? storyboardViewMode : 'grid'}
-                onSetGrid={() => setStoryboardViewMode('grid')}
-                onSetList={() => setStoryboardViewMode('list')}
-              />
-            )}
-          </div>
         </div>
 
         {/* 스토리보드 뷰 */}
@@ -725,7 +817,7 @@ export default function StoryboardPage() {
       </div>
 
       {/* 하단 고정 프롬프트 입력 바 */}
-      {!editingFrame && (
+      {!editingFrame && isPromptDockVisible && (
         <PromptDock
           projectId={projectId}
           aspectRatio={ratio}

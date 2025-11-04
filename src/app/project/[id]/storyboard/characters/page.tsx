@@ -7,7 +7,7 @@ import { FloatingHeader } from '@/components/storyboard/FloatingHeader'
 import { useUser } from '@clerk/nextjs'
 import ThemeToggle from '@/components/ui/theme-toggle'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
-import { ArrowLeft } from 'lucide-react'
+import { useProjects } from '@/lib/api'
 
 type CharacterWizardProps = ComponentProps<typeof CharacterWizard>
 type CharacterWizardCharacter = NonNullable<CharacterWizardProps['initial']>[number]
@@ -41,6 +41,7 @@ export default function ProjectCharactersPage() {
   const params = useParams<{ id?: string }>()
   const router = useRouter()
   const { user } = useUser()
+  const { projects } = useProjects()
 
   const projectId = params?.id
 
@@ -49,6 +50,10 @@ export default function ProjectCharactersPage() {
   const [initialCharacters, setInitialCharacters] = useState<CharacterWizardCharacter[] | null>(
     null
   )
+
+  // 프로젝트 제목 가져오기
+  const currentProject = projects?.find(p => p.id === projectId)
+  const currentProjectTitle = currentProject?.title || 'Untitled Project'
 
   useEffect(() => {
     if (!projectId || !user?.id) {
@@ -124,42 +129,57 @@ export default function ProjectCharactersPage() {
 
   return (
     <div>
-      <div className="w-full px-4">
-        {/* Header 라인: Dashboard 버튼 + FloatingHeader */}
-        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center gap-4">
-          {/* Dashboard 버튼 */}
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg border transition-all flex-shrink-0 h-[48px]"
-            style={{
-              color: 'hsl(var(--foreground))',
-              borderColor: 'hsl(var(--border))',
-            }}
-            title="돌아가기"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </button>
-
-          {/* FloatingHeader */}
-          <div className="flex-1 flex justify-center min-w-0">
+      <div className="w-full">
+        {/* Header Container */}
+        <div className="relative mx-auto mb-6 w-full max-w-[1920px] flex items-center justify-between gap-4">
+          {/* 좌측: 프로젝트 제목 헤더 */}
+          <div className="flex-shrink-0 z-10">
             <FloatingHeader
-              title="Models"
+              title={currentProjectTitle}
               index={0}
               total={1}
               currentView="models"
-              onNavigateToCharacters={handleNavigateToCharacters}
               onNavigateToStoryboard={handleNavigateToStoryboard}
+              onNavigateToCharacters={handleNavigateToCharacters}
               layout="inline"
-              containerClassName="w-full"
-              className="w-full max-w-[1600px]"
+              containerClassName=""
+              className=""
+              projectId={projectId}
             />
           </div>
 
-          {/* ThemeToggle */}
-          <div className="flex-shrink-0 flex items-center gap-3 z-50">
-            <CreditsIndicator />
-            <ThemeToggle />
+          {/* 중앙: 뷰 전환 탭 (Storyboard/Models) */}
+          <div className="absolute left-1/2 -translate-x-1/2 z-10">
+            <div className="h-[48px] flex items-center rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 p-1">
+              <button
+                onClick={handleNavigateToStoryboard}
+                className="h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50"
+              >
+                Storyboard
+              </button>
+              <button
+                onClick={handleNavigateToCharacters}
+                className="h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+              >
+                Models
+              </button>
+            </div>
+          </div>
+          
+          {/* 우측: 통합 설정 헤더 그룹 */}
+          <div className="flex-shrink-0 z-10">
+            <div className="h-[48px] rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 flex items-center gap-2 px-2">
+              {/* Credits Indicator */}
+              <CreditsIndicator />
+
+              {/* 구분선 */}
+              <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
+              {/* Theme Toggle */}
+              <div className="flex items-center">
+                <ThemeToggle />
+              </div>
+            </div>
           </div>
         </div>
       </div>

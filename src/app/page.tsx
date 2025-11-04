@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
+import { Sparkles, Film, Zap } from 'lucide-react'
 
 const FALLBACK_USER = {
   isLoaded: true,
@@ -67,205 +68,304 @@ export default function Home() {
   const signOut = useOptionalSignOut()
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header (로고+네비+액션) */}
-      <div className="h-16 flex items-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="relative w-full max-w-7xl mx-auto px-4 flex items-center justify-between">
-          {/* 좌측: 로고 */}
-          <div className="flex-shrink-0">
-            <Button
-              variant="ghost"
+    <div className="flex flex-col min-h-screen" style={{ backgroundColor: 'hsl(var(--background))' }}>
+      {/* Header - Linear Style: Fixed, Transparent with Blur */}
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <button
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="flex items-center hover:opacity-80 transition-opacity cursor-pointer p-2"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               aria-label="Go to top"
               tabIndex={0}
             >
               <Image
                 src="/blooma_logo.svg"
-                alt="Blooma Logo"
+                alt="Blooma"
                 width={28}
                 height={28}
-                className="w-7 h-7 object-contain"
+                className="w-7 h-7"
                 priority
               />
-            </Button>
-          </div>
+            </button>
 
-          {/* 우측: Login만 */}
-          <div className="flex-shrink-0 flex items-center gap-4">
-            {!user ? (
-              <Button
-                variant="ghost"
-                className="text-white hover:bg-neutral-800"
-                onClick={() => {
-                  if (!isLoaded) return
-                  router.push('/auth')
-                }}
-                aria-label="Login"
-                tabIndex={0}
-              >
-                Login
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
-                    aria-label="User menu"
-                    tabIndex={0}
-                  >
-                    {user.imageUrl ? (
-                      <Image
-                        src={user.imageUrl}
-                        alt="User Avatar"
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded-full object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center">
-                        <span className="text-xs text-white font-medium">
-                          {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-48 border-neutral-700"
-                  style={{ backgroundColor: 'hsl(var(--background))' }}
-                  align="end"
+            {/* Right Actions */}
+            <div className="flex items-center gap-4">
+              {!user ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (!isLoaded) return
+                    router.push('/auth')
+                  }}
+                  className="text-sm font-medium text-neutral-400 hover:text-white transition-colors"
+                  aria-label="Login"
+                  tabIndex={0}
                 >
-                  <div className="px-3 py-2 border-b border-neutral-700">
-                    <p className="text-sm text-neutral-300 truncate">
-                      {user.primaryEmailAddress?.emailAddress}
-                    </p>
-                  </div>
-                  <DropdownMenuItem
-                    onClick={() => signOut()}
-                    className="text-white hover:bg-neutral-800 cursor-pointer"
+                  Login
+                </Button>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex items-center hover:opacity-80 transition-opacity"
+                      aria-label="User menu"
+                      tabIndex={0}
+                    >
+                      {user.imageUrl ? (
+                        <Image
+                          src={user.imageUrl}
+                          alt="User Avatar"
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded-full"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center">
+                          <span className="text-xs font-medium text-white">
+                            {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-48 border-neutral-800"
+                    style={{ backgroundColor: 'hsl(var(--background))' }}
+                    align="end"
                   >
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                    <div className="px-3 py-2 border-b border-neutral-800">
+                      <p className="text-sm text-neutral-400 truncate">
+                        {user.primaryEmailAddress?.emailAddress}
+                      </p>
+                    </div>
+                    <DropdownMenuItem
+                      onClick={() => signOut()}
+                      className="text-white hover:bg-neutral-800 cursor-pointer"
+                    >
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      {/* Hero Section */}
-      <section className="relative" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-32 pb-24 flex flex-col items-center text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-neutral-700/60 bg-neutral-900/70 px-4 py-2 text-sm uppercase tracking-[0.15em] text-neutral-300">
-            Your AI Studio is here
-          </div>
-
-          <h1
-            className="mt-8 text-8xl font-regular tracking-tight font-instrument-serif"
-            style={{ color: 'hsl(var(--foreground))' }}
-          >
-            Now, you are a director
-          </h1>
-
-          {/* 스토리보드 카드 그룹 */}
-          <div className="mt-10 w-full max-w-7xl relative px-4">
-            <div className="group relative flex items-center justify-center gap-6 perspective-1500 transform-style-3d">
-              {/* 왼쪽 카드 */}
-              <div
-                className="absolute left-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
-                style={{
-                  aspectRatio: '16/9',
-                  backgroundColor: 'hsl(var(--card))',
-                  borderColor: 'hsl(var(--border))',
-                  zIndex: 1,
-                }}
-              >
-                <Image
-                  src="https://cdn.midjourney.com/68322375-bdc6-4317-8729-379da55c1168/0_0.png"
-                  alt="Opening Scene - Cinematic Style"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 576px"
-                  unoptimized={true}
-                />
-              </div>
-
-              {/* 중앙 메인 카드 */}
-              <div
-                className="relative w-full max-w-3xl rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border-2 transition-all duration-700 ease-out group-hover:scale-[1.02] hover:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)] cursor-pointer overflow-hidden"
-                style={{
-                  aspectRatio: '16/9',
-                  backgroundColor: 'hsl(var(--card))',
-                  borderColor: 'hsl(var(--border))',
-                  zIndex: 3,
-                }}
-              >
-                <Image
-                  src="https://cdn.midjourney.com/db57d0cf-73d9-4d85-883e-a6435690c23e/0_0.png"
-                  alt="Main Scene - AI Generated"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 768px"
-                  unoptimized={true}
-                />
-              </div>
-
-              {/* 오른쪽 카드 */}
-              <div
-                className="absolute right-0 w-[36rem] rounded-xl shadow-2xl border-2 opacity-100 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer overflow-hidden"
-                style={{
-                  aspectRatio: '16/9',
-                  backgroundColor: 'hsl(var(--card))',
-                  borderColor: 'hsl(var(--border))',
-                  zIndex: 1,
-                }}
-              >
-                <Image
-                  src="https://cdn.midjourney.com/070505e5-43dd-48f8-9e49-93c319414bba/0_0.png"
-                  alt="Action Scene - Watercolor Style"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 576px"
-                  unoptimized={true}
-                />
-              </div>
+      </header>
+      {/* Hero Section - Linear Style */}
+      <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+        {/* Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/5 to-transparent pointer-events-none" />
+        
+        <div className="relative max-w-6xl mx-auto">
+          {/* Badge */}
+          <div className="flex justify-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <span className="text-sm font-medium text-neutral-300">Introducing AI Storyboard</span>
             </div>
           </div>
 
-          <div className="mt-16 flex items-center justify-center">
+          {/* Main Heading - Gradient Text with Instrument Serif */}
+          <h1 className="text-center mb-6 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+            <span className="block text-6xl sm:text-7xl md:text-8xl lg:text-[110px] font-regular tracking-tight leading-[1.1] font-instrument-serif bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent">
+              Now, you are a director
+            </span>
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-center text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+            Create stunning storyboards with AI. From script to visual narrative in minutes.
+          </p>
+
+          {/* CTA Buttons - Smaller Size */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-20 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
             <Button
-              variant="default"
-              size="lg"
               onClick={() => {
                 if (!isLoaded) return
                 router.push(user ? '/dashboard' : '/auth')
               }}
+              className="px-6 py-3 text-sm font-medium bg-white text-black hover:bg-white/90 transition-all duration-200"
               aria-label="Get Started"
               tabIndex={0}
             >
               Get Started
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const featuresSection = document.getElementById('features')
+                featuresSection?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="px-6 py-3 text-sm font-medium border-white/10 text-white hover:bg-white/5 transition-all duration-200"
+              aria-label="Learn More"
+              tabIndex={0}
+            >
+              Learn More
+            </Button>
           </div>
-        </div>
 
-        {/* 스크롤 힌트 */}
-        <div
-          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center text-sm"
-          style={{ color: 'hsl(var(--muted-foreground))' }}
-        >
-          <div className="h-6 w-px mb-2" style={{ backgroundColor: 'hsl(var(--border))' }} />
-          Scroll
+          {/* Storyboard Cards - Overlapping Style (Upgraded) */}
+          <div className="relative max-w-7xl mx-auto px-4 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-500">
+            <div className="group relative flex items-center justify-center min-h-[400px] sm:min-h-[500px] perspective-1500 transform-style-3d">
+              {/* Left Card */}
+              <div
+                className="absolute left-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-8 sm:group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
+                style={{
+                  aspectRatio: '16/9',
+                  zIndex: 1,
+                }}
+              >
+                <Image
+                  src="https://cdn.midjourney.com/db57d0cf-73d9-4d85-883e-a6435690c23e/0_0.png"
+                  alt="Opening Scene - Cinematic Style"
+                  fill
+                  className="object-cover transition-opacity duration-500"
+                  sizes="(max-width: 768px) 85vw, 576px"
+                  unoptimized={true}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              </div>
+
+              {/* Center Main Card - Featured */}
+              <div
+                className="relative w-[90%] sm:w-full max-w-3xl rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 bg-neutral-900/50 backdrop-blur-sm shadow-2xl shadow-violet-500/10 transition-all duration-700 ease-out group-hover:scale-105 hover:shadow-[0_25px_80px_-15px_rgba(139,92,246,0.3)] cursor-pointer"
+                style={{
+                  aspectRatio: '16/9',
+                  zIndex: 3,
+                }}
+              >
+                <Image 
+                  src="https://cdn.midjourney.com/070505e5-43dd-48f8-9e49-93c319414bba/0_0.png"
+                  alt="Main Scene - AI Generated"
+                  fill
+                  className="object-cover transition-opacity duration-500"
+                  sizes="(max-width: 768px) 90vw, 768px"
+                  unoptimized={true}
+                  priority
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              </div>
+
+              {/* Right Card */}
+              <div
+                className="absolute right-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-8 sm:group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
+                style={{
+                  aspectRatio: '16/9',
+                  zIndex: 1,
+                }}
+              >
+                <Image
+                  src="https://cdn.midjourney.com/68322375-bdc6-4317-8729-379da55c1168/0_0.png"
+                  alt="Action Scene - Watercolor Style"
+                  fill
+                  className="object-cover transition-opacity duration-500"
+                  sizes="(max-width: 768px) 85vw, 576px"
+                  unoptimized={true}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8" style={{ backgroundColor: 'hsl(var(--background))' }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-neutral-400">
-            <p>&copy; 2025 Blooma. All rights reserved.</p>
+      {/* Features Section - Linear Style */}
+      <section id="features" className="relative py-32 px-4">
+        <div className="max-w-6xl mx-auto">
+          {/* Section Header */}
+          <div className="text-center mb-20">
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight text-white mb-6">
+              Built for creative minds
+            </h2>
+            <p className="text-lg text-neutral-400 max-w-2xl mx-auto">
+              Everything you need to transform ideas into visual stories
+            </p>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+              <div className="mb-6 w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                <Sparkles className="w-6 h-6 text-violet-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">AI-Powered Generation</h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Transform your script into stunning visual storyboards with advanced AI technology
+              </p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+              <div className="mb-6 w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                <Film className="w-6 h-6 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Cinematic Quality</h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Professional-grade visuals that bring your creative vision to life instantly
+              </p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+              <div className="mb-6 w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                <Zap className="w-6 h-6 text-amber-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Lightning Fast</h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Create complete storyboards in minutes, not hours. Focus on creativity, not tedious work
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer - Linear Style */}
+      <footer className="relative border-t border-white/5 py-12 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            {/* Logo & Copyright */}
+            <div className="flex items-center gap-8">
+              <div className="flex items-center gap-2">
+                <Image
+                  src="/blooma_logo.svg"
+                  alt="Blooma"
+                  width={24}
+                  height={24}
+                  className="w-6 h-6"
+                />
+                <span className="text-sm font-medium text-white">Blooma</span>
+              </div>
+              <p className="text-sm text-neutral-500">
+                &copy; 2025 Blooma. All rights reserved.
+              </p>
+            </div>
+
+            {/* Links */}
+            <div className="flex items-center gap-8">
+              <a
+                href="/pricing"
+                className="text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                Pricing
+              </a>
+              <a
+                href="/privacy"
+                className="text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                Privacy
+              </a>
+              <a
+                href="/terms"
+                className="text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                Terms
+              </a>
+            </div>
           </div>
         </div>
       </footer>

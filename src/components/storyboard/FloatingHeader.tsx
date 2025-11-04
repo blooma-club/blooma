@@ -2,7 +2,8 @@
 import React from 'react'
 import clsx from 'clsx'
 import { useAuth } from '@clerk/nextjs'
-import { ChevronDown, SlidersHorizontal, Edit3, Check, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronDown, Edit3, Check, X, ArrowLeft } from 'lucide-react'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import type { Project } from '@/types'
 
@@ -15,8 +16,6 @@ interface FloatingHeaderProps {
   onNavigateToCharacters?: () => void
   aspectRatio?: StoryboardAspectRatio
   onAspectRatioChange?: (ratio: StoryboardAspectRatio) => void
-  isWidthPanelOpen?: boolean
-  onToggleWidthPanel?: () => void
   layout?: 'floating' | 'inline'
   containerClassName?: string
   className?: string
@@ -34,14 +33,13 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   onNavigateToCharacters,
   aspectRatio,
   onAspectRatioChange,
-  isWidthPanelOpen = false,
-  onToggleWidthPanel,
   layout = 'floating',
   containerClassName,
   className,
   projectId,
 }) => {
   const { userId } = useAuth()
+  const router = useRouter()
   const [dropdownOpen, setDropdownOpen] = React.useState(false)
   const displayIndex = total > 0 ? index + 1 : 0
   const [navigationDropdownOpen, setNavigationDropdownOpen] = React.useState(false)
@@ -153,72 +151,70 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
     'storyboard'
 
   const containerClasses = clsx(
-    'pointer-events-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg px-4 py-2.5 flex items-center justify-between gap-x-4 relative z-50 h-[48px]',
+    'pointer-events-auto backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 border border-neutral-200/80 dark:border-neutral-700/50 rounded-lg shadow-lg px-4 py-2.5 flex items-center justify-between gap-x-4 relative z-50 h-[48px]',
     className
   )
 
   const content = (
     <div className={containerClasses}>
-      <div className="flex min-w-[260px] flex-1 items-center gap-4 sm:gap-6">
-        {typeof onToggleWidthPanel === 'function' && (
-          <button
-            type="button"
-            onClick={onToggleWidthPanel}
-            className={`h-9 w-9 flex items-center justify-center rounded-lg border transition-colors ${
-              isWidthPanelOpen
-                ? 'border-neutral-400 dark:border-neutral-500 text-neutral-700 dark:text-neutral-100 bg-neutral-100 dark:bg-neutral-800'
-                : 'border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-100'
-            }`}
-            aria-label={isWidthPanelOpen ? 'Hide layout controls' : 'Show layout controls'}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </button>
-        )}
-        
+      {/* 좌측: 네비게이션 + 제목 */}
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Dashboard 버튼 */}
+        <button
+          type="button"
+          onClick={() => router.push('/dashboard')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 h-8 text-sm font-medium rounded-md border border-neutral-200/50 dark:border-neutral-700/50 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-all duration-200 flex-shrink-0 text-neutral-700 dark:text-neutral-300"
+          title="Back to Dashboard"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline text-xs">Dashboard</span>
+        </button>
+
+        {/* 구분선 */}
+        <div className="h-5 w-px bg-neutral-200/60 dark:bg-neutral-700/60" />
+
         {/* 프로젝트 제목 편집 */}
         {projectId && projectTitle && (
           isEditing ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <input
                 type="text"
                 value={editValue}
                 onChange={e => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-0 max-w-xs transition-all"
-                style={{ color: 'hsl(var(--foreground))', borderColor: 'hsl(var(--border))' }}
+                className="w-[200px] text-sm font-medium bg-transparent border-0 border-b-2 border-neutral-900 dark:border-white focus:outline-none focus:ring-0 px-0 py-1 text-neutral-900 dark:text-white"
                 autoFocus
                 disabled={isUpdating}
                 placeholder="Enter project title"
               />
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 <button
                   onClick={handleEditSave}
                   disabled={isUpdating}
-                  className="inline-flex items-center justify-center px-2 py-2 text-xs font-medium rounded-lg transition-all disabled:opacity-50 bg-blue-600 hover:bg-blue-700 text-white disabled:cursor-not-allowed"
-                  title="Save changes"
+                  className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 disabled:cursor-not-allowed text-neutral-700 dark:text-neutral-300"
+                  title="Save"
                 >
-                  <Check className="w-3 h-3" />
+                  <Check className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={handleEditCancel}
                   disabled={isUpdating}
-                  className="inline-flex items-center justify-center px-2 py-2 text-xs font-medium rounded-lg transition-all disabled:opacity-50 bg-neutral-700 dark:bg-neutral-600 hover:bg-neutral-600 dark:hover:bg-neutral-500 text-neutral-300 hover:text-white disabled:cursor-not-allowed"
-                  title="Cancel editing"
+                  className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 disabled:cursor-not-allowed text-neutral-500 dark:text-neutral-400"
+                  title="Cancel"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 group">
-              <span className="text-sm font-semibold truncate" style={{ color: 'hsl(var(--foreground))' }}>
+            <div className="flex items-center gap-2 group min-w-0">
+              <span className="text-sm font-semibold truncate text-neutral-900 dark:text-white">
                 {projectTitle}
               </span>
               <button
                 onClick={handleEditStart}
-                className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 opacity-0 group-hover:opacity-100 transition-all"
-                style={{ color: 'hsl(var(--muted-foreground))' }}
-                title="Edit project title"
+                className="inline-flex items-center justify-center p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-all duration-200 flex-shrink-0 text-neutral-500 dark:text-neutral-400"
+                title="Edit title"
               >
                 <Edit3 className="w-3.5 h-3.5" />
               </button>
@@ -227,79 +223,6 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
-        {showAspectControls && (
-          <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-[#DBDBDB]">
-            <div className="relative dropdown-container">
-              <div className="relative">
-                <button
-                  type="button"
-                  className="appearance-none bg-neutral-100 dark:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300 text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full border border-neutral-200 dark:border-neutral-700"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                >
-                  {selectedAspect}
-                </button>
-                {dropdownOpen && (
-                  <ul className="absolute z-10 mt-1 min-w-[80px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded shadow-lg">
-                    {ASPECT_RATIO_OPTIONS.map(option => (
-                      <li key={option}>
-                        <button
-                          type="button"
-                          className="block w-full text-left px-3 py-2 text-sm text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:hover:text-white transition-colors whitespace-nowrap"
-                          onClick={() => {
-                            onAspectRatioChange?.(option)
-                            setDropdownOpen(false)
-                          }}
-                        >
-                          {option}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-neutral-500 dark:text-[#DBDBDB] text-s">
-                <ChevronDown className="h-3 w-3" />
-              </span>
-            </div>
-          </label>
-        )}
-        <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-[#DBDBDB]">
-          <div className="relative dropdown-container">
-            <button
-              type="button"
-              className="relative appearance-none rounded-lg text-sm px-3 py-2 pr-8 focus:outline-none flex items-center justify-between w-full navigation-dropdown border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/70"
-              onClick={() => setNavigationDropdownOpen(!navigationDropdownOpen)}
-            >
-              {navigationOptions.find(option => option.value === selectedView)?.label}
-            </button>
-            {navigationDropdownOpen && (
-              <ul className="absolute z-50 mt-1 min-w-[140px] rounded-lg border shadow-lg" style={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
-                {navigationOptions.map(option => (
-                  <li key={option.value}>
-                    <button
-                      type="button"
-                      className="block w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
-                      style={{ color: 'hsl(var(--popover-foreground))' }}
-                      onClick={() => {
-                        option.onSelect()
-                        setNavigationDropdownOpen(false)
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'hsl(var(--accent))')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      {option.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[hsl(var(--muted-foreground))] text-s">
-              <ChevronDown className="h-3 w-3" />
-            </span>
-          </div>
-        </label>
-      </div>
     </div>
   )
 
