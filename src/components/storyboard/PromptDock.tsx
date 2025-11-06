@@ -283,8 +283,12 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         body: JSON.stringify(requestBody),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok || !json?.success || !json?.imageUrl) {
-        let errorMsg = json?.error || `Failed to generate image (HTTP ${res.status})`
+      
+      // API 응답 형식: { success: true, data: { imageUrl: ... } }
+      const imageUrl = json?.data?.imageUrl || json?.imageUrl
+      
+      if (!res.ok || !json?.success || !imageUrl) {
+        let errorMsg = json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
 
         if (res.status === 404) {
           const modelName = selectedModel?.name || modelId
@@ -299,7 +303,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
         throw new Error(errorMsg)
       }
-      await onCreateFrame(json.imageUrl as string)
+      await onCreateFrame(imageUrl as string)
       setPrompt('')
       setPromptImageDataUrl(null)
     } catch (e) {

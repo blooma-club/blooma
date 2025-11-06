@@ -1,7 +1,7 @@
 "use client"
 
 import React from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, MessageSquare, Image as ImageIcon } from 'lucide-react'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
 
@@ -13,15 +13,11 @@ interface FrameListProps {
   onFrameEditMetadata: (frameId: string) => void
   onFrameDelete: (frameId: string) => void
   onAddFrame: (insertIndex?: number, duplicateFrameId?: string) => void
+  onImageUpload?: (frameId: string, file: File) => Promise<void>
   deletingFrameId?: string | null
-  onGenerateVideo?: (frameId: string) => void
-  onPlayVideo?: (frameId: string) => void
-  onStopVideo?: (frameId: string) => void
-  generatingVideoId?: string | null
+  isAddingFrame?: boolean
   aspectRatio?: StoryboardAspectRatio
   selectedFrameId?: string
-  activeVideoFrameId?: string
-  activeVideoUrl?: string
 }
 
 const BetweenInsertRow = ({
@@ -33,13 +29,15 @@ const BetweenInsertRow = ({
 }) => (
   <div className="group relative h-10">
     <div className="absolute inset-0 flex items-center" aria-hidden="true">
-      <span className="w-full border-t border-dashed border-neutral-700" />
+      <span 
+        className="w-full border-t border-dashed border-neutral-200/80 dark:border-neutral-700/50" 
+      />
     </div>
     <div className="absolute inset-0 flex items-center justify-center">
       <button
         type="button"
         onClick={onAdd}
-        className="flex items-center gap-2 rounded-full border border-dashed border-neutral-600 bg-neutral-900 px-3 py-1 text-xs font-medium text-neutral-300 shadow transition-all duration-150 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:border-neutral-500 hover:text-neutral-100"
+        className="flex items-center gap-2 rounded-full border border-dashed px-3 py-1 text-xs font-medium shadow-lg backdrop-blur-sm transition-all duration-200 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500 dark:focus-visible:outline-neutral-400 border-neutral-200/80 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 hover:border-neutral-900 dark:hover:border-white"
         aria-label={label}
       >
         <Plus className="h-3.5 w-3.5" />
@@ -55,15 +53,11 @@ export const FrameList: React.FC<FrameListProps> = ({
   onFrameEditMetadata,
   onFrameDelete,
   onAddFrame,
+  onImageUpload,
   deletingFrameId = null,
-  onGenerateVideo,
-  onPlayVideo,
-  onStopVideo,
-  generatingVideoId = null,
+  isAddingFrame = false,
   aspectRatio = '16:9',
   selectedFrameId,
-  activeVideoFrameId,
-  activeVideoUrl,
 }) => {
   const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
   const maxHeight = PORTRAIT_RATIOS.includes(aspectRatio) ? 520 : 360
@@ -77,11 +71,36 @@ export const FrameList: React.FC<FrameListProps> = ({
           />
         )}
         {frames.map((frame, i) => {
-          const isActive = activeVideoFrameId === frame.id
-          const playingUrl = isActive ? activeVideoUrl : undefined
+          // Status 표시 정보 (ready는 표시 안함, error와 processing만)
+          const getStatusInfo = (status: string) => {
+            switch (status) {
+              case 'error':
+                return { color: 'hsl(0 84% 60%)', label: 'Error', show: true }
+              case 'generating':
+                return { color: 'hsl(48 96% 53%)', label: 'Generating', show: true }
+              case 'enhancing':
+                return { color: 'hsl(217 91% 60%)', label: 'Enhancing', show: true }
+              case 'pending':
+                return { color: 'hsl(var(--muted-foreground))', label: 'Pending', show: true }
+              default:
+                return { color: '', label: '', show: false }
+            }
+          }
+          
+          const statusInfo = getStatusInfo(frame.status)
+          
           return (
             <React.Fragment key={frame.id}>
-              <div className={`flex items-center gap-6 p-6 bg-neutral-900 border rounded-lg hover:bg-neutral-800 transition-colors ${selectedFrameId === frame.id ? 'border-blue-500/60 ring-2 ring-blue-400/60' : 'border-neutral-800'}`}>
+              <div 
+                className={`flex items-stretch gap-4 p-4 border rounded-lg transition-all ${
+                  selectedFrameId === frame.id 
+                    ? 'ring-2 ring-neutral-900 dark:ring-white border-neutral-900/30 dark:border-white/30' 
+                    : ''
+                }`}
+                style={{
+                  backgroundColor: 'hsl(var(--card))',
+                }}
+              >
                 {/* 왼쪽: StoryboardCard */}
                 <div className={`${previewWidthClass} flex-shrink-0`}>
                   <StoryboardCard
@@ -93,53 +112,119 @@ export const FrameList: React.FC<FrameListProps> = ({
                     onOpen={() => onFrameEdit(i)}
                     onEdit={() => onFrameEditMetadata(frame.id)}
                     onDelete={() => onFrameDelete(frame.id)}
-                    videoUrl={frame.videoUrl}
-                    onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
-                    onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
-                    onStopVideo={onStopVideo ? () => onStopVideo(frame.id) : undefined}
-                    isGeneratingVideo={generatingVideoId === frame.id}
+                    onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
                     aspectRatio={aspectRatio}
-                    isVideoActive={isActive}
-                    videoPlayingUrl={playingUrl}
                   />
                 </div>
 
                 {/* 오른쪽: 메타데이터 정보 */}
-                <div className="flex-1 min-h-[384px] flex flex-col justify-center">
-                  <div className="flex items-center gap-4 mb-4">
-                    <span className="text-2xl font-bold text-white">
-                      Scene {i + 1}
+                <div className="flex-1 flex flex-col gap-3">
+                  {/* Header: Scene Number & Status */}
+                  <div className="flex items-center gap-2">
+                    <span 
+                      className="text-xs font-semibold tracking-wide"
+                      style={{ color: 'hsl(var(--muted-foreground))' }}
+                    >
+                      SCENE {i + 1}
                     </span>
-                    <div
-                      className={`w-4 h-4 rounded-full ${
-                        frame.status === 'ready'
-                          ? 'bg-green-500'
-                          : frame.status === 'error'
-                          ? 'bg-red-500'
-                          : 'bg-yellow-500'
-                      }`}
-                    />
+                    {statusInfo.show && (
+                      <>
+                        <span style={{ color: 'hsl(var(--muted-foreground))' }}>·</span>
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: statusInfo.color }}
+                          />
+                          <span 
+                            className="text-xs font-medium"
+                            style={{ color: 'hsl(var(--muted-foreground))' }}
+                          >
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  <p className="text-neutral-200 text-lg line-clamp-4 leading-relaxed mb-4">
+                  {/* Description */}
+                  <p 
+                    className="text-sm leading-relaxed line-clamp-4"
+                    style={{ color: 'hsl(var(--foreground))' }}
+                  >
                     {frame.shotDescription || 'No description available for this scene.'}
                   </p>
 
-                  {/* 추가 메타데이터 표시 */}
-                  {(frame.shot || frame.dialogue) && (
-                    <div className="flex flex-wrap gap-3">
-                      {frame.shot && (
-                        <span className="px-3 py-2 bg-neutral-800 text-neutral-200 text-base rounded-lg font-medium">
-                          {frame.shot}
-                        </span>
-                      )}
-                      {frame.dialogue && (
-                        <span className="px-3 py-2 bg-blue-900/40 text-blue-200 text-base rounded-lg font-medium">
-                          Dialogue
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  {/* Metadata Badges - Compact Grid */}
+                  <div className="flex flex-wrap gap-1.5 mt-auto">
+                    {frame.shot && (
+                      <div 
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        {frame.shot}
+                      </div>
+                    )}
+                    {frame.dialogue && (
+                      <div 
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        <MessageSquare className="w-2.5 h-2.5" />
+                        Dialogue
+                      </div>
+                    )}
+                    {frame.angle && (
+                      <div 
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        {frame.angle}
+                      </div>
+                    )}
+                    {frame.background && (
+                      <div 
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        📍 {frame.background}
+                      </div>
+                    )}
+                    {frame.moodLighting && (
+                      <div 
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        💡 {frame.moodLighting}
+                      </div>
+                    )}
+                    {frame.sound && (
+                      <div 
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'hsl(var(--secondary))',
+                          color: 'hsl(var(--secondary-foreground))'
+                        }}
+                      >
+                        🔊 {frame.sound}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <BetweenInsertRow
@@ -152,13 +237,36 @@ export const FrameList: React.FC<FrameListProps> = ({
 
         {/* Add new frame button */}
         <button
-          onClick={() => onAddFrame()}
-          className="w-full p-8 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg flex items-center justify-center hover:border-neutral-400 dark:hover:border-neutral-500 transition-colors bg-neutral-50 dark:bg-neutral-900/50"
-          style={{ minHeight: maxHeight }}
+          onClick={() => {
+            if (!isAddingFrame) {
+              onAddFrame()
+            }
+          }}
+          disabled={isAddingFrame}
+          className={`w-full p-8 border-2 border-dashed rounded-lg flex items-center justify-center transition-all ${
+            isAddingFrame
+              ? 'opacity-50 cursor-not-allowed'
+              : 'hover:scale-[1.01]'
+          }`}
+          style={{ 
+            minHeight: maxHeight,
+            borderColor: 'hsl(var(--border))',
+            backgroundColor: 'hsl(var(--muted) / 0.3)',
+            color: 'hsl(var(--muted-foreground))'
+          }}
           aria-label="Add new frame"
         >
-          <Plus className="w-8 h-8 mr-4 text-black dark:text-neutral-400" />
-          <span className="font-semibold text-xl text-black dark:text-neutral-400">Add new scene</span>
+          {isAddingFrame ? (
+            <>
+              <div className="w-8 h-8 mr-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="font-semibold text-xl">Adding scene...</span>
+            </>
+          ) : (
+            <>
+              <Plus className="w-8 h-8 mr-4" />
+              <span className="font-semibold text-xl">Add new scene</span>
+            </>
+          )}
         </button>
       </div>
     </div>

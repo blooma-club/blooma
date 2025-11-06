@@ -11,7 +11,6 @@ import Image from 'next/image'
 import { useProjects } from '@/lib/api'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import ThemeToggle from '@/components/ui/theme-toggle'
-import CreditsIndicator from '@/components/ui/CreditsIndicator'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 
 export default function DashboardPage() {
@@ -112,85 +111,99 @@ export default function DashboardPage() {
   )
 
   return (
-    <div
-      className="w-full min-h-screen flex flex-col"
-      style={{ backgroundColor: 'hsl(var(--background))' }}
-    >
-      {/* 헤더: Projects 타이틀 + Account Settings */}
+    <div className="relative w-full min-h-screen flex flex-col bg-background">
+      {/* 배경 장식: 은은한 그리드 + 그라디언트 */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(500px_250px_at_top_right,rgba(120,119,198,0.10)_0%,transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(500px_250px_at_bottom_left,rgba(56,189,248,0.10)_0%,transparent_70%)]" />
+        <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,hsl(var(--foreground)/0.10)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground)/0.10)_1px,transparent_1px)] [background-size:24px_24px]" />
+      </div>
+
+      {/* 상단 내비게이션 */}
       <SiteNavbarSignedIn />
 
-      {/* Main Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto py-8">
-        {/* 제목/버튼/부제목 */}
+      {/* 메인 */}
+      <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* 헤더 섹션 */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">Projects</h1>
-            <Button
-              variant="default"
-              onClick={handleCreateProject}
-              disabled={creatingProject || !userId}
-              className="flex items-center mt-2"
-              aria-label="New project"
-              tabIndex={0}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {creatingProject ? 'Creating...' : 'New Project'}
-            </Button>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Projects</h1>
+              <p className="text-sm text-muted-foreground">Create, manage, and explore your storyboard projects.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="default"
+                onClick={handleCreateProject}
+                disabled={creatingProject || !userId}
+                className="flex items-center"
+                aria-label="New project"
+                tabIndex={0}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {creatingProject ? 'Creating...' : 'New Project'}
+              </Button>
+            </div>
           </div>
         </div>
-        {/* 메인 상단: 검색창(좌), 뷰모드 버튼(우) */}
+
+        {/* 툴바: 검색 + 뷰 토글 */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="relative flex-1 flex-shrink-0">
+          <div className="relative flex-1">
             <input
               type="text"
               placeholder="Search projects..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               disabled={!userId}
-              className="w-full border border-input bg-background rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-ring pr-10 h-10 disabled:opacity-50 disabled:cursor-not-allowed placeholder-muted-foreground"
-              style={{ color: 'hsl(var(--foreground))' }}
               aria-label="Search projects"
               tabIndex={0}
+              className="w-full h-11 rounded-full bg-muted/50 border border-border px-4 pr-10 text-sm outline-none ring-0 focus-visible:ring-2 focus-visible:ring-ring transition disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted-foreground"
             />
-            <Search
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
-              style={{ color: 'hsl(var(--muted-foreground))' }}
-            />
+            <span className="hidden sm:flex items-center justify-center absolute right-10 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground border border-border rounded-md px-1.5 py-0.5">/</span>
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           </div>
-          <div className="flex flex-row-reverse gap-4 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setViewMode('grid')}
-              disabled={!userId}
-              aria-label="Grid view"
-              tabIndex={0}
-              className=""
-            >
-              <Grid className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
+          <div className="inline-flex rounded-full border border-border p-1 bg-muted/40">
+            <button
+              type="button"
               onClick={() => setViewMode('list')}
               disabled={!userId}
               aria-label="List view"
-              tabIndex={0}
-              className=""
+              aria-pressed={viewMode === 'list'}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setViewMode('list') }}
+              className={`h-9 px-3 rounded-full text-sm transition ${
+                viewMode === 'list' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
             >
-              <List className="w-5 h-5" />
-            </Button>
+              <span className="inline-flex items-center gap-2">
+                <List className="w-4 h-4" />
+                <span className="hidden sm:inline">List</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              disabled={!userId}
+              aria-label="Grid view"
+              aria-pressed={viewMode === 'grid'}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setViewMode('grid') }}
+              className={`h-9 px-3 rounded-full text-sm transition ${
+                viewMode === 'grid' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Grid className="w-4 h-4" />
+                <span className="hidden sm:inline">Grid</span>
+              </span>
+            </button>
           </div>
         </div>
 
         {/* Loading states and error handling */}
         {!isLoaded ? (
           <div className="text-center py-12">
-            <div
-              className="rounded-lg shadow-lg p-8 border"
-              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-            >
-              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <div className="rounded-xl border bg-card p-8 shadow-sm">
+              <div className="mb-4 text-muted-foreground">
                 <svg className="mx-auto h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
@@ -207,21 +220,18 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+              <h3 className="text-lg font-medium mb-2">
                 Loading...
               </h3>
-              <p style={{ color: 'hsl(var(--muted-foreground))' }}>
+              <p className="text-muted-foreground">
                 Please wait while we check your authentication status.
               </p>
             </div>
           </div>
         ) : !userId ? (
           <div className="text-center py-12">
-            <div
-              className="rounded-lg shadow-lg p-8 border"
-              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-            >
-              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <div className="rounded-xl border bg-card p-8 shadow-sm">
+              <div className="mb-4 text-muted-foreground">
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -236,21 +246,30 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+              <h3 className="text-lg font-medium mb-2">
                 Please sign in
               </h3>
-              <p className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              <p className="mb-4 text-muted-foreground">
                 You need to be signed in to view your projects.
               </p>
             </div>
           </div>
+        ) : isLoading ? (
+          <div
+            className={`grid gap-6 md:gap-8 ${
+              viewMode === 'grid'
+                ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 justify-items-center'
+                : 'grid-cols-1'
+            }`}
+          >
+            {Array.from({ length: viewMode === 'grid' ? 6 : 3 }).map((_, i) => (
+              <div key={i} className="w-full max-w-[440px] h-[260px] rounded-2xl border bg-muted/40 animate-pulse" />
+            ))}
+          </div>
         ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <div
-              className="rounded-lg shadow-lg p-8 border"
-              style={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-            >
-              <div className="mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <div className="rounded-xl border bg-card p-8 shadow-sm">
+              <div className="mb-4 text-muted-foreground">
                 <svg
                   className="mx-auto h-12 w-12"
                   fill="none"
@@ -265,10 +284,10 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+              <h3 className="text-lg font-medium mb-2">
                 {searchTerm ? 'No projects found' : 'You have no projects yet'}
               </h3>
-              <p className="mb-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              <p className="mb-6 text-muted-foreground">
                 {searchTerm
                   ? 'Try a different search term.'
                   : 'Get started by creating your first project.'}
@@ -288,7 +307,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div
-            className={`grid gap-8 ${
+            className={`grid gap-6 md:gap-8 ${
               viewMode === 'grid'
                 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 justify-items-center'
                 : 'grid-cols-1'
@@ -306,16 +325,6 @@ export default function DashboardPage() {
                 isDuplicating={duplicatingProjects.has(project.id)}
               />
             ))}
-
-            {/* 백그라운드 동기화 표시 */}
-            {isLoading && projects.length > 0 && (
-              <div
-                className="fixed top-4 right-4 text-xs opacity-50 px-2 py-1 rounded"
-                style={{ color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--muted))' }}
-              >
-                Background sync in progress
-              </div>
-            )}
           </div>
         )}
       </main>

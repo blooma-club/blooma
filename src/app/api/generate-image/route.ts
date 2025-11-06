@@ -1,13 +1,16 @@
 import { NextRequest } from 'next/server'
-import { createErrorHandler, createApiResponse } from '@/lib/errors/handlers'
+import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors/handlers'
 import { ApiError } from '@/lib/errors/api'
 import { imageGenerationSchema } from '@/lib/validation/schemas'
 import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/fal-ai'
+import { getCreditCostForModel, InsufficientCreditsError } from '@/lib/credits-utils'
+import { consumeCredits, refundCredits } from '@/lib/credits'
 
 const handleError = createErrorHandler('api/generate-image')
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await requireAuth()
     const falKeyConfigured = !!process.env.FAL_KEY?.trim()?.length
     if (!falKeyConfigured) {
       console.warn('[API] FAL_KEY is not configured. Image requests will use placeholder output.')
@@ -65,6 +68,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API] Generating image with model: ${effectiveModelId}`)
 
+    // 모델 코스트 기반 선차감 (실패/플레이스홀더 시 환불)
+    const fallbackCategory = modelInfo.category === 'inpainting'
+      ? 'IMAGE_EDIT'
+      : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
+    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory)
+    try {
+      await consumeCredits(userId, creditCost)
+    } catch (e) {
+      if (e instanceof InsufficientCreditsError) {
+        throw ApiError.forbidden('Insufficient credits')
+      }
+      throw e
+    }
+
     const result = await generateImageWithModel(validated.prompt, effectiveModelId, {
       style: validated.style,
       aspectRatio: validated.aspectRatio,
@@ -76,8 +93,15 @@ export async function POST(request: NextRequest) {
     })
 
     if (!result.success) {
+      // 실패 시 환불
+      await refundCredits(userId, creditCost)
       const status = typeof result.status === 'number' && result.status >= 400 ? result.status : 500
       throw ApiError.externalApiError(result.error || 'Image generation failed', { status })
+    }
+
+    // 플레이스홀더 결과면 환불 (경고 메시지로 판단)
+    if (result.warning && /placeholder/i.test(result.warning)) {
+      await refundCredits(userId, creditCost)
     }
 
     const warnings = [result.warning, modelOverrideWarning].filter(
@@ -91,7 +115,6 @@ export async function POST(request: NextRequest) {
       modelInfo: {
         name: modelInfo.name,
         description: modelInfo.description,
-        quality: modelInfo.quality,
       },
       ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
     })

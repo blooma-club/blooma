@@ -23,8 +23,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google latest image generation model, highest quality and accuracy',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'detailed', 'artistic', 'cinematic'],
-    quality: 'high',
     cost: 3,
     inputSchema: {
       prompt: 'string',
@@ -40,8 +38,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Imagen 4 ultra high quality version, maximum detail and accuracy',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'ultra-detailed', 'artistic', 'cinematic'],
-    quality: 'high',
     cost: 4,
     inputSchema: {
       prompt: 'string',
@@ -57,8 +53,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Flux 1.1 Pro high quality generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'ultra-detailed', 'artistic', 'cinematic'],
-    quality: 'high',
     cost: 4,
     inputSchema: {
       prompt: 'string',
@@ -74,8 +68,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
     category: 'inpainting',
     maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'high',
     cost: 3,
     inputSchema: {
       prompt: 'string',
@@ -90,8 +82,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'ByteDance Seedream 4.0 Edit - unified image generation and editing model',
     category: 'inpainting',
     maxResolution: '2048x2048',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'high',
     cost: 2,
     inputSchema: {
       prompt: 'string',
@@ -109,8 +99,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Gemini 2.5 Flash Image for generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed'],
-    quality: 'high',
     cost: 3,
     inputSchema: {
       prompt: 'string',
@@ -124,8 +112,6 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'ByteDance Seedream 4.0 - unified architecture for image generation and editing',
     category: 'image-generation',
     maxResolution: '4096x4096',
-    stylePresets: ['photorealistic', 'artistic', 'cinematic', 'detailed', 'commercial'],
-    quality: 'high',
     cost: 3,
     inputSchema: {
       prompt: 'string',
@@ -137,115 +123,89 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       enable_safety_checker: 'boolean?'
     }
   },
+  // Veo 3.1 Image to Video
   {
-    id: 'fal-ai/minimax/video-01',
-    name: 'Minimax Image-to-Video',
-    description: 'Generate a short video from a single image.',
+    id: 'fal-ai/veo3.1/image-to-video',
+    name: 'Veo 3.1 Image to Video',
+    description: 'Google Veo 3.1 image-to-video generation model.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'dynamic'],
-    quality: 'balanced',
-    cost: 20,
-    inputSchema: {
-      image_url: 'string',
-      prompt: 'string?',
-    },
-  },
-  {
-    id: 'fal-ai/vidu/q1/start-end-to-video',
-    name: 'VIDU Start-End to Video Q1',
-    description: 'Generate a video by combining selected start and end frames.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'dynamic'],
-    quality: 'high',
-    cost: 40,
-    inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      reference_images: 'list<string>?',
-      prompt: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/wan-flf2v',
-    name: 'WAN FLF2V',
-    description: 'WAN start-end frame aware image-to-video generation.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'stylized'],
-    quality: 'high',
-    cost: 40,
-    inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      prompt: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/vidu/start-end-to-video',
-    name: 'VIDU Start-End to Video',
-    description: 'VIDU start/end guided video synthesis from storyboard frames.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'photorealistic'],
-    quality: 'high',
-    cost: 40,
-    inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      prompt: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-    name: 'Kling Video v2.5 Turbo',
-    description: 'Kling Video v2.5 Turbo start/end frame guided video generation.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'dynamic'],
-    quality: 'high',
-    cost: 40,
-    inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      prompt: 'string?'
-    }
-  },
-  {
-    id: 'fal-ai/kling-video/v1.6/pro/image-to-video',
-    name: 'Kling Video v1.6 Pro',
-    description: 'Kling Video v1.6 Pro start/end frame aware video generator.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'dynamic'],
-    quality: 'high',
     cost: 30,
     inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      prompt: 'string?'
+      image_url: 'string',
+      prompt: 'string',
+      aspect_ratio: 'string?',
+      duration: 'string?',
+      generate_audio: 'boolean?',
+      resolution: 'string?',
+    },
+  },
+  // Veo 3.1 First Frame to End Frame
+  {
+    id: 'fal-ai/veo3.1/first-last-frame-to-video',
+    name: 'Veo 3.1 First-Last Frame to Video',
+    description: 'Google Veo 3.1 first and last frame guided video generation.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    cost: 40,
+    inputSchema: {
+      first_frame_url: 'string',
+      last_frame_url: 'string',
+      prompt: 'string',
+      duration: 'string?',
+      aspect_ratio: 'string?',
+      resolution: 'string?',
+      generate_audio: 'boolean?',
     }
   },
+  // Kling 2.1 Pro - Start Frame to End Frame
   {
     id: 'fal-ai/kling-video/v2.1/pro/image-to-video',
     name: 'Kling Video v2.1 Pro',
-    description: 'Kling Video v2.1 Pro video creation between selected frames.',
+    description: 'Kling Video v2.1 Pro start/end frame guided video generation.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    stylePresets: ['cinematic', 'dynamic'],
-    quality: 'high',
-    cost: 30,
+    cost: 40,
     inputSchema: {
-      start_frame: 'number',
-      end_frame: 'number',
-      frames: 'list<string>?',
-      prompt: 'string?'
+      image_url: 'string',
+      tail_image_url: 'string?',
+      prompt: 'string?',
+      duration: 'string?',
+      aspect_ratio: 'string?',
+      negative_prompt: 'string?',
+      cfg_scale: 'number?',
+    }
+  },
+  // Kling 2.5 Turbo Pro - Image to Video
+  {
+    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+    name: 'Kling Video v2.5 Turbo Pro',
+    description: 'Kling Video v2.5 Turbo Pro image-to-video generation model.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    cost: 50,
+    inputSchema: {
+      image_url: 'string',
+      prompt: 'string',
+      duration: 'string?',
+      negative_prompt: 'string?',
+      cfg_scale: 'number?',
+    }
+  },
+  // Kling 2.5 Turbo Standard - Image to Video
+  {
+    id: 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
+    name: 'Kling Video v2.5 Turbo Standard',
+    description: 'Kling Video v2.5 Turbo Standard image-to-video generation model.',
+    category: 'video-generation',
+    maxResolution: '1920x1080',
+    cost: 40,
+    inputSchema: {
+      image_url: 'string',
+      prompt: 'string',
+      duration: 'string?',
+      negative_prompt: 'string?',
+      cfg_scale: 'number?',
     }
   }
 ]
@@ -254,16 +214,14 @@ export const FAL_AI_MODELS: FalAIModel[] = [
 export const DEFAULT_MODEL = 'fal-ai/gemini-25-flash-image'
 
 export const IMAGE_TO_VIDEO_MODEL_IDS = [
-  'fal-ai/minimax/video-01',
+  'fal-ai/veo3.1/image-to-video',
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+  'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
 ]
 
 export const START_TO_END_FRAME_MODEL_IDS = [
-  'fal-ai/vidu/q1/start-end-to-video',
-  'fal-ai/wan-flf2v',
-  'fal-ai/vidu/start-end-to-video',
-  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-  'fal-ai/kling-video/v1.6/pro/image-to-video',
-  'fal-ai/kling-video/v2.1/pro/image-to-video'
+  'fal-ai/veo3.1/first-last-frame-to-video',
+  'fal-ai/kling-video/v2.1/pro/image-to-video',
 ]
 
 // Fal AI 클라이언트 초기화
@@ -979,9 +937,13 @@ export function isTextToImageModel(modelId: string): boolean {
 }
 
 // PromptDock에서 사용할 모델 목록 (generate는 t2i만, edit는 i2i만)
+// 비디오 모드는 getVideoModelsForSelection(count)를 사용해야 함 (선택 개수에 따라 다른 모델 반환)
 export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIModel[] {
   if (mode === 'video') {
-    return START_TO_END_FRAME_MODEL_IDS.map(id => getModelInfo(id)).filter(
+    // video 모드는 getVideoModelsForSelection(count)를 사용해야 함
+    // 여기서는 기본값으로 image-to-video 모델만 반환 (하위 호환성)
+    console.warn('[getModelsForMode] video mode should use getVideoModelsForSelection(count) instead')
+    return IMAGE_TO_VIDEO_MODEL_IDS.map(id => getModelInfo(id)).filter(
       (model): model is FalAIModel => Boolean(model)
     )
   }

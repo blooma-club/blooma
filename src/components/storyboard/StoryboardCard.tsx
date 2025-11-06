@@ -1,7 +1,7 @@
 'use client'
 
-import React from 'react'
-import { Trash2, Info, LoaderCircle, Play, X } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Trash2, Info, Upload } from 'lucide-react'
 import Image from 'next/image'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { RATIO_TO_CSS } from '@/lib/constants'
@@ -19,15 +19,9 @@ interface StoryboardCardProps {
   onOpen?: () => void
   onEdit?: () => void
   onDelete?: () => void
+  onImageUpload?: (file: File) => Promise<void>
   deleting?: boolean
-  videoUrl?: string
-  onGenerateVideo?: () => void
-  onPlayVideo?: () => void
-  onStopVideo?: () => void
-  isGeneratingVideo?: boolean
   aspectRatio?: StoryboardAspectRatio
-  isVideoActive?: boolean
-  videoPlayingUrl?: string
   onCardClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
@@ -42,23 +36,79 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   onOpen,
   onEdit,
   onDelete,
+  onImageUpload,
   deleting = false,
-  videoUrl,
-  onGenerateVideo,
-  onPlayVideo,
-  onStopVideo,
-  isGeneratingVideo = false,
   aspectRatio = '16:9',
-  isVideoActive = false,
-  videoPlayingUrl,
   onCardClick,
 }) => {
   void description
+  const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
   const imageBoxStyle: React.CSSProperties = {
     aspectRatio: RATIO_TO_CSS[aspectRatio],
   }
-  const isVideoShowing = Boolean(isVideoActive && videoPlayingUrl)
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onImageUpload && e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only set dragging to false if leaving the card entirely
+    if (e.currentTarget === e.target) {
+      setIsDragging(false)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (!onImageUpload) return
+
+    const file = e.dataTransfer.files?.[0]
+    if (!file || !file.type.startsWith('image/')) return
+
+    setIsUploading(true)
+    try {
+      await onImageUpload(file)
+    } catch (error) {
+      console.error('Upload failed:', error)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !onImageUpload) return
+
+    setIsUploading(true)
+    try {
+      await onImageUpload(file)
+    } catch (error) {
+      console.error('Upload failed:', error)
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
 
   return (
     <div className="group relative flex flex-col rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-black shadow-lg hover:shadow-xl transition-shadow overflow-hidden h-full">
@@ -107,10 +157,25 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         )}
       </div>
 
+      {/* Hidden file input */}
+      {onImageUpload && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+      )}
+
       {/* Image area */}
       <div
         className="relative w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
         style={imageBoxStyle}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         {imageUrl ? (
           <Image
@@ -158,31 +223,40 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             {sceneLabel}
           </div>
         )}
-        {isVideoShowing && videoPlayingUrl && (
-          <div className="absolute inset-0 z-30 bg-black">
-            <video
-              src={videoPlayingUrl}
-              controls
-              autoPlay
-              playsInline
-              className="h-full w-full object-cover"
-            />
-            {onStopVideo && (
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation()
-                  onStopVideo()
-                }}
-                aria-label="Close video"
-                className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-white hover:text-black opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+        
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-indigo-500/90 backdrop-blur-sm border-2 border-dashed border-white/80">
+            <Upload className="w-8 h-8 text-white mb-2" />
+            <p className="text-white text-sm font-medium">Drop image here</p>
           </div>
         )}
-        {onOpen && !isVideoShowing && (
+        
+        {/* Upload button (bottom-right, visible on hover) */}
+        {onImageUpload && !isUploading && !isDragging && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fileInputRef.current?.click()
+            }}
+            className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all opacity-0 group-hover:opacity-100 shadow-lg backdrop-blur-sm border border-neutral-200/80 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-200"
+            aria-label="Upload image"
+          >
+            <Upload className="w-3 h-3" />
+            Upload
+          </button>
+        )}
+        
+        {/* Uploading overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-2" />
+            <p className="text-white text-sm font-medium">Uploading...</p>
+          </div>
+        )}
+        
+        {onOpen && (
           <button
             type="button"
             onClick={e => {
@@ -212,45 +286,6 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
       </div>
 
       {/* Content removed (title/description hidden for image-only cards) */}
-      {(onGenerateVideo || videoUrl) && (
-        <div className="absolute bottom-3 right-3 flex gap-2 pointer-events-none z-40">
-          {!isVideoShowing && videoUrl && onPlayVideo ? (
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation()
-                onPlayVideo()
-              }}
-              aria-label="Play video"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/40 transition pointer-events-auto bg-black/70 text-white hover:bg-white hover:text-black"
-            >
-              <Play className="h-4 w-4" />
-            </button>
-          ) : null}
-
-          {!videoUrl && onGenerateVideo ? (
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation() // 이벤트 전파 방지
-                onGenerateVideo()
-              }}
-              disabled={isGeneratingVideo}
-              className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold pointer-events-auto transition opacity-0 group-hover:opacity-100 ${
-                isGeneratingVideo
-                  ? 'bg-neutral-700 text-neutral-300 cursor-not-allowed'
-                  : 'bg-black/70 text-white border border-white/40 hover:bg-white hover:text-black'
-              }`}
-            >
-              {isGeneratingVideo ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
-          ) : null}
-        </div>
-      )}
     </div>
   )
 }

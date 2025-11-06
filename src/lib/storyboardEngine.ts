@@ -5,6 +5,8 @@ import { uploadImageToR2 } from './r2'
 import { queryD1 } from './db/d1'
 import { extractBackgrounds, type BackgroundCandidate } from './backgroundExtractor'
 import { backgroundManager, type BackgroundMetadata } from './backgroundManager'
+import { CREDIT_COSTS, getCreditCostForModel, InsufficientCreditsError } from './credits-utils'
+import { consumeCredits, refundCredits } from './credits'
 
 export interface FrameRecord {
   id: string
@@ -38,6 +40,7 @@ export interface FrameRecord {
 export interface StoryboardRecord {
   id: string
   projectId?: string
+  ownerId?: string
   script: string
   aspectRatio: string
   style: string
@@ -106,6 +109,7 @@ export async function createStoryboard(params: {
       modelLabel: string
     }>
   }>
+  ownerId?: string
 }) {
   // Allow callers to provide a top-level title (extracted earlier). If not provided,
   // attempt to extract it here. If a top title exists we strip it from the script
@@ -227,6 +231,7 @@ export async function createStoryboard(params: {
   const record: StoryboardRecord = {
     id: storyboardId,
     projectId: params.projectId,
+    ownerId: params.ownerId,
     script: params.rawScript,
     aspectRatio: params.aspectRatio,
     style: params.style,
@@ -587,7 +592,31 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
       // Update frame status to generating
       frame.status = 'generating'
       
+      // 프레임 단위 크레딧 선차감 (모델 코스트 기반)
+      let consumedForThisFrame = false
+      const frameModelId = record.aiModel || DEFAULT_MODEL
+      const frameCreditCost = getCreditCostForModel(frameModelId, 'IMAGE')
       try {
+        if (record.ownerId) {
+          try {
+            await consumeCredits(record.ownerId, frameCreditCost)
+            consumedForThisFrame = true
+          } catch (e) {
+            if (e instanceof InsufficientCreditsError) {
+              console.warn(`[Engine] Insufficient credits for owner ${record.ownerId}. Stopping at frame ${i}.`)
+              frame.status = 'error'
+              frame.error = 'Insufficient credits'
+              try {
+                await updateCardRecord(record.projectId ?? storyboardId, i, {
+                  storyboard_status: 'error',
+                })
+              } catch {}
+              break
+            }
+            throw e
+          }
+        }
+        
         // Generate image using the frame's imagePrompt
         if (frame.imagePrompt) {
           const result = await generateImageWithModel(
@@ -650,6 +679,11 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
             } catch (dbError) {
               console.error(`[Engine] Database update error for frame ${i}:`, dbError)
             }
+
+            // 플레이스홀더 경고가 있는 경우 차감 환불
+            if (consumedForThisFrame && result.warning && /placeholder/i.test(result.warning)) {
+              try { await refundCredits(record.ownerId as string, frameCreditCost) } catch {}
+            }
           } else {
             throw new Error(result.error || 'Image generation failed')
           }
@@ -659,6 +693,9 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
         } else {
           frame.status = 'error'
           frame.error = 'No image prompt available'
+          if (consumedForThisFrame && record.ownerId) {
+            try { await refundCredits(record.ownerId, frameCreditCost) } catch {}
+          }
         }
       } catch (error) {
         console.error(`[Engine] Failed to generate image for frame ${i}:`, error)
@@ -672,6 +709,10 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
           })
         } catch (dbError) {
           console.error(`[Engine] Database error status update error for frame ${i}:`, dbError)
+        }
+        // 실패 시 환불 (선차감된 경우)
+        if (record.ownerId) {
+          try { await refundCredits(record.ownerId, frameCreditCost) } catch {}
         }
       }
       

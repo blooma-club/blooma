@@ -26,12 +26,13 @@ export interface VideoGenerationResult {
   rawUrl: string
 }
 
-const DEFAULT_MODEL = 'fal-ai/minimax/video-01'
+const DEFAULT_MODEL = 'fal-ai/veo3.1/image-to-video'
 
 const START_END_MODELS = new Set(START_TO_END_FRAME_MODEL_IDS)
+const VEO_START_END_MODELS = new Set([
+  'fal-ai/veo3.1/first-last-frame-to-video',
+])
 const KLING_START_END_MODELS = new Set([
-  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-  'fal-ai/kling-video/v1.6/pro/image-to-video',
   'fal-ai/kling-video/v2.1/pro/image-to-video',
 ])
 
@@ -71,7 +72,18 @@ function extractVideoUrl(submission: unknown, modelId: string): string {
   const stack: unknown[] = [submission]
   const seen = new Set<unknown>()
 
-  while (stack.length) {
+  // Veo 모델의 경우 video.url 형태로 응답이 올 수 있음
+  if (typeof submission === 'object' && submission !== null) {
+    const record = submission as Record<string, unknown>
+    if (record.video && typeof record.video === 'object' && record.video !== null) {
+      const video = record.video as Record<string, unknown>
+      if (typeof video.url === 'string' && isLikelyVideoUrl(video.url)) {
+        videoUrl = video.url
+      }
+    }
+  }
+
+  while (stack.length && !videoUrl) {
     const current = stack.pop()
     if (!current || seen.has(current)) continue
     seen.add(current)
@@ -196,25 +208,54 @@ export async function generateVideoFromImage({
 
   const input: Record<string, unknown> = {
     prompt: prompt || 'Animate this storyboard frame as a short cinematic clip',
-    aspect_ratio: aspectRatio,
-    seconds: durationSeconds,
   }
 
-  if (guidanceScale !== undefined) input.guidance_scale = guidanceScale
-  if (negativePrompt) input.negative_prompt = negativePrompt
-  if (seed !== undefined) input.seed = seed
-
-  if (requiresStartEnd) {
-    if (KLING_START_END_MODELS.has(resolvedModel)) {
+  // Veo 3.1 Image to Video는 image_url만 필요
+  if (!requiresStartEnd && resolvedModel === 'fal-ai/veo3.1/image-to-video') {
+    input.image_url = startImage
+    if (aspectRatio) input.aspect_ratio = aspectRatio === '16:9' ? '16:9' : aspectRatio === '9:16' ? '9:16' : '16:9'
+    input.duration = '8s'
+    input.generate_audio = true
+    input.resolution = '720p'
+  } else if (requiresStartEnd) {
+    if (VEO_START_END_MODELS.has(resolvedModel)) {
+      input.first_frame_url = startImage
+      input.last_frame_url = endImage
+      if (aspectRatio) {
+        const veoAspectRatio = aspectRatio === '16:9' ? '16:9' : aspectRatio === '9:16' ? '9:16' : aspectRatio === '1:1' ? '1:1' : 'auto'
+        input.aspect_ratio = veoAspectRatio
+      } else {
+        input.aspect_ratio = 'auto'
+      }
+      input.duration = '8s'
+      input.generate_audio = true
+      input.resolution = '720p'
+    } else if (KLING_START_END_MODELS.has(resolvedModel)) {
       input.image_url = startImage
       input.tail_image_url = endImage
+      if (aspectRatio) input.aspect_ratio = aspectRatio
+      if (durationSeconds) input.duration = durationSeconds === 10 ? '10' : '5'
+      if (guidanceScale !== undefined) input.cfg_scale = guidanceScale
+      if (negativePrompt) input.negative_prompt = negativePrompt
     } else {
       input.start_image_url = startImage
       input.end_image_url = endImage
+      if (aspectRatio) input.aspect_ratio = aspectRatio
+      if (durationSeconds) input.seconds = durationSeconds
     }
   } else {
     input.image_url = startImage
+    if (aspectRatio) input.aspect_ratio = aspectRatio
+    if (durationSeconds) input.seconds = durationSeconds
   }
+
+  if (guidanceScale !== undefined && !KLING_START_END_MODELS.has(resolvedModel)) {
+    input.guidance_scale = guidanceScale
+  }
+  if (negativePrompt && !KLING_START_END_MODELS.has(resolvedModel)) {
+    input.negative_prompt = negativePrompt
+  }
+  if (seed !== undefined) input.seed = seed
 
   const submission: unknown = await fal.subscribe(resolvedModel, {
     input,

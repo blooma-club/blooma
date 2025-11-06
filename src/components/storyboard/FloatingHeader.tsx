@@ -163,7 +163,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 h-8 text-sm font-medium rounded-md border border-neutral-200/50 dark:border-neutral-700/50 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-all duration-200 flex-shrink-0 text-neutral-700 dark:text-neutral-300"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 h-8 text-sm font-medium rounded-md border border-neutral-200/80 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-all duration-200 flex-shrink-0 text-neutral-700 dark:text-neutral-300"
           title="Back to Dashboard"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -171,7 +171,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         </button>
 
         {/* 구분선 */}
-        <div className="h-5 w-px bg-neutral-200/60 dark:bg-neutral-700/60" />
+        <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
 
         {/* 프로젝트 제목 편집 */}
         {projectId && projectTitle && (
@@ -182,7 +182,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
                 value={editValue}
                 onChange={e => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="w-[200px] text-sm font-medium bg-transparent border-0 border-b-2 border-neutral-900 dark:border-white focus:outline-none focus:ring-0 px-0 py-1 text-neutral-900 dark:text-white"
+                className="w-[200px] text-sm font-semibold bg-transparent border-0 border-b-2 border-neutral-900 dark:border-white focus:outline-none focus:ring-0 px-0 py-1 text-neutral-900 dark:text-white transition-colors duration-200"
                 autoFocus
                 disabled={isUpdating}
                 placeholder="Enter project title"

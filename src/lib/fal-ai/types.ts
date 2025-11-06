@@ -11,8 +11,6 @@ export interface FalAIModel {
   description: string
   category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting' | 'video-generation'
   maxResolution: string
-  stylePresets: string[]
-  quality: 'fast' | 'balanced' | 'high'
   cost: number
   inputSchema: FalAIInputSchema
 }
@@ -50,8 +48,6 @@ export function isFalAIModel(obj: unknown): obj is FalAIModel {
     typeof model.category === 'string' &&
     ['image-generation', 'image-enhancement', 'upscaling', 'inpainting', 'video-generation'].includes(model.category) &&
     typeof model.maxResolution === 'string' &&
-    Array.isArray(model.stylePresets) &&
-    model.stylePresets.every((preset: unknown) => typeof preset === 'string') &&
     typeof model.cost === 'number' &&
     typeof model.inputSchema === 'object' &&
     model.inputSchema !== null

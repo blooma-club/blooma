@@ -1,51 +1,13 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { Save, X } from 'lucide-react'
 import type { StoryboardFrame } from '@/types/storyboard'
-import type { Card, Character } from '@/types'
-import {
-  buildCharacterSnippet,
-  getCharacterMentionSlug,
-  resolveCharacterMentions,
-  buildPromptWithCharacterMentions,
-} from '@/lib/characterMentions'
+import type { Card } from '@/types'
 import { useCards } from '@/lib/api'
-import { DEFAULT_MODEL, getModelsForMode } from '@/lib/fal-ai'
-import { useBackgroundStore } from '@/store/backgrounds'
-import {
-  createUniqueBackground,
-  validateBackgroundInput,
-  isDuplicateBackground,
-} from '@/lib/backgroundExtractor'
-import { EditTab as EditTabComponent, DetailsTab, HistoryTab } from './frame-edit-tabs'
 
-type TabName = 'edit' | 'details' | 'history'
-type ToolId = 'bananaReplacement' | 'colorAdjust' | 'lightingFix' | 'cleanup'
-type BananaToolMode = 'brush' | 'erase'
-
-const TOOL_OPTIONS: Array<{ id: ToolId; name: string; description: string }> = [
-  {
-    id: 'bananaReplacement',
-    name: 'Banana Replacement',
-    description: 'Replace bananas with new hero products.',
-  },
-  { id: 'colorAdjust', name: 'Color Adjust', description: 'Tune saturation and white balance.' },
-  {
-    id: 'lightingFix',
-    name: 'Lighting Fix',
-    description: 'Rebalance exposure, highlights, and shadows.',
-  },
-  { id: 'cleanup', name: 'Cleanup', description: 'Remove blemishes or distracting elements.' },
-]
-
-const DEFAULT_BANANA_SETTINGS: { mode: BananaToolMode; productName: string; prompt: string } = {
-  mode: 'brush',
-  productName: '',
-  prompt: '',
-}
-
-const MODAL_HEIGHT = 'min(85vh, 640px)'
+const MODAL_HEIGHT = 'min(85vh, 700px)'
 
 export interface FrameEditModalProps {
   frame: StoryboardFrame
@@ -59,154 +21,12 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     ...frame,
     imageHistory: frame.imageHistory ?? [],
   })
-  const [activeTab, setActiveTab] = useState<TabName>('edit')
-  const [selectedTool, setSelectedTool] = useState<ToolId>('bananaReplacement')
-  const [bananaToolSettings, setBananaToolSettings] = useState(DEFAULT_BANANA_SETTINGS)
+  const [isSaving, setIsSaving] = useState(false)
   const { cards, updateCards } = useCards(projectId)
-  const [characters, setCharacters] = useState<Character[]>([])
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState(false)
-  const models = useMemo(() => getModelsForMode('generate'), [])
-  const [selectedModelId, setSelectedModelId] = useState<string>(
-    models.find(model => model.id === DEFAULT_MODEL)?.id ?? models[0]?.id ?? DEFAULT_MODEL
-  )
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
-  const [generationError, setGenerationError] = useState<string | null>(null)
-  const [generationMessage, setGenerationMessage] = useState<string | null>(null)
-  const [generationWarning, setGenerationWarning] = useState<string | null>(null)
-  const selectedModel = useMemo(
-    () => models.find(model => model.id === selectedModelId),
-    [models, selectedModelId]
-  )
-
-  // Background management
-  const { backgrounds, addCustomBackground } = useBackgroundStore()
-  const [isAddingBackground, setIsAddingBackground] = useState(false)
-  const [customBackgroundInput, setCustomBackgroundInput] = useState('')
-  const [backgroundInputError, setBackgroundInputError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (models.length === 0) return
-    const found = models.some(model => model.id === selectedModelId)
-    if (!found) {
-      setSelectedModelId(models[0].id)
-    }
-  }, [models, selectedModelId])
 
   useEffect(() => {
     setDraft({ ...frame, imageHistory: frame.imageHistory ?? [] })
-    setActiveTab('details')
-    setSelectedTool('bananaReplacement')
-    setBananaToolSettings(DEFAULT_BANANA_SETTINGS)
-    setGenerationError(null)
-    setGenerationMessage(null)
-    setGenerationWarning(null)
   }, [frame])
-
-  useEffect(() => {
-    if (!projectId) {
-      setCharacters([])
-      return
-    }
-
-    let isMounted = true
-
-    const fetchCharacters = async () => {
-      setIsLoadingCharacters(true)
-
-      try {
-        const response = await fetch(
-          `/api/characters?project_id=${encodeURIComponent(projectId)}`,
-          {
-            credentials: 'include',
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch characters: ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        if (!isMounted) return
-        setCharacters(data.characters ?? [])
-      } catch (error) {
-        console.warn('[FrameEditModal] Failed to load characters:', error)
-        if (isMounted) {
-          setCharacters([])
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingCharacters(false)
-        }
-      }
-    }
-
-    fetchCharacters()
-    return () => {
-      isMounted = false
-    }
-  }, [projectId])
-
-  const characterPromptSnippets = useMemo(() => {
-    return characters
-      .map(character => {
-        const slug = getCharacterMentionSlug(character.name || '')
-        const snippet = buildCharacterSnippet(character)
-        return {
-          id: character.id,
-          name: character.name || 'Character',
-          imageUrl: character.image_url || character.original_image_url || null,
-          snippet,
-          slug,
-        }
-      })
-      .filter(character => character.slug)
-  }, [characters])
-
-  const handleInsertCharacter = (slug: string) => {
-    if (!slug) return
-    const mention = `@${slug}`
-    setDraft(prev => {
-      const current = prev.imagePrompt || ''
-      const separator = current.trim() ? (current.endsWith('\n') ? '' : '\n') : ''
-      const nextPrompt = `${current}${separator}${mention}`
-      return { ...prev, imagePrompt: nextPrompt }
-    })
-  }
-
-  const handleAddCustomBackground = () => {
-    const trimmedInput = customBackgroundInput.trim()
-
-    const validationError = validateBackgroundInput(trimmedInput)
-    if (validationError) {
-      setBackgroundInputError(validationError)
-      return
-    }
-
-    if (isDuplicateBackground(trimmedInput, backgrounds)) {
-      setBackgroundInputError('This background already exists or is too similar to an existing one')
-      return
-    }
-
-    const newBackground = createUniqueBackground(trimmedInput)
-    addCustomBackground(newBackground)
-
-    setDraft(prev => ({
-      ...prev,
-      backgroundId: newBackground.id,
-      background: newBackground.description,
-    }))
-
-    setCustomBackgroundInput('')
-    setBackgroundInputError(null)
-    setIsAddingBackground(false)
-  }
-
-  const handleCancelAddBackground = () => {
-    setCustomBackgroundInput('')
-    setBackgroundInputError(null)
-    setIsAddingBackground(false)
-  }
 
   const handleSelectHistoryImage = (imageUrl: string) => {
     if (!imageUrl) return
@@ -230,254 +50,265 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     })
   }
 
-  const handleRegenerateImage = async () => {
-    const prompt = draft.imagePrompt?.trim()
-    if (!prompt) {
-      setGenerationError('Add an image prompt before regenerating.')
-      setGenerationMessage(null)
-      setGenerationWarning(null)
-      return
-    }
-
-    setIsGeneratingImage(true)
-    setGenerationError(null)
-    setGenerationMessage(null)
-    setGenerationWarning(null)
-
+  const handleSave = async () => {
+    setIsSaving(true)
     try {
-      const mentionMatches = resolveCharacterMentions(prompt, characters)
-      const requestPrompt = buildPromptWithCharacterMentions(prompt, mentionMatches)
-      const mentionImageUrls = Array.from(new Set(mentionMatches.flatMap(match => match.imageUrls)))
+      const cleanedHistory = Array.from(
+        new Set(
+          (draft.imageHistory ?? []).filter(url => typeof url === 'string' && url.trim().length > 0)
+        )
+      )
+      const currentCards = cards || []
+      const updatedCards = currentCards.map((card: Card) =>
+        card.id === draft.id
+          ? {
+              ...card,
+              scene_number: draft.scene,
+              shot_description: draft.shotDescription,
+              shot_type: draft.shot,
+              dialogue: draft.dialogue,
+              sound: draft.sound,
+              image_url: draft.imageUrl,
+              image_urls: cleanedHistory,
+              background: draft.background || null,
+            }
+          : card
+      )
 
-      const payload: Record<string, unknown> = {
-        prompt: requestPrompt,
-        modelId: selectedModelId || DEFAULT_MODEL,
-      }
-
-      if (mentionImageUrls.length > 0) {
-        payload.imageUrls = mentionImageUrls
-      }
-
-      if (draft.imageUrl) {
-        payload.image_url = draft.imageUrl
-      }
-
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      const json = (await response.json().catch(() => ({}))) as {
-        imageUrl?: string
-        error?: string
-        warning?: string
-      }
-
-      if (!response.ok || !json?.imageUrl) {
-        const errorMessage = json?.error || 'Failed to regenerate image.'
-        throw new Error(errorMessage)
-      }
-
-      setDraft(prev => {
-        const previousImage = prev.imageUrl
-        const existingHistory = Array.isArray(prev.imageHistory) ? prev.imageHistory : []
-        const nextHistory = previousImage
-          ? [previousImage, ...existingHistory.filter(url => url !== previousImage)]
-          : existingHistory
-
-        return {
-          ...prev,
-          imageUrl: json.imageUrl,
-          imageHistory: Array.from(new Set(nextHistory)),
-        }
-      })
-
-      if (json.warning) {
-        setGenerationWarning(json.warning)
-      }
-
-      setGenerationMessage('Image regenerated successfully.')
+      await updateCards(updatedCards)
+      onSaved?.(draft)
+      onClose()
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unexpected error while regenerating image.'
-      setGenerationError(message)
+      console.error('Failed to save frame:', error)
     } finally {
-      setIsGeneratingImage(false)
+      setIsSaving(false)
     }
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const cleanedHistory = Array.from(
-      new Set(
-        (draft.imageHistory ?? []).filter(url => typeof url === 'string' && url.trim().length > 0)
-      )
-    )
-    const currentCards = cards || []
-    const updatedCards = currentCards.map((card: Card) =>
-      card.id === draft.id
-        ? {
-            ...card,
-            scene_number: draft.scene,
-            shot_description: draft.shotDescription,
-            shot_type: draft.shot,
-            dialogue: draft.dialogue,
-            sound: draft.sound,
-            image_prompt: draft.imagePrompt,
-            image_url: draft.imageUrl,
-            image_urls: cleanedHistory,
-            selected_image_url: 0,
-            background: draft.background || null,
-          }
-        : card
-    )
-
-    await updateCards(updatedCards)
-    onSaved?.(draft)
-    onClose()
-  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Frame editor"
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       <div
-        className="relative w-full max-w-5xl overflow-hidden rounded-xl border border-gray-700 bg-gray-900 shadow-xl"
+        className="relative w-full max-w-6xl overflow-hidden rounded-3xl border border-zinc-200/80 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700/50 dark:bg-zinc-900 dark:text-zinc-100"
         style={{ height: MODAL_HEIGHT }}
       >
-        <div className="flex h-full flex-col md:flex-row">
-          <div className="relative flex h-full w-full items-center justify-center bg-gray-900 md:w-1/2">
-            {draft.imageUrl ? (
-              <div className="relative h-full w-full">
-                <Image src={draft.imageUrl} alt="frame" fill className="object-contain" />
-              </div>
-            ) : (
-              <div className="text-xs text-gray-400">No image</div>
-            )}
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-200 bg-gradient-to-r from-zinc-50 to-zinc-100 px-6 py-4 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-800">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Frame Information</h2>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Shot {draft.scene} • {draft.shot || 'Unknown'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-2 top-2 rounded-md bg-black/80 px-2 py-1 text-[11px] text-white hover:bg-black"
+              className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              aria-label="Close"
             >
-              Close
+              <X className="h-5 w-5" />
             </button>
-            <div className="absolute bottom-2 left-2 rounded bg-gray-800/80 px-2 py-0.5 text-[11px] font-light text-white backdrop-blur">
-              Shot {draft.scene}
+          </div>
+        </div>
+
+        <div className="flex h-[calc(100%-73px)] flex-col md:flex-row">
+          {/* Left: Image + Prompt */}
+          <div className="relative flex h-full w-full flex-col border-r border-zinc-200 dark:border-zinc-800 md:w-1/2">
+            <div className="relative flex-1 bg-gradient-to-br from-zinc-100 to-zinc-50 dark:from-zinc-950 dark:to-zinc-900">
+              {draft.imageUrl ? (
+                <div className="relative h-full w-full p-4">
+                  <Image
+                    src={draft.imageUrl}
+                    alt="frame"
+                    fill
+                    className="rounded-lg object-contain shadow-lg"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-zinc-400">
+                  No image available
+                </div>
+              )}
+            </div>
+            {/* Prompt */}
+            <div className="border-t border-zinc-200 bg-zinc-50/80 px-4 py-3 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Image Prompt
+              </div>
+              <div className="max-h-20 overflow-auto text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
+                {draft.imagePrompt?.trim() || 'No prompt provided'}
+              </div>
             </div>
           </div>
-          <div className="flex h-full w-full flex-col overflow-hidden p-6 text-sm md:w-1/2">
-            <form onSubmit={handleSubmit} className="flex h-full flex-col overflow-hidden">
-              <div className="mb-2">
-                <h3 className="text-sm font-semibold text-white">Frame editing</h3>
-              </div>
-              <div className="mb-4 flex items-center gap-2 border-b border-gray-700">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('edit')}
-                  className={`px-4 py-2 text-xs font-medium transition-colors ${
-                    activeTab === 'edit'
-                      ? 'border-b-2 border-white text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('details')}
-                  className={`px-4 py-2 text-xs font-medium transition-colors ${
-                    activeTab === 'details'
-                      ? 'border-b-2 border-white text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
+
+          {/* Right: Editable details + history */}
+          <div className="flex h-full w-full flex-col overflow-hidden md:w-1/2">
+            <div className="flex-1 space-y-6 overflow-y-auto p-6">
+              {/* Editable Details */}
+              <section>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
                   Details
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('history')}
-                  className={`px-4 py-2 text-xs font-medium transition-colors ${
-                    activeTab === 'history'
-                      ? 'border-b-2 border-white text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  History
-                </button>
-              </div>
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="scene" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Scene
+                      </label>
+                      <input
+                        id="scene"
+                        type="number"
+                        value={draft.scene ?? ''}
+                        onChange={e => setDraft(prev => ({ ...prev, scene: parseInt(e.target.value) || 0 }))}
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="shot" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Shot Type
+                      </label>
+                      <input
+                        id="shot"
+                        type="text"
+                        value={draft.shot || ''}
+                        onChange={e => setDraft(prev => ({ ...prev, shot: e.target.value }))}
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                        placeholder="e.g., Medium, Close-up"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-                {activeTab === 'edit' ? (
-                  <EditTabComponent
-                    selectedTool={selectedTool}
-                    onSelectTool={setSelectedTool}
-                    bananaToolSettings={bananaToolSettings}
-                    onBananaToolSettingsChange={setBananaToolSettings}
-                  />
-                ) : activeTab === 'details' ? (
-                  <DetailsTab
-                    draft={draft}
-                    onDraftChange={setDraft}
-                    backgrounds={backgrounds}
-                    onAddBackgroundClick={() => setIsAddingBackground(true)}
-                    isAddingBackground={isAddingBackground}
-                    customBackgroundInput={customBackgroundInput}
-                    onCustomBackgroundInputChange={setCustomBackgroundInput}
-                    backgroundInputError={backgroundInputError}
-                    onBackgroundInputErrorChange={setBackgroundInputError}
-                    onAddCustomBackground={handleAddCustomBackground}
-                    onCancelAddBackground={handleCancelAddBackground}
-                    selectedModelId={selectedModelId}
-                    onModelChange={setSelectedModelId}
-                    models={models}
-                    selectedModel={selectedModel}
-                    characterPromptSnippets={characterPromptSnippets}
-                    onInsertCharacter={handleInsertCharacter}
-                    isLoadingCharacters={isLoadingCharacters}
-                  />
-                ) : (
-                  <HistoryTab
-                    imageHistory={draft.imageHistory ?? []}
-                    onSelectHistoryImage={handleSelectHistoryImage}
-                  />
-                )}
-              </div>
+                  <div>
+                    <label htmlFor="shotDescription" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Shot Description
+                    </label>
+                    <textarea
+                      id="shotDescription"
+                      value={draft.shotDescription || ''}
+                      onChange={e => setDraft(prev => ({ ...prev, shotDescription: e.target.value }))}
+                      rows={3}
+                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      placeholder="Describe the shot..."
+                    />
+                  </div>
 
-              {(generationError || generationMessage || generationWarning) &&
-              activeTab === 'details' ? (
-                <div className="mt-2 space-y-1 text-xs">
-                  {generationMessage && <p className="text-emerald-400">{generationMessage}</p>}
-                  {generationWarning && <p className="text-amber-300">{generationWarning}</p>}
-                  {generationError && <p className="text-red-400">{generationError}</p>}
+                  <div>
+                    <label htmlFor="dialogue" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Dialogue
+                    </label>
+                    <textarea
+                      id="dialogue"
+                      value={draft.dialogue || ''}
+                      onChange={e => setDraft(prev => ({ ...prev, dialogue: e.target.value }))}
+                      rows={2}
+                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      placeholder="Character dialogue..."
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="sound" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Sound
+                    </label>
+                    <textarea
+                      id="sound"
+                      value={draft.sound || ''}
+                      onChange={e => setDraft(prev => ({ ...prev, sound: e.target.value }))}
+                      rows={2}
+                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      placeholder="Sound effects, music..."
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="background" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Background
+                    </label>
+                    <input
+                      id="background"
+                      type="text"
+                      value={draft.background || ''}
+                      onChange={e => setDraft(prev => ({ ...prev, background: e.target.value }))}
+                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      placeholder="Background setting..."
+                    />
+                  </div>
                 </div>
-              ) : null}
+              </section>
 
-              <div className="mt-4 flex justify-end gap-2 border-t border-gray-700 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded border border-gray-600 px-4 py-1.5 text-xs text-gray-300 transition-colors hover:border-gray-500 hover:text-white"
-                >
-                  Cancel
-                </button>
-                {activeTab === 'details' ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleRegenerateImage()}
-                    className="rounded bg-indigo-500 px-5 py-1.5 text-xs text-white transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={isGeneratingImage}
-                  >
-                    {isGeneratingImage ? 'Regenerating…' : 'Regenerate Image'}
-                  </button>
-                ) : null}
-                <button
-                  type="submit"
-                  className="rounded bg-white px-5 py-1.5 text-xs text-black transition-colors hover:bg-gray-200"
-                >
-                  Save
-                </button>
-              </div>
-            </form>
+              {/* History */}
+              <section>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                  Image History
+                </h3>
+                {Array.isArray(draft.imageHistory) && draft.imageHistory.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-2">
+                    {draft.imageHistory.map((url, idx) => (
+                      <button
+                        key={`${url}-${idx}`}
+                        type="button"
+                        onClick={() => handleSelectHistoryImage(url)}
+                        aria-label={`Select history image ${idx + 1}`}
+                        className={`group relative aspect-square overflow-hidden rounded-lg transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                          draft.imageUrl === url
+                            ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/30'
+                            : 'ring-1 ring-zinc-200 hover:ring-zinc-300 dark:ring-zinc-700 dark:hover:ring-zinc-600'
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`History ${idx + 1}`} className="h-full w-full object-cover" />
+                        {draft.imageUrl === url && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/20 backdrop-blur-[1px]">
+                            <div className="rounded-full bg-indigo-600 p-1 shadow-lg">
+                              <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 py-8 dark:border-zinc-700 dark:bg-zinc-800/50">
+                    <svg
+                      className="mb-2 h-8 w-8 text-zinc-400 dark:text-zinc-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">No history available</p>
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         </div>
       </div>

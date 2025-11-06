@@ -68,9 +68,9 @@ export default function Home() {
   const signOut = useOptionalSignOut()
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ backgroundColor: 'hsl(var(--background))' }}>
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header - Linear Style: Fixed, Transparent with Blur */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-white/5">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-black/10 dark:border-white/5 bg-background/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -100,7 +100,7 @@ export default function Home() {
                     if (!isLoaded) return
                     router.push('/auth')
                   }}
-                  className="text-sm font-medium text-neutral-400 hover:text-white transition-colors"
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   aria-label="Login"
                   tabIndex={0}
                 >
@@ -124,8 +124,8 @@ export default function Home() {
                           unoptimized
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center">
-                          <span className="text-xs font-medium text-white">
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                          <span className="text-xs font-medium text-foreground">
                             {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
                           </span>
                         </div>
@@ -133,18 +133,17 @@ export default function Home() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className="w-48 border-neutral-800"
-                    style={{ backgroundColor: 'hsl(var(--background))' }}
+                    className="w-48 border-border bg-popover"
                     align="end"
                   >
-                    <div className="px-3 py-2 border-b border-neutral-800">
-                      <p className="text-sm text-neutral-400 truncate">
+                    <div className="px-3 py-2 border-b border-border">
+                      <p className="text-sm text-muted-foreground truncate">
                         {user.primaryEmailAddress?.emailAddress}
                       </p>
                     </div>
                     <DropdownMenuItem
                       onClick={() => signOut()}
-                      className="text-white hover:bg-neutral-800 cursor-pointer"
+                      className="text-foreground hover:bg-accent cursor-pointer"
                     >
                       Sign Out
                     </DropdownMenuItem>
@@ -158,26 +157,26 @@ export default function Home() {
       {/* Hero Section - Linear Style */}
       <section className="relative pt-32 pb-20 px-4 overflow-hidden">
         {/* Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/5 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/5 dark:via-violet-950/5 to-transparent pointer-events-none" />
         
         <div className="relative max-w-6xl mx-auto">
           {/* Badge */}
           <div className="flex justify-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-sm font-medium text-neutral-300">Introducing AI Storyboard</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+              <span className="text-sm font-medium text-foreground/80">Introducing AI Storyboard</span>
             </div>
           </div>
 
           {/* Main Heading - Gradient Text with Instrument Serif */}
           <h1 className="text-center mb-6 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
-            <span className="block text-6xl sm:text-7xl md:text-8xl lg:text-[110px] font-regular tracking-tight leading-[1.1] font-instrument-serif bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent">
+            <span className="block text-6xl sm:text-7xl md:text-8xl lg:text-[110px] font-regular tracking-tight leading-[1.1] font-instrument-serif bg-gradient-to-br from-foreground via-foreground to-foreground/60 dark:from-white dark:via-white dark:to-white/40 bg-clip-text text-transparent">
               Now, you are a director
             </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-center text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+          <p className="text-center text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
             Create stunning storyboards with AI. From script to visual narrative in minutes.
           </p>
 
@@ -188,7 +187,7 @@ export default function Home() {
                 if (!isLoaded) return
                 router.push(user ? '/dashboard' : '/auth')
               }}
-              className="px-6 py-3 text-sm font-medium bg-white text-black hover:bg-white/90 transition-all duration-200"
+              className="px-6 py-3 text-sm font-medium bg-foreground text-background hover:bg-foreground/90 dark:bg-white dark:text-black dark:hover:bg-white/90 transition-all duration-200"
               aria-label="Get Started"
               tabIndex={0}
             >
@@ -200,7 +199,7 @@ export default function Home() {
                 const featuresSection = document.getElementById('features')
                 featuresSection?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="px-6 py-3 text-sm font-medium border-white/10 text-white hover:bg-white/5 transition-all duration-200"
+              className="px-6 py-3 text-sm font-medium border-border dark:border-white/10 text-foreground dark:text-white hover:bg-accent dark:hover:bg-white/5 transition-all duration-200"
               aria-label="Learn More"
               tabIndex={0}
             >
@@ -213,7 +212,7 @@ export default function Home() {
             <div className="group relative flex items-center justify-center min-h-[400px] sm:min-h-[500px] perspective-1500 transform-style-3d">
               {/* Left Card */}
               <div
-                className="absolute left-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-8 sm:group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
+                className="absolute left-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-border/50 dark:border-white/10 bg-card/50 dark:bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:-translate-x-8 sm:group-hover:-translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
                 style={{
                   aspectRatio: '16/9',
                   zIndex: 1,
@@ -232,7 +231,7 @@ export default function Home() {
 
               {/* Center Main Card - Featured */}
               <div
-                className="relative w-[90%] sm:w-full max-w-3xl rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 bg-neutral-900/50 backdrop-blur-sm shadow-2xl shadow-violet-500/10 transition-all duration-700 ease-out group-hover:scale-105 hover:shadow-[0_25px_80px_-15px_rgba(139,92,246,0.3)] cursor-pointer"
+                className="relative w-[90%] sm:w-full max-w-3xl rounded-xl sm:rounded-2xl overflow-hidden border border-border dark:border-white/20 bg-card/50 dark:bg-neutral-900/50 backdrop-blur-sm shadow-2xl shadow-violet-500/10 transition-all duration-700 ease-out group-hover:scale-105 hover:shadow-[0_25px_80px_-15px_rgba(139,92,246,0.3)] cursor-pointer"
                 style={{
                   aspectRatio: '16/9',
                   zIndex: 3,
@@ -252,7 +251,7 @@ export default function Home() {
 
               {/* Right Card */}
               <div
-                className="absolute right-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-8 sm:group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
+                className="absolute right-0 w-[85%] sm:w-[36rem] rounded-xl sm:rounded-2xl overflow-hidden border border-border/50 dark:border-white/10 bg-card/50 dark:bg-neutral-900/50 backdrop-blur-sm shadow-2xl opacity-80 translate-x-0 scale-95 transition-all duration-700 ease-out group-hover:opacity-100 group-hover:translate-x-8 sm:group-hover:translate-x-20 group-hover:scale-90 hover:scale-100 cursor-pointer"
                 style={{
                   aspectRatio: '16/9',
                   zIndex: 1,
@@ -278,10 +277,10 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           {/* Section Header */}
           <div className="text-center mb-20">
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight text-white mb-6">
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight text-foreground mb-6">
               Built for creative minds
             </h2>
-            <p className="text-lg text-neutral-400 max-w-2xl mx-auto">
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Everything you need to transform ideas into visual stories
             </p>
           </div>
@@ -289,34 +288,34 @@ export default function Home() {
           {/* Features Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+            <div className="group relative p-8 rounded-2xl border border-border/50 dark:border-white/5 bg-gradient-to-b from-black/[0.02] dark:from-white/[0.02] to-transparent hover:border-border dark:hover:border-white/10 transition-all duration-300">
               <div className="mb-6 w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-                <Sparkles className="w-6 h-6 text-violet-400" />
+                <Sparkles className="w-6 h-6 text-violet-600 dark:text-violet-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">AI-Powered Generation</h3>
-              <p className="text-neutral-400 leading-relaxed">
+              <h3 className="text-xl font-semibold text-foreground mb-3">AI-Powered Generation</h3>
+              <p className="text-muted-foreground leading-relaxed">
                 Transform your script into stunning visual storyboards with advanced AI technology
               </p>
             </div>
 
             {/* Feature 2 */}
-            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+            <div className="group relative p-8 rounded-2xl border border-border/50 dark:border-white/5 bg-gradient-to-b from-black/[0.02] dark:from-white/[0.02] to-transparent hover:border-border dark:hover:border-white/10 transition-all duration-300">
               <div className="mb-6 w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                <Film className="w-6 h-6 text-blue-400" />
+                <Film className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Cinematic Quality</h3>
-              <p className="text-neutral-400 leading-relaxed">
+              <h3 className="text-xl font-semibold text-foreground mb-3">Cinematic Quality</h3>
+              <p className="text-muted-foreground leading-relaxed">
                 Professional-grade visuals that bring your creative vision to life instantly
               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className="group relative p-8 rounded-2xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-white/10 transition-all duration-300">
+            <div className="group relative p-8 rounded-2xl border border-border/50 dark:border-white/5 bg-gradient-to-b from-black/[0.02] dark:from-white/[0.02] to-transparent hover:border-border dark:hover:border-white/10 transition-all duration-300">
               <div className="mb-6 w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
-                <Zap className="w-6 h-6 text-amber-400" />
+                <Zap className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Lightning Fast</h3>
-              <p className="text-neutral-400 leading-relaxed">
+              <h3 className="text-xl font-semibold text-foreground mb-3">Lightning Fast</h3>
+              <p className="text-muted-foreground leading-relaxed">
                 Create complete storyboards in minutes, not hours. Focus on creativity, not tedious work
               </p>
             </div>
@@ -325,7 +324,7 @@ export default function Home() {
       </section>
 
       {/* Footer - Linear Style */}
-      <footer className="relative border-t border-white/5 py-12 px-4">
+      <footer className="relative border-t border-border/50 dark:border-white/5 py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             {/* Logo & Copyright */}
@@ -338,9 +337,9 @@ export default function Home() {
                   height={24}
                   className="w-6 h-6"
                 />
-                <span className="text-sm font-medium text-white">Blooma</span>
+                <span className="text-sm font-medium text-foreground">Blooma</span>
               </div>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-muted-foreground">
                 &copy; 2025 Blooma. All rights reserved.
               </p>
             </div>
@@ -349,19 +348,19 @@ export default function Home() {
             <div className="flex items-center gap-8">
               <a
                 href="/pricing"
-                className="text-sm text-neutral-400 hover:text-white transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Pricing
               </a>
               <a
                 href="/privacy"
-                className="text-sm text-neutral-400 hover:text-white transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Privacy
               </a>
               <a
                 href="/terms"
-                className="text-sm text-neutral-400 hover:text-white transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Terms
               </a>

@@ -96,11 +96,15 @@ export function createErrorHandler(
 
     // Zod 검증 에러 처리
     if (error instanceof ZodError) {
+      const issues = Array.isArray(error.errors) && error.errors.length > 0
+        ? error.errors.map(err => ({
+            path: Array.isArray(err.path) ? err.path.join('.') : String(err.path || ''),
+            message: err.message || 'Validation error',
+          }))
+        : [{ path: '', message: 'Validation failed' }]
+      
       const apiError = ApiError.unprocessableEntity('Validation failed', {
-        issues: error.errors.map(err => ({
-          path: err.path.join('.'),
-          message: err.message,
-        })),
+        issues,
       })
       if (context) {
         console.error(`[${context}] Validation error:`, error.errors)

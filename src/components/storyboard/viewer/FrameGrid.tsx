@@ -31,22 +31,17 @@ interface FrameGridProps {
   onFrameEdit: (frameId: string) => void
   onFrameDelete: (frameId: string) => void
   onAddFrame: (insertIndex?: number, duplicateFrameId?: string) => void
+  onImageUpload?: (frameId: string, file: File) => Promise<void>
   deletingFrameId?: string | null
+  isAddingFrame?: boolean
   loading?: boolean
   cardsLength?: number
-  onGenerateVideo?: (frameId: string) => void
-  onPlayVideo?: (frameId: string) => void
-  onStopVideo?: (frameId: string) => void
-  activeVideoFrameId?: string
-  activeVideoUrl?: string
-  generatingVideoId?: string | null
   aspectRatio?: StoryboardAspectRatio
   containerMaxWidth?: number
   cardWidth: number
   onReorder?: (fromIndex: number, toIndex: number) => void
   selectedFrameId?: string
   onBackgroundClick?: () => void
-  // 추가: 비디오 모드 멀티선택 지원
   mode?: 'generate' | 'edit' | 'video'
   selectedFrameIds?: string[]
   onCardSelect?: (id: string, e: React.MouseEvent) => void
@@ -73,7 +68,7 @@ const SideInsertButton = ({
       onClick={onClick}
       onMouseDown={stopPropagation}
       onTouchStart={stopPropagation}
-      className={`absolute top-1/2 -translate-y-1/2 ${positionClass} z-30 flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-neutral-600 bg-neutral-900 text-neutral-200 shadow transition-all duration-150 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:border-neutral-400 hover:text-neutral-100`}
+      className={`absolute top-1/2 -translate-y-1/2 ${positionClass} z-30 flex h-9 w-9 items-center justify-center rounded-full border border-dashed transition-all duration-200 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500 dark:focus-visible:outline-neutral-400 shadow-lg backdrop-blur-sm border-neutral-200/80 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 hover:border-neutral-900 dark:hover:border-white`}
       aria-label={label}
     >
       <Plus className="h-4 w-4" />
@@ -88,15 +83,11 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   onFrameEdit,
   onFrameDelete,
   onAddFrame,
+  onImageUpload,
   deletingFrameId = null,
+  isAddingFrame = false,
   loading = false,
   cardsLength = 0,
-  onGenerateVideo,
-  onPlayVideo,
-  onStopVideo,
-  activeVideoFrameId,
-  activeVideoUrl,
-  generatingVideoId = null,
   aspectRatio = '16:9',
   containerMaxWidth,
   cardWidth,
@@ -221,8 +212,6 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                 typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
                   ? clampCardWidth(frame.cardWidth)
                   : normalizedCardWidth
-              const isVideoActive = activeVideoFrameId === frame.id
-              const playingUrl = isVideoActive ? activeVideoUrl : undefined
 
               return (
                 <SortableFrameCard
@@ -235,19 +224,14 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onOpen={() => onFrameOpen(index)}
                   onEdit={() => onFrameEdit(frame.id)}
                   onDelete={() => onFrameDelete(frame.id)}
+                  onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
                   onAddBefore={() => onAddFrame(index, frame.id)}
                   onAddAfter={() => onAddFrame(index + 1, frame.id)}
-                  onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(frame.id) : undefined}
-                  onPlayVideo={onPlayVideo ? () => onPlayVideo(frame.id) : undefined}
-                  onStopVideo={onStopVideo ? () => onStopVideo(frame.id) : undefined}
-                  isGeneratingVideo={generatingVideoId === frame.id}
                   highlight={
                     activeId === frame.id ||
                     selectedFrameId === frame.id ||
                     (Array.isArray(selectedFrameIds) && selectedFrameIds.includes(frame.id))
                   }
-                  isVideoActive={isVideoActive}
-                  videoPlayingUrl={playingUrl}
                   onCardClick={e => {
                     if (onCardSelect) {
                       e.stopPropagation()
@@ -263,14 +247,30 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation() // 이벤트 전파 방지
-                onAddFrame()
+                if (!isAddingFrame) {
+                  onAddFrame()
+                }
               }}
-              className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/50 text-black dark:text-neutral-400 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              disabled={isAddingFrame}
+              className={`flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${
+                isAddingFrame
+                  ? 'border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-900/30 text-neutral-400 dark:text-neutral-500 cursor-not-allowed'
+                  : 'border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/50 text-black dark:text-neutral-400 hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
               style={{ aspectRatio: aspectValue }}
               aria-label="Add new frame"
             >
-              <Plus className="mb-1 h-7 w-7 text-black dark:text-neutral-400" />
-              <span className="text-sm font-medium text-black dark:text-neutral-400">Add new scene</span>
+              {isAddingFrame ? (
+                <>
+                  <div className="mb-1 h-7 w-7 border-2 border-neutral-400 dark:border-neutral-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium">Adding scene...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="mb-1 h-7 w-7 text-black dark:text-neutral-400" />
+                  <span className="text-sm font-medium text-black dark:text-neutral-400">Add new scene</span>
+                </>
+              )}
             </button>
           </div>
         </SortableContext>
@@ -311,15 +311,10 @@ type SortableFrameCardProps = {
   onOpen: () => void
   onEdit: () => void
   onDelete: () => void
+  onImageUpload?: (file: File) => Promise<void>
   onAddBefore: () => void
   onAddAfter: () => void
-  onGenerateVideo?: () => void
-  onPlayVideo?: () => void
-  onStopVideo?: () => void
-  isGeneratingVideo: boolean
   highlight: boolean
-  isVideoActive: boolean
-  videoPlayingUrl?: string
   onCardClick?: (e: React.MouseEvent) => void
 }
 
@@ -332,15 +327,10 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
   onOpen,
   onEdit,
   onDelete,
+  onImageUpload,
   onAddBefore,
   onAddAfter,
-  onGenerateVideo,
-  onPlayVideo,
-  onStopVideo,
-  isGeneratingVideo,
   highlight,
-  isVideoActive,
-  videoPlayingUrl,
   onCardClick,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -362,8 +352,8 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
       style={style}
       className={clsx(
         'group relative w-full cursor-grab active:cursor-grabbing rounded-lg',
-        isDragging && 'ring-2 ring-blue-500/80 shadow-lg',
-        highlight && !isDragging && 'ring-2 ring-blue-400/60'
+        isDragging && 'ring-2 ring-neutral-900/80 dark:ring-white/80 shadow-lg',
+        highlight && !isDragging && 'ring-2 ring-neutral-900 dark:ring-white'
       )}
       {...attributes}
       {...listeners}
@@ -385,15 +375,9 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         onOpen={onOpen}
         onEdit={onEdit}
         onDelete={onDelete}
+        onImageUpload={onImageUpload}
         onCardClick={onCardClick}
-        videoUrl={frame.videoUrl}
-        onGenerateVideo={onGenerateVideo}
-        onPlayVideo={onPlayVideo}
-        onStopVideo={onStopVideo}
-        isGeneratingVideo={isGeneratingVideo}
         aspectRatio={aspectRatio}
-        isVideoActive={isVideoActive}
-        videoPlayingUrl={videoPlayingUrl}
       />
 
       <SideInsertButton

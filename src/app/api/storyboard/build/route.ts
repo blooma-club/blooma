@@ -297,6 +297,7 @@ export async function POST(req: Request) {
       aiModel,
       characters,
       sceneMetadata,
+      ownerId: userId,
     })
 
     console.log('[STORYBOARD BUILD] Skipping storyboard table - creating cards directly')

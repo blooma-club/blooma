@@ -3,8 +3,10 @@ import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors
 import { ApiError } from '@/lib/errors/api'
 import { videoGenerationSchema } from '@/lib/validation/schemas'
 import { generateVideoFromImage } from '@/lib/videoProviders'
-import { START_TO_END_FRAME_MODEL_IDS } from '@/lib/fal-ai'
+import { START_TO_END_FRAME_MODEL_IDS, getModelInfo } from '@/lib/fal-ai'
 import { queryD1 } from '@/lib/db/d1'
+import { getCreditCostForModel, InsufficientCreditsError } from '@/lib/credits-utils'
+import { consumeCredits, refundCredits } from '@/lib/credits'
 
 const handleError = createErrorHandler('api/video/generate')
 
@@ -79,15 +81,36 @@ export async function POST(request: NextRequest) {
       normalizedStartImageUrl ?? effectiveImageUrl ?? primaryCard.image_url ?? null
     const resolvedEndImageUrl = normalizedEndImageUrl ?? verifiedEndCard?.image_url ?? null
 
-    const videoResult = await generateVideoFromImage({
-      projectId: validated.projectId,
-      frameId: validated.frameId,
-      imageUrl: effectiveImageUrl,
-      startImageUrl: resolvedStartImageUrl,
-      endImageUrl: resolvedEndImageUrl,
-      prompt: videoPrompt,
-      modelId: validated.modelId,
-    })
+    // 선차감 (실패 시 환불) - 모델 코스트 기반
+    const modelInfo = getModelInfo(validated.modelId)
+    if (!modelInfo) {
+      throw ApiError.badRequest(`Unsupported model: ${validated.modelId}`)
+    }
+    const creditCost = getCreditCostForModel(validated.modelId, 'VIDEO')
+    try {
+      await consumeCredits(userId, creditCost)
+    } catch (e) {
+      if (e instanceof InsufficientCreditsError) {
+        throw ApiError.forbidden('Insufficient credits')
+      }
+      throw e
+    }
+
+    let videoResult: Awaited<ReturnType<typeof generateVideoFromImage>>
+    try {
+      videoResult = await generateVideoFromImage({
+        projectId: validated.projectId,
+        frameId: validated.frameId,
+        imageUrl: effectiveImageUrl,
+        startImageUrl: resolvedStartImageUrl,
+        endImageUrl: resolvedEndImageUrl,
+        prompt: videoPrompt,
+        modelId: validated.modelId,
+      })
+    } catch (err) {
+      await refundCredits(userId, creditCost)
+      throw err
+    }
 
     return createApiResponse({
       videoUrl: videoResult.videoUrl,
