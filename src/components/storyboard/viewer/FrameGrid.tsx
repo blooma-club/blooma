@@ -229,8 +229,9 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   onAddAfter={() => onAddFrame(index + 1, frame.id)}
                   highlight={
                     activeId === frame.id ||
-                    selectedFrameId === frame.id ||
-                    (Array.isArray(selectedFrameIds) && selectedFrameIds.includes(frame.id))
+                    (mode === 'video'
+                      ? Array.isArray(selectedFrameIds) && selectedFrameIds.includes(frame.id)
+                      : selectedFrameId === frame.id)
                   }
                   onCardClick={e => {
                     if (onCardSelect) {

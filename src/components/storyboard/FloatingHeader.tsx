@@ -22,7 +22,7 @@ interface FloatingHeaderProps {
   projectId?: string
 }
 
-const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16']
+const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16']
 
 export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   title,

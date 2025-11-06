@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      validated.modelId &&
       START_TO_END_FRAME_MODEL_IDS.includes(validated.modelId) &&
       !normalizedEndImageUrl
     ) {
@@ -81,7 +80,7 @@ export async function POST(request: NextRequest) {
       normalizedStartImageUrl ?? effectiveImageUrl ?? primaryCard.image_url ?? null
     const resolvedEndImageUrl = normalizedEndImageUrl ?? verifiedEndCard?.image_url ?? null
 
-    // 선차감 (실패 시 환불) - 모델 코스트 기반
+    // 선차감 (실패 시 환불) - 모델 크레딧 기반
     const modelInfo = getModelInfo(validated.modelId)
     if (!modelInfo) {
       throw ApiError.badRequest(`Unsupported model: ${validated.modelId}`)

@@ -200,7 +200,6 @@ export function CharacterCreationPanel({
             prompt,
             modelId: model,
             aspectRatio: '3:4',
-            quality: 'balanced',
           }),
         })
         const data = await res.json()

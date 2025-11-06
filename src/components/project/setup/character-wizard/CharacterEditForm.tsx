@@ -47,7 +47,6 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
         prompt: fullPrompt,
         modelId: 'fal-ai/gemini-25-flash-image/edit',
         aspectRatio: '3:4',
-        quality: 'balanced',
         image_url: character.imageUrl, // Always use current image as reference
       }
 

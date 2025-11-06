@@ -59,7 +59,7 @@ export default function StoryboardPage() {
   useEffect(() => {
     if (projectId) {
       const savedRatio = loadProjectRatio(projectId)
-      if (savedRatio && ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16'].includes(savedRatio)) {
+      if (savedRatio && ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'].includes(savedRatio)) {
         setRatioState(savedRatio as StoryboardAspectRatio)
       }
     }
@@ -409,6 +409,12 @@ export default function StoryboardPage() {
     [index, derived.frames]
   )
 
+  // 비디오 모드 동기화용 정규화된 selectedFrameId (dependency array 일관성 유지)
+  const normalizedSelectedFrameId = useMemo(
+    () => selectedFrameId ?? '',
+    [selectedFrameId]
+  )
+
   // 현재 선택된 프레임 데이터 (편집 모달 등에서 사용)
   const selectedFrame = useMemo(
     () => (index >= 0 ? derived.frames[index] : null),
@@ -481,12 +487,23 @@ export default function StoryboardPage() {
     setVideoSelectedIds([])
   }, [])
 
-  // 모드 전환 시 비디오 선택 초기화
+  // 모드 전환 시 비디오 선택 동기화
   useEffect(() => {
-    if (promptDockMode !== 'video' && videoSelectedIds.length > 0) {
-      setVideoSelectedIds([])
+    if (promptDockMode !== 'video') {
+      // 비디오 모드가 아니면 비디오 선택 초기화
+      setVideoSelectedIds(prev => (prev.length > 0 ? [] : prev))
+    } else {
+      // 비디오 모드로 변경될 때, 이미 선택된 프레임이 있으면 videoSelectedIds에 추가
+      if (selectedFrameId) {
+        setVideoSelectedIds(prev => {
+          if (!prev.includes(selectedFrameId)) {
+            return [selectedFrameId]
+          }
+          return prev
+        })
+      }
     }
-  }, [promptDockMode, videoSelectedIds.length])
+  }, [promptDockMode, normalizedSelectedFrameId])
 
   // Grid에서 카드 클릭(Shift 멀티선택 포함) 처리
   const handleGridCardSelect = useCallback(
@@ -723,6 +740,7 @@ export default function StoryboardPage() {
             )}
 
             {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
+              <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
               <FrameGrid
                 frames={derived.frames}
                 mode={promptDockMode}
@@ -753,9 +771,11 @@ export default function StoryboardPage() {
                   }
                 }}
               />
+              </div>
             )}
 
             {derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
+              <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
               <FrameList
                 frames={derived.frames}
                 onFrameEdit={frameIndex => {
@@ -773,6 +793,7 @@ export default function StoryboardPage() {
                 aspectRatio={ratio}
                 selectedFrameId={selectedFrameId}
               />
+              </div>
             )}
           </>
         )}

@@ -23,7 +23,7 @@ export const CREDIT_COSTS = {
 type FallbackCategory = keyof typeof CREDIT_COSTS
 
 /**
- * 모델 정의에 포함된 cost를 우선 사용하여 크레딧 비용을 계산합니다.
+ * 모델 정의에 포함된 credits를 우선 사용하여 크레딧 비용을 계산합니다.
  * 모델 정보를 찾을 수 없을 때만 카테고리별 기본 비용으로 폴백합니다.
  */
 export function getCreditCostForModel(
@@ -31,9 +31,9 @@ export function getCreditCostForModel(
   fallbackCategory: FallbackCategory = 'IMAGE',
 ): number {
   const info = getModelInfo(modelId)
-  if (info && typeof info.cost === 'number' && Number.isFinite(info.cost) && info.cost > 0) {
-    // 모델 코스트를 정수로 반올림 (소수 비용이 올 수 있는 경우 대비)
-    return Math.ceil(info.cost)
+  if (info && typeof info.credits === 'number' && Number.isFinite(info.credits) && info.credits > 0) {
+    // 모델 크레딧을 정수로 반올림 (소수 비용이 올 수 있는 경우 대비)
+    return Math.ceil(info.credits)
   }
   return CREDIT_COSTS[fallbackCategory]
 }

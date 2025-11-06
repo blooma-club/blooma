@@ -55,12 +55,17 @@ export function createErrorResponse(
   const code = isApiError ? error.code || ErrorCodes.INTERNAL_ERROR : ErrorCodes.INTERNAL_ERROR
   const message = error.message || 'An unexpected error occurred'
 
+  // error.details가 객체인지 확인
+  const errorDetails = isApiError && error.details && typeof error.details === 'object' && error.details !== null
+    ? error.details
+    : undefined
+
   const response: StandardApiResponse = {
     success: false,
     error: {
       code,
       message,
-      ...(isApiError && error.details && { details: error.details }),
+      ...(errorDetails && { details: errorDetails }),
       ...(options?.includeStackTrace && process.env.NODE_ENV === 'development' && {
         stack: error.stack,
       }),
@@ -96,9 +101,10 @@ export function createErrorHandler(
 
     // Zod 검증 에러 처리
     if (error instanceof ZodError) {
-      const issues = Array.isArray(error.errors) && error.errors.length > 0
-        ? error.errors.map(err => ({
-            path: Array.isArray(err.path) ? err.path.join('.') : String(err.path || ''),
+      const zodIssues = error.issues || []
+      const issues = zodIssues.length > 0
+        ? zodIssues.map((err) => ({
+            path: Array.isArray(err.path) ? err.path.map(String).join('.') : String(err.path || ''),
             message: err.message || 'Validation error',
           }))
         : [{ path: '', message: 'Validation failed' }]
@@ -107,7 +113,7 @@ export function createErrorHandler(
         issues,
       })
       if (context) {
-        console.error(`[${context}] Validation error:`, error.errors)
+        console.error(`[${context}] Validation error:`, zodIssues)
       }
       return createErrorResponse(apiError, { context, requestId, ...options })
     }

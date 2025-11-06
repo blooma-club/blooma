@@ -65,7 +65,7 @@ export const cardInputSchema = z.object({
   video_prompt: z.string().max(5000).nullable().optional(),
   
   // 확장 메타데이터
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
 export type CardInputValidated = z.infer<typeof cardInputSchema>
@@ -146,7 +146,6 @@ export const imageGenerationSchema = z.object({
   modelId: z.string().min(1).optional(),
   style: z.string().max(200).optional(),
   aspectRatio: z.string().max(50).optional(),
-  quality: z.enum(['fast', 'balanced', 'high']).optional(),
   width: z.number().int().min(128).max(4096).optional(),
   height: z.number().int().min(128).max(4096).optional(),
   image_url: z.string().url().optional(),

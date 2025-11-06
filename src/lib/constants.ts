@@ -5,6 +5,7 @@ export const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
   '16:9': '16 / 9',
   '4:3': '4 / 3',
   '3:2': '3 / 2',
+  '1:1': '1 / 1',
   '2:3': '2 / 3',
   '3:4': '3 / 4',
   '9:16': '9 / 16',

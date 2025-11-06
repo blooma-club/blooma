@@ -11,7 +11,7 @@ export interface FalAIModel {
   description: string
   category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting' | 'video-generation'
   maxResolution: string
-  cost: number
+  credits: number
   inputSchema: FalAIInputSchema
 }
 
@@ -48,7 +48,7 @@ export function isFalAIModel(obj: unknown): obj is FalAIModel {
     typeof model.category === 'string' &&
     ['image-generation', 'image-enhancement', 'upscaling', 'inpainting', 'video-generation'].includes(model.category) &&
     typeof model.maxResolution === 'string' &&
-    typeof model.cost === 'number' &&
+    typeof model.credits === 'number' &&
     typeof model.inputSchema === 'object' &&
     model.inputSchema !== null
   )

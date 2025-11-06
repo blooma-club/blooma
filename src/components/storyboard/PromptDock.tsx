@@ -485,7 +485,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
             {/* 중간: 프롬프트 입력 영역 */}
             <div
-              className="flex items-end gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0"
+              className="flex items-center gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0"
             >
               {currentMode !== 'video' && (
                 <>
@@ -510,21 +510,19 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 </>
               )}
               {currentMode !== 'video' && promptImageDataUrl && (
-                <div
-                  className="relative group overflow-hidden rounded-md border border-input animate-in fade-in"
-                >
+                <div className="relative group overflow-hidden rounded-md ring-1 ring-border bg-muted/30 animate-in fade-in">
                   <img
                     src={promptImageDataUrl}
                     alt="Prompt reference preview"
-                    className="h-32 w-full object-cover"
+                    className="h-10 w-10 md:h-12 md:w-12 object-cover"
                   />
                   <button
                     type="button"
                     onClick={() => setPromptImageDataUrl(null)}
-                    className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-transparent bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-muted-foreground border border-border shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                     aria-label="Remove reference image"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3 w-3" />
                   </button>
                 </div>
               )}

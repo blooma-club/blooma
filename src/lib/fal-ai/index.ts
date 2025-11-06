@@ -23,7 +23,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google latest image generation model, highest quality and accuracy',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    cost: 3,
+    credits: 3,
     inputSchema: {
       prompt: 'string',
       negative_prompt: 'string?',
@@ -38,7 +38,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Imagen 4 ultra high quality version, maximum detail and accuracy',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    cost: 4,
+    credits: 4,
     inputSchema: {
       prompt: 'string',
       negative_prompt: 'string?',
@@ -53,7 +53,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Flux 1.1 Pro high quality generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    cost: 4,
+    credits: 4,
     inputSchema: {
       prompt: 'string',
       aspect_ratio: 'string?',
@@ -68,7 +68,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
     category: 'inpainting',
     maxResolution: '1024x1024',
-    cost: 3,
+    credits: 3,
     inputSchema: {
       prompt: 'string',
       image_urls: 'list<string>',
@@ -82,7 +82,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'ByteDance Seedream 4.0 Edit - unified image generation and editing model',
     category: 'inpainting',
     maxResolution: '2048x2048',
-    cost: 2,
+    credits: 2,
     inputSchema: {
       prompt: 'string',
       image_urls: 'list<string>',
@@ -99,7 +99,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Gemini 2.5 Flash Image for generation',
     category: 'image-generation',
     maxResolution: '1024x1024',
-    cost: 3,
+    credits: 3,
     inputSchema: {
       prompt: 'string',
       num_images: 'number?',
@@ -112,7 +112,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'ByteDance Seedream 4.0 - unified architecture for image generation and editing',
     category: 'image-generation',
     maxResolution: '4096x4096',
-    cost: 3,
+    credits: 3,
     inputSchema: {
       prompt: 'string',
       image_size: 'string | object?',
@@ -130,7 +130,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Veo 3.1 image-to-video generation model.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    cost: 30,
+    credits: 30,
     inputSchema: {
       image_url: 'string',
       prompt: 'string',
@@ -147,7 +147,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Google Veo 3.1 first and last frame guided video generation.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    cost: 40,
+    credits: 40,
     inputSchema: {
       first_frame_url: 'string',
       last_frame_url: 'string',
@@ -165,7 +165,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Kling Video v2.1 Pro start/end frame guided video generation.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    cost: 40,
+    credits: 40,
     inputSchema: {
       image_url: 'string',
       tail_image_url: 'string?',
@@ -183,7 +183,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Kling Video v2.5 Turbo Pro image-to-video generation model.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    cost: 50,
+    credits: 50,
     inputSchema: {
       image_url: 'string',
       prompt: 'string',
@@ -199,7 +199,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'Kling Video v2.5 Turbo Standard image-to-video generation model.',
     category: 'video-generation',
     maxResolution: '1920x1080',
-    cost: 40,
+    credits: 40,
     inputSchema: {
       image_url: 'string',
       prompt: 'string',
@@ -230,7 +230,8 @@ let falConfigured = false
 export function initializeFalAI(): boolean {
   if (falConfigured) return true
 
-  const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
+  // 서버 사이드에서만 사용 - NEXT_PUBLIC_ 접두사 사용 금지 (보안 위험)
+  const falKey = process.env.FAL_KEY
 
   if (!falKey) {
     console.warn('FAL_KEY is not configured. Image generation will not work.')
@@ -321,27 +322,6 @@ function mapAspectRatioToImageSize(aspectRatio?: string): [number, number] {
   }
 }
 
-function resolveSteps(quality?: 'fast' | 'balanced' | 'high'): number {
-  switch (quality) {
-    case 'high':
-      return 40
-    case 'fast':
-      return 18
-    default:
-      return 28
-  }
-}
-
-function resolveGuidance(quality?: 'fast' | 'balanced' | 'high'): number {
-  switch (quality) {
-    case 'high':
-      return 7
-    case 'fast':
-      return 3
-    default:
-      return 5
-  }
-}
 
 // 이미지 생성 함수 (통합)
 export async function generateImageWithModel(
@@ -352,7 +332,6 @@ export async function generateImageWithModel(
     aspectRatio?: string
     width?: number
     height?: number
-    quality?: 'fast' | 'balanced' | 'high'
     imageUrls?: string[] // For multi-image models like Gemini
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
@@ -371,8 +350,7 @@ export async function generateImageWithModel(
     return createPlaceholderImageResult('FAL_KEY is not configured. Placeholder image returned.')
   }
 
-  const hasCredentials =
-    !!process.env.FAL_KEY?.trim()?.length || !!process.env.NEXT_PUBLIC_FAL_KEY?.trim()?.length
+  const hasCredentials = !!process.env.FAL_KEY?.trim()?.length
 
   if (!hasCredentials) {
     console.warn('[FAL] No FAL credentials detected. Falling back to placeholder image.')
@@ -971,20 +949,14 @@ export function isImageToVideoModelId(id: string): boolean {
   return IMAGE_TO_VIDEO_MODEL_IDS.includes(id)
 }
 
-// 모델 비용 계산
-export function calculateModelCost(modelId: string, quality: 'fast' | 'balanced' | 'high' = 'balanced'): number {
+// 모델 크레딧 계산
+export function calculateModelCredits(modelId: string): number {
   const model = getModelInfo(modelId)
   if (!model) return 0
   
-  let costMultiplier = 1
-  switch (quality) {
-    case 'fast':
-      costMultiplier = 0.8
-      break
-    case 'high':
-      costMultiplier = 1.5
-      break
-  }
-  
-  return model.cost * costMultiplier
+  return model.credits
 }
+
+// 타입 re-export
+export type { FalAIModel, FalAIInputSchema, FalAISubmission, FalAIGenerationOptions, FalAIGenerationResult, FalAISubmissionUpdate, FalAIImageResult }
+export { isFalAIModel }
