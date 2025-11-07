@@ -127,7 +127,8 @@ export async function generateVoiceOverWithElevenLabs({
 }
 
 function ensureFalVoiceConfigured() {
-  const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
+  // 서버 사이드에서만 사용 - NEXT_PUBLIC_ 접두사 사용 금지 (보안 위험)
+  const falKey = process.env.FAL_KEY
   if (!falKey) {
     throw new Error('FAL_KEY is not configured for voice generation')
   }

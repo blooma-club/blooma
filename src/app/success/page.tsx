@@ -2,26 +2,20 @@ import Link from 'next/link'
 import { CheckCircle2, ArrowRight, Sparkles, Shield, GaugeCircle } from 'lucide-react'
 import SiteNavbar from '@/components/layout/SiteNavbar'
 import { Button } from '@/components/ui/button'
-
 type SuccessPageProps = {
+  params: Promise<Record<string, never>>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
-
-const decodeQueryParam = (value: string | string[] | undefined) => {
-  if (!value) {
-    return undefined
-  }
-
-  const firstValue = Array.isArray(value) ? value[0] : value
-
-  return firstValue ? decodeURIComponent(firstValue) : undefined
-}
-
 export default async function PaymentSuccessPage({ searchParams }: SuccessPageProps) {
   const resolvedSearchParams = await searchParams
-  const plan = decodeQueryParam(resolvedSearchParams.plan) ?? 'Blooma Studio'
-  const email = decodeQueryParam(resolvedSearchParams.email)
-
+  const planParam = Array.isArray(resolvedSearchParams.plan)
+    ? resolvedSearchParams.plan[0]
+    : resolvedSearchParams.plan
+  const emailParam = Array.isArray(resolvedSearchParams.email)
+    ? resolvedSearchParams.email[0]
+    : resolvedSearchParams.email
+  const plan = planParam ? decodeURIComponent(planParam) : 'Blooma Studio'
+  const email = emailParam ? decodeURIComponent(emailParam) : undefined
   const highlights = [
     {
       icon: Sparkles,
@@ -42,13 +36,11 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
         'Track throughput, review cycles, and approvals from a single dashboard so teams stay aligned as you scale.',
     },
   ]
-
   const nextSteps = [
     'Invite collaborators and set project roles',
     'Connect asset libraries or upload your first reference pack',
     'Configure brand kits so AI outputs match your visual language',
   ]
-
   return (
     <>
       <SiteNavbar />
@@ -82,21 +74,20 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
                     <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="w-full border-primary/30 text-primary sm:w-auto">
-                  <a
-                    href="/api/billing/portal"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2"
-                  >
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="w-full border-primary/30 text-primary sm:w-auto"
+                >
+                  <Link href="/dashboard/billing" className="inline-flex items-center gap-2">
                     Manage billing
                     <ArrowRight className="h-4 w-4" aria-hidden />
-                  </a>
+                  </Link>
                 </Button>
               </div>
             </div>
           </div>
-
           <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr]">
             <div className="rounded-3xl border border-border/60 bg-muted/30 p-8 backdrop-blur">
               <h2 className="text-xl font-semibold text-foreground">Here&apos;s what comes next</h2>
@@ -118,7 +109,6 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
                 ))}
               </ul>
             </div>
-
             <div className="flex flex-col gap-6">
               <div className="rounded-3xl border border-border/60 bg-background/80 p-8 shadow-lg shadow-primary/5">
                 <h2 className="text-xl font-semibold text-foreground">
@@ -146,7 +136,6 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
                   </div>
                 </dl>
               </div>
-
               <div className="rounded-3xl border border-primary/20 bg-primary/15 p-8 backdrop-blur">
                 <h3 className="text-base font-semibold text-primary">Need a hand?</h3>
                 <p className="mt-2 text-sm text-primary/90">
@@ -169,7 +158,6 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
               </div>
             </div>
           </div>
-
           <div className="rounded-3xl border border-border/60 bg-muted/30 p-8">
             <h2 className="text-xl font-semibold text-foreground">Why teams love {plan}</h2>
             <div className="mt-6 grid gap-6 md:grid-cols-3">

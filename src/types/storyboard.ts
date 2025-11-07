@@ -90,4 +90,4 @@ export interface StoryboardBuildResponse {
   error?: string
 }
 
-export type StoryboardAspectRatio = '16:9' | '4:3' | '3:2' | '2:3' | '3:4' | '9:16'
+export type StoryboardAspectRatio = '16:9' | '4:3' | '3:2' | '2:3' | '3:4' | '9:16' | '1:1'

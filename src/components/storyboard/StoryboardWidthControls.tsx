@@ -18,7 +18,7 @@ type StoryboardWidthControlsProps = {
   className?: string
 }
 
-const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '2:3', '3:4', '9:16']
+const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16']
 
 const PRESETS = [
   { label: 'Compact', value: 280 },
@@ -76,7 +76,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
     }
   }, [visible, onClose])
   return (
-    <div className={clsx('w-full sm:w-[208px]', className)}>
+    <div className={clsx('w-full sm:w-[208px] relative z-[60]', className)}>
       <div
         ref={cardRef}
         className={clsx(
@@ -91,6 +91,8 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
           borderColor: 'hsl(var(--border))',
           color: 'hsl(var(--popover-foreground))',
         }}
+        onMouseEnter={(e) => e.stopPropagation()}
+        onMouseLeave={(e) => e.stopPropagation()}
       >
         <div className="space-y-4">
           {/* 비율 드롭다운 */}

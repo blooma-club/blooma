@@ -12,9 +12,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, 'Clerk publishable key is required'),
   CLERK_SECRET_KEY: z.string().min(1).optional(), // Server-side only
   
-  // Fal AI
+  // Fal AI (서버 사이드 전용 - NEXT_PUBLIC_ 접두사 사용 금지)
   FAL_KEY: z.string().min(1, 'FAL_KEY is required').optional(),
-  NEXT_PUBLIC_FAL_KEY: z.string().min(1).optional(),
   
   // Cloudflare D1
   CLOUDFLARE_ACCOUNT_ID: z.string().min(1, 'Cloudflare Account ID is required').optional(),
@@ -40,7 +39,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
   // API Configuration
-  API_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default('30000'),
+  API_TIMEOUT: z.coerce.number().int().min(0).default(30000),
 })
 
 /**
@@ -58,7 +57,7 @@ export function validateEnv(): Env {
     return envSchema.parse(process.env)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const messages = error.errors.map((err) => `${err.path.join('.')}: ${err.message}`).join('\n')
+      const messages = error.issues.map((err) => `${err.path.map(String).join('.')}: ${err.message}`).join('\n')
       throw new Error(`Environment variable validation failed:\n${messages}`)
     }
     throw error
@@ -94,7 +93,7 @@ export function getEnv(): Env {
       ...process.env,
       NODE_ENV: 'production',
       API_TIMEOUT: '30000',
-    } as z.infer<typeof envSchema>)
+    } as Record<string, unknown>)
   }
 
   return cachedEnv
@@ -120,4 +119,3 @@ export function isDevelopment(): boolean {
 export function isProduction(): boolean {
   return getEnvVar('NODE_ENV') === 'production'
 }
-

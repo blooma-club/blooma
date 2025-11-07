@@ -46,7 +46,7 @@ export default function SiteNavbarSignedOut() {
           </Button>
         </div>
 
-        {/* 중앙: 네비게이션 */}
+        {/* 중앙: 네비게이션
         <nav className="hidden md:flex gap-10 absolute left-1/2 -translate-x-1/2">
           <a
             href="#features"
@@ -72,7 +72,7 @@ export default function SiteNavbarSignedOut() {
           >
             Contact
           </a>
-        </nav>
+        </nav> */}
 
         {/* 우측: Login만 */}
         <div className="flex-shrink-0 flex items-center gap-4">

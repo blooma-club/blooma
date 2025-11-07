@@ -50,7 +50,6 @@ export interface StoryboardRecord {
   title?: string
   // AI Model settings
   aiModel?: string
-  aiQuality?: 'fast' | 'balanced' | 'high'
   // Character references for image generation
   characters?: Array<{
     id: string
@@ -241,7 +240,6 @@ export async function createStoryboard(params: {
     title: detectedTop || 'Storyboard',
     // AI Model settings
     aiModel: params.aiModel,
-    aiQuality: 'balanced', // Default to balanced for image generation
     // Character references for image generation
     characters: params.characters || [],
     // Background consistency
@@ -592,7 +590,7 @@ async function processFramesAsync(storyboardId: string, record: StoryboardRecord
       // Update frame status to generating
       frame.status = 'generating'
       
-      // 프레임 단위 크레딧 선차감 (모델 코스트 기반)
+      // 프레임 단위 크레딧 선차감 (모델 크레딧 기반)
       let consumedForThisFrame = false
       const frameModelId = record.aiModel || DEFAULT_MODEL
       const frameCreditCost = getCreditCostForModel(frameModelId, 'IMAGE')

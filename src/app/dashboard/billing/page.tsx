@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import HobbyPlanCard from '@/components/billing/HobbyPlanCard'
+import PricingCard from '@/components/billing/pricingcard'
+import { PRICING_PLANS } from '@/app/pricing/page'
 import AccountDropdown from '@/components/ui/AccountDropdown'
 import ThemeToggle from '@/components/ui/theme-toggle'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
@@ -44,7 +45,10 @@ export default function BillingPage() {
           </p>
         </section>
 
-        <HobbyPlanCard className="max-w-lg border-primary/20 shadow-lg shadow-primary/10" />
+        <PricingCard
+          className="max-w-lg border-border/60 shadow-lg shadow-primary/10"
+          plan={PRICING_PLANS[0]}
+        />
       </main>
     </div>
   )

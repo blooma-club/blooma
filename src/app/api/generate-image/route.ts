@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
     console.log(`[API] Options:`, {
       style: validated.style,
       aspectRatio: validated.aspectRatio,
-      quality: validated.quality,
       width: validated.width,
       height: validated.height,
       image_url: validated.image_url,
@@ -68,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API] Generating image with model: ${effectiveModelId}`)
 
-    // 모델 코스트 기반 선차감 (실패/플레이스홀더 시 환불)
+    // 모델 크레딧 기반 선차감 (실패/플레이스홀더 시 환불)
     const fallbackCategory = modelInfo.category === 'inpainting'
       ? 'IMAGE_EDIT'
       : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
@@ -87,7 +86,6 @@ export async function POST(request: NextRequest) {
       aspectRatio: validated.aspectRatio,
       width: validated.width,
       height: validated.height,
-      quality: validated.quality || 'balanced',
       imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined,
       enhancePrompt: validated.enhancePrompt,
     })

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { attachExistingSunoClip } from '@/lib/audioProviders'
 
+export const runtime = 'nodejs'
+
 function extractClipId(reference: string): string | null {
   const trimmed = reference.trim()
   if (!trimmed) {

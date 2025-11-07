@@ -37,7 +37,8 @@ const KLING_START_END_MODELS = new Set([
 ])
 
 function ensureFalConfigured() {
-  const falKey = process.env.FAL_KEY || process.env.NEXT_PUBLIC_FAL_KEY
+  // 서버 사이드에서만 사용 - NEXT_PUBLIC_ 접두사 사용 금지 (보안 위험)
+  const falKey = process.env.FAL_KEY
   if (!falKey) {
     throw new Error('FAL_KEY is not configured for image-to-video generation')
   }
@@ -45,10 +46,10 @@ function ensureFalConfigured() {
 }
 
 function resolveModelId(preferred?: string) {
+  // 서버 사이드 환경 변수만 사용 (NEXT_PUBLIC_ 접두사 제거)
   return (
     preferred ||
     process.env.FAL_IMAGE_TO_VIDEO_MODEL ||
-    process.env.NEXT_PUBLIC_FAL_IMAGE_TO_VIDEO_MODEL ||
     DEFAULT_MODEL
   )
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateMusicWithSuno } from '@/lib/audioProviders'
 
 export const maxDuration = 120
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {

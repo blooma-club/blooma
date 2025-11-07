@@ -1,35 +1,75 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import useSWR from 'swr'
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import Image from 'next/image'
 import { useUserCredits } from '@/hooks/useUserCredits'
 
+type SubscriptionSummary = {
+  productName: string | null
+  currentPeriodEnd: string | null
+}
+
+const subscriptionFetcher = async (url: string): Promise<SubscriptionSummary> => {
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) {
+    const message = await res.text().catch(() => '')
+    throw new Error(message || 'Failed to load subscription details')
+  }
+
+  const payload = (await res.json()) as Partial<SubscriptionSummary> | null
+  return {
+    productName: payload?.productName ?? null,
+    currentPeriodEnd: payload?.currentPeriodEnd ?? null,
+  }
+}
+
 export default function AccountDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'details'>('menu')
   const { user } = useUser()
-  const { signOut } = useClerk()
+  const { signOut, redirectToUserProfile } = useClerk()
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const { subscriptionTier, resetDate, isLoading } = useUserCredits()
+  const { subscriptionTier, resetDate, isLoading: isCreditsLoading } = useUserCredits()
 
-  const formattedPlan = useMemo(() => {
-    if (!subscriptionTier) return 'Basic'
+  const {
+    data: subscriptionData,
+    error: subscriptionError,
+    isLoading: isSubscriptionLoading,
+  } = useSWR(user ? '/api/user/subscription' : null, subscriptionFetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  })
+
+  useEffect(() => {
+    if (subscriptionError) {
+      console.error('Failed to fetch subscription details', subscriptionError)
+    }
+  }, [subscriptionError])
+
+  const fallbackPlan = useMemo(() => {
+    if (!subscriptionTier) return 'Free'
     const normalized = subscriptionTier.toLowerCase()
     return normalized.charAt(0).toUpperCase() + normalized.slice(1)
   }, [subscriptionTier])
 
-  const formattedCycle = useMemo(() => {
-    if (!resetDate) return 'Not available'
-    const date = new Date(resetDate)
-    if (Number.isNaN(date.getTime())) return 'Not available'
+  const planLabel = useMemo(() => {
+    return subscriptionData?.productName ?? fallbackPlan
+  }, [subscriptionData?.productName, fallbackPlan])
+
+  const renewalDate = useMemo(() => {
+    const isoDate = subscriptionData?.currentPeriodEnd ?? resetDate
+    if (!isoDate) return null
+    const date = new Date(isoDate)
+    if (Number.isNaN(date.getTime())) return null
     return date.toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
     })
-  }, [resetDate])
+  }, [subscriptionData?.currentPeriodEnd, resetDate])
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
@@ -136,8 +176,9 @@ export default function AccountDropdown() {
                   onClick={() => {
                     setIsOpen(false)
                     setView('menu')
-                    // TODO: 프로필 설정 페이지로 이동
-                    console.log('Profile settings clicked')
+                    redirectToUserProfile().catch(error => {
+                      console.error('Failed to redirect to profile settings', error)
+                    })
                   }}
                   className="flex items-center gap-3 w-full px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors"
                 >
@@ -185,13 +226,17 @@ export default function AccountDropdown() {
                 <div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Your plan</p>
                   <p className="mt-1 font-medium text-neutral-900 dark:text-white">
-                    {isLoading ? 'Loading…' : formattedPlan}
+                    {isCreditsLoading || isSubscriptionLoading ? 'Loading…' : planLabel}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Current cycle</p>
                   <p className="mt-1 text-neutral-800 dark:text-neutral-200">
-                    {isLoading ? 'Loading…' : `Renews on ${formattedCycle}`}
+                    {isSubscriptionLoading
+                      ? 'Loading…'
+                      : renewalDate
+                        ? `Renews on ${renewalDate}`
+                        : 'Not available'}
                   </p>
                 </div>
                 <div>
@@ -199,13 +244,14 @@ export default function AccountDropdown() {
                     Billing &amp; payment
                   </p>
                   <a
-                    href={process.env.NEXT_PUBLIC_POLAR_API_BASE_URL}
+                    href="/customerportal"
                     target="_blank"
-                    rel="noopener noreferrer"
                     className="mt-1 inline-flex items-center text-neutral-800 dark:text-neutral-200 underline hover:text-neutral-600 dark:hover:text-neutral-100"
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => {
+                      setIsOpen(false)
+                    }}
                   >
-                    Manage billing
+                    Go to Billing
                   </a>
                 </div>
               </div>

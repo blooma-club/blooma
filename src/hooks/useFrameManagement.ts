@@ -209,11 +209,15 @@ export const useFrameManagement = (
         }))
         
         if (reindexedCards.length > 0) {
-          await updateCards(reindexedCards.map((c: Card) => ({
-            id: c.id,
-            order_index: c.order_index,
-            scene_number: c.scene_number,
-          })))
+          await updateCards(
+            reindexedCards.map((c: Card, idx: number, arr: Card[]) => ({
+              id: c.id,
+              order_index: c.order_index,
+              scene_number: c.scene_number,
+              prev_card_id: idx > 0 ? arr[idx - 1].id : null,
+              next_card_id: idx < arr.length - 1 ? arr[idx + 1].id : null,
+            }))
+          )
         }
 
         return reindexedCards.map((card: Card) => cardToFrame(card))

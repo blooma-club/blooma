@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import type { Project, ProjectInput, Card } from '@/types'
 
@@ -172,18 +172,29 @@ export const useProjects = () => {
 // 카드 관리
 export const useCards = (projectId: string) => {
   const { userId } = useAuth()
-  const { data, isLoading, mutate: mutateCards } = useSWR(
+  type CardsResponse = { data: Card[]; _fallback?: boolean }
+  const fallbackResponse: CardsResponse = { data: [], _fallback: true }
+  const { data = fallbackResponse, isLoading, mutate: mutateCards, error } = useSWR<CardsResponse>(
     userId && projectId ? `/api/cards?project_id=${projectId}` : null,
     fetcher,
     {
       // refreshInterval: 0, // 주기적 자동 새로고침 비활성화 (필요시 수동으로 mutate 호출)
       revalidateOnFocus: false,
       revalidateOnReconnect: true, // 네트워크 재연결 시에만 새로고침
-      fallbackData: { data: [] }
+      fallbackData: fallbackResponse
     }
   )
-  
+  const [hasInitialResponse, setHasInitialResponse] = useState(false)
+
+  useEffect(() => {
+    if (hasInitialResponse) return
+    if (!data?._fallback || error) {
+      setHasInitialResponse(true)
+    }
+  }, [data, error, hasInitialResponse])
+
   const cards = data?.data || []
+  const isInitialLoading = !hasInitialResponse
   
   const deleteCard = async (cardId: string) => {
     // 즉시 제거 - 함수형 mutate로 최신 캐시 기반 처리
@@ -251,5 +262,5 @@ export const useCards = (projectId: string) => {
     }
   }
   
-  return { cards, isLoading, deleteCard, updateCard, updateCards, mutate: mutateCards }
+  return { cards, isLoading, isInitialLoading, deleteCard, updateCard, updateCards, mutate: mutateCards }
 }

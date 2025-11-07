@@ -1,7 +1,7 @@
 "use client"
 
 import React from 'react'
-import { Plus, MessageSquare, Image as ImageIcon } from 'lucide-react'
+import { Plus, MessageSquare, Image as ImageIcon, Edit3, Trash2 } from 'lucide-react'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import StoryboardCard from '@/components/storyboard/StoryboardCard'
 
@@ -92,14 +92,12 @@ export const FrameList: React.FC<FrameListProps> = ({
           return (
             <React.Fragment key={frame.id}>
               <div 
-                className={`flex items-stretch gap-4 p-4 border rounded-lg transition-all ${
+                className={`flex items-stretch gap-3 p-3 border rounded-md transition-colors ${
                   selectedFrameId === frame.id 
-                    ? 'ring-2 ring-neutral-900 dark:ring-white border-neutral-900/30 dark:border-white/30' 
-                    : ''
+                    ? 'border-neutral-900/40 dark:border-white/40 bg-neutral-50/50 dark:bg-neutral-900/30' 
+                    : 'hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30'
                 }`}
-                style={{
-                  backgroundColor: 'hsl(var(--card))',
-                }}
+                style={{ backgroundColor: 'hsl(var(--card))' }}
               >
                 {/* 왼쪽: StoryboardCard */}
                 <div className={`${previewWidthClass} flex-shrink-0`}>
@@ -110,121 +108,75 @@ export const FrameList: React.FC<FrameListProps> = ({
                     imageFit="cover"
                     deleting={deletingFrameId === frame.id}
                     onOpen={() => onFrameEdit(i)}
-                    onEdit={() => onFrameEditMetadata(frame.id)}
-                    onDelete={() => onFrameDelete(frame.id)}
                     onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
                     aspectRatio={aspectRatio}
                   />
                 </div>
 
                 {/* 오른쪽: 메타데이터 정보 */}
-                <div className="flex-1 flex flex-col gap-3">
-                  {/* Header: Scene Number & Status */}
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="text-xs font-semibold tracking-wide"
-                      style={{ color: 'hsl(var(--muted-foreground))' }}
-                    >
-                      SCENE {i + 1}
-                    </span>
-                    {statusInfo.show && (
-                      <>
-                        <span style={{ color: 'hsl(var(--muted-foreground))' }}>·</span>
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ backgroundColor: statusInfo.color }}
-                          />
-                          <span 
-                            className="text-xs font-medium"
-                            style={{ color: 'hsl(var(--muted-foreground))' }}
-                          >
-                            {statusInfo.label}
-                          </span>
+                <div className="flex-1 flex flex-col gap-2.5">
+                  {/* Header: Scene Number & Status + inline actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Scene {i + 1}</span>
+                      {statusInfo.show && (
+                        <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusInfo.color }} />
+                          <span className="text-[11px] font-medium">{statusInfo.label}</span>
                         </div>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onFrameEditMetadata(frame.id)}
+                        className="inline-flex items-center justify-center rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+                        aria-label="Edit metadata"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onFrameDelete(frame.id)}
+                        disabled={deletingFrameId === frame.id}
+                        className="inline-flex items-center justify-center rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+                        aria-label="Delete scene"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Description */}
-                  <p 
-                    className="text-sm leading-relaxed line-clamp-4"
-                    style={{ color: 'hsl(var(--foreground))' }}
-                  >
+                  <p className="text-sm leading-relaxed line-clamp-2 text-[hsl(var(--foreground))]">
                     {frame.shotDescription || 'No description available for this scene.'}
                   </p>
 
-                  {/* Metadata Badges - Compact Grid */}
-                  <div className="flex flex-wrap gap-1.5 mt-auto">
-                    {frame.shot && (
-                      <div 
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        <ImageIcon className="w-2.5 h-2.5" />
-                        {frame.shot}
-                      </div>
-                    )}
-                    {frame.dialogue && (
-                      <div 
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        <MessageSquare className="w-2.5 h-2.5" />
-                        Dialogue
-                      </div>
-                    )}
-                    {frame.angle && (
-                      <div 
-                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        {frame.angle}
-                      </div>
-                    )}
-                    {frame.background && (
-                      <div 
-                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        📍 {frame.background}
-                      </div>
-                    )}
-                    {frame.moodLighting && (
-                      <div 
-                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        💡 {frame.moodLighting}
-                      </div>
-                    )}
-                    {frame.sound && (
-                      <div 
-                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--secondary))',
-                          color: 'hsl(var(--secondary-foreground))'
-                        }}
-                      >
-                        🔊 {frame.sound}
-                      </div>
-                    )}
-                  </div>
+                  {/* Compact Metadata Grid */}
+                  <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px]">
+                    <div className="space-y-0.5">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Shot</dt>
+                      <dd className="text-neutral-900 dark:text-neutral-100 truncate">{frame.shot || '-'}</dd>
+                    </div>
+                    <div className="space-y-0.5">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Dialogue</dt>
+                      <dd className="text-neutral-900 dark:text-neutral-100 truncate">{frame.dialogue || '-'}</dd>
+                    </div>
+                    <div className="space-y-0.5">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Sound</dt>
+                      <dd className="text-neutral-900 dark:text-neutral-100 truncate">{frame.sound || '-'}</dd>
+                    </div>
+                    <div className="space-y-0.5">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Bg</dt>
+                      <dd className="text-neutral-900 dark:text-neutral-100 truncate">{frame.background || '-'}</dd>
+                    </div>
+                    <div className="space-y-0.5 col-span-2 md:col-span-3">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Prompt</dt>
+                      <dd className="text-neutral-900 dark:text-neutral-100 line-clamp-2">{frame.imagePrompt || '-'}</dd>
+                    </div>
+                  </dl>
+                  {/* spacer to align heights */}
+                  <div className="mt-auto" />
                 </div>
               </div>
               <BetweenInsertRow

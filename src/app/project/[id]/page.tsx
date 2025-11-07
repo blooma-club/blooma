@@ -26,8 +26,11 @@ export default function ProjectIndexRedirect() {
       return
     }
 
+    // 항상 blank 스토리보드로 이동
+    router.replace(`/project/${id}/storyboard`)
+
     // sbId가 없고 드래프트도 없으면 생성 옵션 페이지로 이동
-    router.replace(`/project/${id}/storyboard/start`)
+    //router.replace(`/project/${id}/storyboard/start`)
   }, [id, isLoaded, router])
 
   // 라우터 리다이렉트만 수행하고 별도 로딩 UI는 표시하지 않음 (이중 로딩 방지)
