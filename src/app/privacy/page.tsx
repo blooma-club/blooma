@@ -228,8 +228,8 @@ export default function PrivacyPolicyPage() {
             <p>
               We may update this Privacy Policy from time to time. We will notify you of any
               material changes by posting the new Privacy Policy on our website and updating the
-              &quot;Effective Date&quot; at the top. Your continued use of our services after such changes
-              constitutes your acceptance of the updated Privacy Policy.
+              &quot;Effective Date&quot; at the top. Your continued use of our services after such
+              changes constitutes your acceptance of the updated Privacy Policy.
             </p>
           </section>
 

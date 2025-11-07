@@ -1,9 +1,8 @@
 import HobbyPlanCard, { type PlanOption } from '@/components/billing/pricingcard'
-import SiteNavbar from '@/components/layout/SiteNavbar'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 import SiteFooter from '@/components/layout/footer'
 
-export const PRICING_PLANS: PlanOption[] = [
+const PRICING_PLANS: PlanOption[] = [
   {
     id: 'blooma-1000',
     label: 'Blooma — 1,000 Credits',
