@@ -1,15 +1,15 @@
 import { Polar } from "@polar-sh/sdk";
-import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 const polar = new Polar({
   accessToken: process.env["POLAR_ACCESS_TOKEN"] ?? "",
   server: "production"
 });
 
-export const customerportal = async () => {
+export const GET = async () => {
   const result = await polar.customerSessions.create({
     customerId: "<value>",
   });
 
-  redirect(result.customerPortalUrl)
+  return NextResponse.redirect(result.customerPortalUrl);
 }

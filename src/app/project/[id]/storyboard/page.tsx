@@ -102,16 +102,19 @@ export default function StoryboardPage() {
     persistCardWidthLocally,
     schedulePersistCardWidth,
   } = useCardWidth(projectId, undefined, { cards: queryCards, updateCards })
-  const { handleNavigateToStoryboard, handleNavigateToCharacters } =
-     useStoryboardNavigation(projectId, index, setViewMode)
-   const {
-     deletingFrameId,
-     framesRef,
-     handleAddFrame,
-     handleDeleteFrame,
-     handleReorderFrames,
-     handleGenerateVideo,
-   } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
+  const { handleNavigateToStoryboard, handleNavigateToCharacters } = useStoryboardNavigation(
+    projectId,
+    index,
+    setViewMode
+  )
+  const {
+    deletingFrameId,
+    framesRef,
+    handleAddFrame,
+    handleDeleteFrame,
+    handleReorderFrames,
+    handleGenerateVideo,
+  } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
 
   // SWR 훅 사용 moved above
   const { projects } = useProjects()
@@ -283,8 +286,6 @@ export default function StoryboardPage() {
     framesRef.current = derived.frames
   }, [derived.frames])
 
-
-
   const handleGenerateSceneFromPrompt = useCallback(
     async (promptText: string) => {
       if (!userId || !projectId) {
@@ -415,10 +416,7 @@ export default function StoryboardPage() {
   )
 
   // 비디오 모드 동기화용 정규화된 selectedFrameId (dependency array 일관성 유지)
-  const normalizedSelectedFrameId = useMemo(
-    () => selectedFrameId ?? '',
-    [selectedFrameId]
-  )
+  const normalizedSelectedFrameId = useMemo(() => selectedFrameId ?? '', [selectedFrameId])
 
   // 현재 선택된 프레임 데이터 (편집 모달 등에서 사용)
   const selectedFrame = useMemo(
@@ -590,7 +588,7 @@ export default function StoryboardPage() {
               </button>
             </div>
           </div>
-          
+
           {/* 우측: 통합 설정 헤더 그룹 */}
           <div className="flex-shrink-0 z-10">
             <div className="h-[48px] rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 flex items-center gap-1 px-2">
@@ -608,8 +606,18 @@ export default function StoryboardPage() {
                       aria-label="Grid view"
                       title="Grid view"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                        />
                       </svg>
                     </button>
                     <button
@@ -622,8 +630,18 @@ export default function StoryboardPage() {
                       aria-label="List view"
                       title="List view"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 6h16M4 12h16M4 18h16"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -695,11 +713,21 @@ export default function StoryboardPage() {
               >
                 {isPromptDockVisible ? (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 ) : (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 15l7-7 7 7"
+                    />
                   </svg>
                 )}
               </button>
@@ -746,58 +774,58 @@ export default function StoryboardPage() {
 
             {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
               <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
-              <FrameGrid
-                frames={derived.frames}
-                mode={promptDockMode}
-                onFrameOpen={frameIndex => {
-                  setIndex(frameIndex)
-                }}
-                onFrameEdit={frameId => {
-                  const frameData = derived.frames.find(f => f.id === frameId)
-                  if (frameData) setEditingFrame(frameData)
-                }}
-                onFrameDelete={handleFrameDeleteLocal}
-                onAddFrame={handleFrameAddLocal}
-                onImageUpload={handleImageUpload}
-                deletingFrameId={deletingFrameId}
-                isAddingFrame={isAddingFrame}
-                loading={cardsLoading}
-                cardsLength={queryCards.length}
-                aspectRatio={ratio}
-                cardWidth={cardWidth}
-                selectedFrameId={selectedFrameId}
-                onBackgroundClick={handleDeselectCard}
-                selectedFrameIds={videoSelectedIds}
-                onCardSelect={handleGridCardSelect}
-                onReorder={(fromIndex, toIndex) => {
-                  const result = handleReorderFrames(fromIndex, toIndex)
-                  if (result) {
-                    setIndex(result.newIndex)
-                  }
-                }}
-              />
+                <FrameGrid
+                  frames={derived.frames}
+                  mode={promptDockMode}
+                  onFrameOpen={frameIndex => {
+                    setIndex(frameIndex)
+                  }}
+                  onFrameEdit={frameId => {
+                    const frameData = derived.frames.find(f => f.id === frameId)
+                    if (frameData) setEditingFrame(frameData)
+                  }}
+                  onFrameDelete={handleFrameDeleteLocal}
+                  onAddFrame={handleFrameAddLocal}
+                  onImageUpload={handleImageUpload}
+                  deletingFrameId={deletingFrameId}
+                  isAddingFrame={isAddingFrame}
+                  loading={cardsLoading}
+                  cardsLength={queryCards.length}
+                  aspectRatio={ratio}
+                  cardWidth={cardWidth}
+                  selectedFrameId={selectedFrameId}
+                  onBackgroundClick={handleDeselectCard}
+                  selectedFrameIds={videoSelectedIds}
+                  onCardSelect={handleGridCardSelect}
+                  onReorder={(fromIndex, toIndex) => {
+                    const result = handleReorderFrames(fromIndex, toIndex)
+                    if (result) {
+                      setIndex(result.newIndex)
+                    }
+                  }}
+                />
               </div>
             )}
 
             {derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
               <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
-              <FrameList
-                frames={derived.frames}
-                onFrameEdit={frameIndex => {
-                  setIndex(frameIndex)
-                }}
-                onFrameEditMetadata={frameId => {
-                  const frameData = derived.frames.find(f => f.id === frameId)
-                  if (frameData) setEditingFrame(frameData)
-                }}
-                onFrameDelete={handleFrameDeleteLocal}
-                onAddFrame={handleFrameAddLocal}
-                onImageUpload={handleImageUpload}
-                deletingFrameId={deletingFrameId}
-                isAddingFrame={isAddingFrame}
-                aspectRatio={ratio}
-                selectedFrameId={selectedFrameId}
-              />
+                <FrameList
+                  frames={derived.frames}
+                  onFrameEdit={frameIndex => {
+                    setIndex(frameIndex)
+                  }}
+                  onFrameEditMetadata={frameId => {
+                    const frameData = derived.frames.find(f => f.id === frameId)
+                    if (frameData) setEditingFrame(frameData)
+                  }}
+                  onFrameDelete={handleFrameDeleteLocal}
+                  onAddFrame={handleFrameAddLocal}
+                  onImageUpload={handleImageUpload}
+                  deletingFrameId={deletingFrameId}
+                  isAddingFrame={isAddingFrame}
+                  aspectRatio={ratio}
+                  selectedFrameId={selectedFrameId}
+                />
               </div>
             )}
           </>

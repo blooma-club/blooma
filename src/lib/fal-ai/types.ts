@@ -99,7 +99,7 @@ export interface FalAIGenerationOptions {
   style?: string
   guidanceScale?: number
   numImages?: number
-  outputFormat?: 'jpeg' | 'png' | string
+  outputFormat?: 'jpeg' | 'png'
   negativePrompt?: string
   imageUrls?: string[]
   imageUrl?: string
@@ -138,4 +138,3 @@ export interface FalAIError extends Error {
 export function isFalAIError(error: unknown): error is FalAIError {
   return error instanceof Error && 'status' in error
 }
-

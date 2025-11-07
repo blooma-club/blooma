@@ -1,4 +1,5 @@
 import { fal } from '@fal-ai/client'
+import type { ElevenlabsTextToDialogueElevenV3Input } from '@fal-ai/client/endpoints'
 import { uploadAudioToR2 } from './r2'
 
 interface VoiceOverParams {
@@ -63,7 +64,15 @@ export async function generateVoiceOverWithElevenLabs({
     throw new Error('Voice ID is not provided. Configure ELEVENLABS_VOICE_ID or pass voiceId.')
   }
 
-  const payload: Record<string, unknown> = {
+  type ElevenLabsRequestPayload = ElevenlabsTextToDialogueElevenV3Input & Record<string, unknown>
+
+  const payload: ElevenLabsRequestPayload = {
+    inputs: [
+      {
+        text,
+        voice: resolvedVoiceId,
+      },
+    ],
     text,
     voice: resolvedVoiceId,
     voice_id: resolvedVoiceId,

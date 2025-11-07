@@ -39,7 +39,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
   // API Configuration
-  API_TIMEOUT: z.coerce.number().int().min(0).default(30000),
+  API_TIMEOUT: z.string().regex(/^\d+$/).transform(Number).default(30000),
 })
 
 /**
@@ -93,7 +93,7 @@ export function getEnv(): Env {
       ...process.env,
       NODE_ENV: 'production',
       API_TIMEOUT: '30000',
-    } as Record<string, unknown>)
+    } as unknown as z.infer<typeof envSchema>)
   }
 
   return cachedEnv

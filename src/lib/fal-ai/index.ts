@@ -1,6 +1,6 @@
 import { fal } from '@fal-ai/client'
+import type { ImageSize } from '@fal-ai/client/endpoints'
 import type { FalAIModel, FalAIInputSchema, FalAISubmission, FalAIGenerationOptions, FalAIGenerationResult, FalAISubmissionUpdate, FalAIImageResult } from './types'
-export type { FalAIModel } from './types'
 import { isFalAIModel } from './types'
 
 const FALLBACK_PLACEHOLDER_IMAGE =
@@ -323,6 +323,52 @@ function mapAspectRatioToImageSize(aspectRatio?: string): [number, number] {
   }
 }
 
+function resolveOutputFormat(format?: string): 'jpeg' | 'png' {
+  return format === 'png' ? 'png' : 'jpeg'
+}
+
+type SeedreamImageSize =
+  | ImageSize
+  | 'square_hd'
+  | 'square'
+  | 'portrait_4_3'
+  | 'portrait_16_9'
+  | 'landscape_4_3'
+  | 'landscape_16_9'
+  | 'auto'
+  | 'auto_2K'
+  | 'auto_4K'
+
+const clampSeedreamDimension = (value: number) => Math.min(Math.max(value, 1024), 4096)
+
+function resolveSeedreamImageSize(options: FalAIGenerationOptions): SeedreamImageSize {
+  if (options.aspectRatio) {
+    switch (options.aspectRatio) {
+      case '1:1':
+        return 'square_hd'
+      case '16:9':
+        return 'landscape_16_9'
+      case '9:16':
+        return 'portrait_16_9'
+      case '4:3':
+        return 'landscape_4_3'
+      case '3:4':
+        return 'portrait_4_3'
+      default:
+        return 'square_hd'
+    }
+  }
+
+  if (options.width && options.height) {
+    return {
+      width: clampSeedreamDimension(options.width),
+      height: clampSeedreamDimension(options.height),
+    }
+  }
+
+  return 'square_hd'
+}
+
 
 // 이미지 생성 함수 (통합)
 export async function generateImageWithModel(
@@ -568,6 +614,7 @@ async function generateWithImagen4Ultra(prompt: string, options: FalAIGeneration
 
 // Flux 1.1 Pro 모델
 async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+  const outputFormat = resolveOutputFormat(options.outputFormat)
   const submission = (await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
     input: {
       prompt,
@@ -575,7 +622,7 @@ async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerat
       // @ts-expect-error - Fal client types may not include all model-specific fields
       guidance_scale: options.guidanceScale || 3.5,
       num_images: options.numImages || 1,
-      output_format: (options.outputFormat || 'jpeg') as 'jpeg' | 'png',
+      output_format: outputFormat,
       safety_tolerance: (options.safetyTolerance || '2') as '1' | '2' | '3' | '4' | '5' | '6'
     },
     logs: true,
@@ -591,12 +638,13 @@ async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerat
 
 // Gemini 2.5 Flash Image Edit 모델 (멀티 이미지 편집)
 async function generateWithGemini25FlashImageEdit(prompt: string, options: FalAIGenerationOptions): Promise<string[]> {
+  const outputFormat = resolveOutputFormat(options.outputFormat)
   const submission = await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
     input: {
       prompt,
       image_urls: options.imageUrls || [],
       num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg'
+      output_format: outputFormat
     },
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
@@ -610,11 +658,12 @@ async function generateWithGemini25FlashImageEdit(prompt: string, options: FalAI
 
 // Gemini 2.5 Flash Image Text to Image 모델 (텍스트에서 이미지 생성)
 async function generateWithGemini25FlashImageTextToImage(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+  const outputFormat = resolveOutputFormat(options.outputFormat)
   const submission = await fal.subscribe('fal-ai/gemini-25-flash-image', {
     input: {
       prompt,
       num_images: options.numImages || 1,
-      output_format: options.outputFormat || 'jpeg'
+      output_format: outputFormat
     },
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
@@ -630,34 +679,7 @@ async function generateWithGemini25FlashImageTextToImage(prompt: string, options
 // Seedream 4.0 Text to Image 모델
 async function generateWithSeedreamV4(prompt: string, options: FalAIGenerationOptions): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
-  let imageSize: string | { width: number; height: number } = 'square_hd'
-  
-  if (options.aspectRatio) {
-    switch (options.aspectRatio) {
-      case '1:1':
-        imageSize = 'square_hd'
-        break
-      case '16:9':
-        imageSize = 'landscape_16_9'
-        break
-      case '9:16':
-        imageSize = 'portrait_16_9'
-        break
-      case '4:3':
-        imageSize = 'landscape_4_3'
-        break
-      case '3:4':
-        imageSize = 'portrait_4_3'
-        break
-      default:
-        imageSize = 'square_hd'
-    }
-  } else if (options.width && options.height) {
-    imageSize = {
-      width: Math.min(Math.max(options.width, 1024), 4096),
-      height: Math.min(Math.max(options.height, 1024), 4096)
-    }
-  }
+  const imageSize = resolveSeedreamImageSize(options)
 
   const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/text-to-image', {
     input: {
@@ -683,34 +705,7 @@ async function generateWithSeedreamV4(prompt: string, options: FalAIGenerationOp
 // Seedream 4.0 Edit 모델
 async function generateWithSeedreamV4Edit(prompt: string, options: FalAIGenerationOptions): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
-  let imageSize: string | { width: number; height: number } = 'square_hd'
-  
-  if (options.aspectRatio) {
-    switch (options.aspectRatio) {
-      case '1:1':
-        imageSize = 'square_hd'
-        break
-      case '16:9':
-        imageSize = 'landscape_16_9'
-        break
-      case '9:16':
-        imageSize = 'portrait_16_9'
-        break
-      case '4:3':
-        imageSize = 'landscape_4_3'
-        break
-      case '3:4':
-        imageSize = 'portrait_4_3'
-        break
-      default:
-        imageSize = 'square_hd'
-    }
-  } else if (options.width && options.height) {
-    imageSize = {
-      width: Math.min(Math.max(options.width, 1024), 4096),
-      height: Math.min(Math.max(options.height, 1024), 4096)
-    }
-  }
+  const imageSize = resolveSeedreamImageSize(options)
 
   const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
     input: {
