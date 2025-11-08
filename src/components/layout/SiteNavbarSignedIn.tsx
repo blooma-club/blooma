@@ -1,15 +1,16 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
-import { Button } from '@/components/ui/button'
 import ThemeToggle from '@/components/ui/theme-toggle'
 import AccountDropdown from '@/components/ui/AccountDropdown'
+import { useThemePreference } from '@/hooks/useThemePreference'
 
 export default function SiteNavbarSignedIn() {
   const router = useRouter()
+  const theme = useThemePreference()
+  const logoSrc = theme === 'dark' ? '/blooma_logo_white.png' : '/blooma_logo_black.png'
 
   return (
     <header className="w-full border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
@@ -21,11 +22,11 @@ export default function SiteNavbarSignedIn() {
           tabIndex={0}
         >
           <Image
-            src="/blooma_logo.svg"
+            src={logoSrc}
             alt="Blooma Logo"
             width={28}
             height={28}
-            className="w-7 h-7 object-contain select-none"
+            className="w-12 h-12 object-contain select-none"
             draggable={false}
           />
         </button>

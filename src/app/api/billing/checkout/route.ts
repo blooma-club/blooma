@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { hasActiveSubscription } from '@/lib/billing/subscription'
+import { resolvePolarServerURL } from '@/lib/server/polar-config'
 
 type PlanId = 'blooma-1000' | 'blooma-3000' | 'blooma-5000'
 
@@ -25,16 +26,6 @@ const PLAN_PRODUCT_ID_MAP: Record<
 }
 
 const DEFAULT_PLAN: PlanId = 'blooma-1000'
-
-function resolveCustomServerURL(): string | undefined {
-  const baseUrl = process.env.POLAR_API_BASE_URL?.trim()
-  if (!baseUrl) {
-    return undefined
-  }
-  return baseUrl
-
-}
-
 
 function resolveAppBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'http://localhost:3000'
@@ -95,7 +86,7 @@ export async function POST(request: Request) {
       server: 'production',
     })
 
-    const customServerUrl = resolveCustomServerURL()
+    const customServerUrl = resolvePolarServerURL()
 
     try {
       const checkout = await polar.checkouts.create(

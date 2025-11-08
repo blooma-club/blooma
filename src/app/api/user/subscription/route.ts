@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
+import { resolvePolarServerURL } from '@/lib/server/polar-config'
 
 const polarServer =
   process.env.POLAR_SERVER?.toLowerCase() === 'sandbox' ? 'sandbox' : 'production'
 
-function resolveCustomServerURL(): string | undefined {
-  const baseUrl = process.env.POLAR_API_BASE_URL?.trim()
-  if (!baseUrl) {
-    return undefined
-  }
-
-  return baseUrl
+const EMPTY_SUBSCRIPTION = {
+  productName: null,
+  currentPeriodEnd: null,
 }
+
+const respondWithFallback = () => NextResponse.json(EMPTY_SUBSCRIPTION)
 
 export async function GET() {
   const { userId } = await auth()
@@ -23,8 +22,8 @@ export async function GET() {
 
   const accessToken = process.env.POLAR_ACCESS_TOKEN ?? process.env.POLAR_API_KEY
   if (!accessToken) {
-    console.error('POLAR_ACCESS_TOKEN (or POLAR_API_KEY) is not configured')
-    return NextResponse.json({ error: 'Payment provider not configured.' }, { status: 500 })
+    console.warn('POLAR_ACCESS_TOKEN (or POLAR_API_KEY) is not configured. Returning fallback summary.')
+    return respondWithFallback()
   }
 
   const polar = new Polar({
@@ -32,7 +31,7 @@ export async function GET() {
     server: polarServer,
   })
 
-  const customServerUrl = resolveCustomServerURL()
+  const customServerUrl = resolvePolarServerURL()
 
   try {
     const iterator = await polar.subscriptions.list(
@@ -73,6 +72,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Failed to load Polar subscription', error)
-    return NextResponse.json({ error: 'Failed to load subscription.' }, { status: 502 })
+    return respondWithFallback()
   }
 }

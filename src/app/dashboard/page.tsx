@@ -7,11 +7,9 @@ import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
-import Image from 'next/image'
 import { useProjects } from '@/lib/api'
-import AccountDropdown from '@/components/ui/AccountDropdown'
-import ThemeToggle from '@/components/ui/theme-toggle'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
+import SiteFooter from '@/components/layout/footer'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -339,6 +337,7 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
-import { useUser, useClerk } from '@clerk/nextjs'
+import { useUser, useClerk, SignInButton } from '@clerk/nextjs'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
 import { Sparkles, Film, Zap } from 'lucide-react'
+import SiteFooter from '@/components/layout/footer'
+import SiteNavbarSignedOut from '@/components/layout/SiteNavbarSignedOut'
 
 const FALLBACK_USER = {
   isLoaded: true,
@@ -70,87 +72,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header - Linear Style: Fixed, Transparent with Blur */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-black/10 dark:border-white/5 bg-background/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              aria-label="Go to top"
-              tabIndex={0}
-            >
-              <Image
-                src="/blooma_logo.svg"
-                alt="Blooma"
-                width={28}
-                height={28}
-                className="w-7 h-7"
-                priority
-              />
-            </button>
-
-            {/* Right Actions */}
-            <div className="flex items-center gap-4">
-              {!user ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (!isLoaded) return
-                    router.push('/auth')
-                  }}
-                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Login"
-                  tabIndex={0}
-                >
-                  Login
-                </Button>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="flex items-center hover:opacity-80 transition-opacity"
-                      aria-label="User menu"
-                      tabIndex={0}
-                    >
-                      {user.imageUrl ? (
-                        <Image
-                          src={user.imageUrl}
-                          alt="User Avatar"
-                          width={32}
-                          height={32}
-                          className="w-8 h-8 rounded-full"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs font-medium text-foreground">
-                            {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-48 border-border bg-popover" align="end">
-                    <div className="px-3 py-2 border-b border-border">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {user.primaryEmailAddress?.emailAddress}
-                      </p>
-                    </div>
-                    <DropdownMenuItem
-                      onClick={() => signOut()}
-                      className="text-foreground hover:bg-accent cursor-pointer"
-                    >
-                      Sign Out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <SiteNavbarSignedOut />
       {/* Hero Section - Linear Style */}
       <section className="relative pt-32 pb-20 px-4 overflow-hidden">
         {/* Background Gradient */}
@@ -181,17 +103,30 @@ export default function Home() {
 
           {/* CTA Buttons - Smaller Size */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-20 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
-            <Button
-              onClick={() => {
-                if (!isLoaded) return
-                router.push(user ? '/dashboard' : '/auth')
-              }}
-              className="px-6 py-3 text-sm font-medium bg-foreground text-background hover:bg-foreground/90 dark:bg-white dark:text-black dark:hover:bg-white/90 transition-all duration-200"
-              aria-label="Get Started"
-              tabIndex={0}
-            >
-              Get Started
-            </Button>
+            {!user ? (
+              <SignInButton mode="modal" signUpForceRedirectUrl="/dashboard">
+                <Button
+                  variant="ghost"
+                  className="px-6 py-3 text-sm font-medium bg-foreground text-background hover:bg-foreground/90 dark:bg-white dark:text-black dark:hover:bg-white/90 transition-all duration-200"
+                  aria-label="Login"
+                  tabIndex={0}
+                >
+                  Get Started
+                </Button>
+              </SignInButton>
+            ) : (
+              <Button
+                onClick={() => {
+                  if (!isLoaded) return
+                  router.push('/dashboard')
+                }}
+                className="px-6 py-3 text-sm font-medium bg-foreground text-background hover:bg-foreground/90 dark:bg-white dark:text-black dark:hover:bg-white/90 transition-all duration-200"
+                aria-label="Get Started"
+                tabIndex={0}
+              >
+                Get Started
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => {
@@ -322,52 +257,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Footer - Linear Style */}
-      <footer className="relative border-t border-border/50 dark:border-white/5 py-12 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {/* Logo & Copyright */}
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2">
-                <Image
-                  src="/blooma_logo.svg"
-                  alt="Blooma"
-                  width={24}
-                  height={24}
-                  className="w-6 h-6"
-                />
-                <span className="text-sm font-medium text-foreground">Blooma</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                &copy; 2025 Blooma. All rights reserved.
-              </p>
-            </div>
-
-            {/* Links */}
-            <div className="flex items-center gap-8">
-              <a
-                href="/pricing"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Pricing
-              </a>
-              <a
-                href="/privacy"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Privacy
-              </a>
-              <a
-                href="/terms"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Terms
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

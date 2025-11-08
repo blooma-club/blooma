@@ -5,6 +5,7 @@ import { Instrument_Serif, Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect';
+import { THEME_STORAGE_KEY } from '@/lib/theme';
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -59,7 +60,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                const THEME_STORAGE_KEY = 'blooma_theme_preference';
+                const THEME_STORAGE_KEY = '${THEME_STORAGE_KEY}';
                 
                 function getStoredTheme() {
                   try {

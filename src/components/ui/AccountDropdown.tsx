@@ -12,17 +12,31 @@ type SubscriptionSummary = {
   currentPeriodEnd: string | null
 }
 
-const subscriptionFetcher = async (url: string): Promise<SubscriptionSummary> => {
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) {
-    const message = await res.text().catch(() => '')
-    throw new Error(message || 'Failed to load subscription details')
-  }
+const EMPTY_SUBSCRIPTION: SubscriptionSummary = {
+  productName: null,
+  currentPeriodEnd: null,
+}
 
-  const payload = (await res.json()) as Partial<SubscriptionSummary> | null
-  return {
-    productName: payload?.productName ?? null,
-    currentPeriodEnd: payload?.currentPeriodEnd ?? null,
+const subscriptionFetcher = async (url: string): Promise<SubscriptionSummary> => {
+  try {
+    const res = await fetch(url, { credentials: 'include' })
+    if (!res.ok) {
+      const message = await res.text().catch(() => '')
+      console.warn('Subscription summary request failed', {
+        status: res.status,
+        body: message || res.statusText,
+      })
+      return EMPTY_SUBSCRIPTION
+    }
+
+    const payload = (await res.json()) as Partial<SubscriptionSummary> | null
+    return {
+      productName: payload?.productName ?? null,
+      currentPeriodEnd: payload?.currentPeriodEnd ?? null,
+    }
+  } catch (error) {
+    console.error('Subscription summary fetch failed', error)
+    return EMPTY_SUBSCRIPTION
   }
 }
 

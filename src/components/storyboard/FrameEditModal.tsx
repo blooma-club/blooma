@@ -22,6 +22,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
     imageHistory: frame.imageHistory ?? [],
   })
   const [isSaving, setIsSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details')
   const { cards, updateCards } = useCards(projectId)
 
   useEffect(() => {
@@ -114,7 +115,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:focus:ring-zinc-400 dark:focus:ring-offset-zinc-900"
             >
               <Save className="h-4 w-4" />
               {isSaving ? 'Saving...' : 'Save'}
@@ -162,13 +163,30 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
 
           {/* Right: Editable details + history */}
           <div className="flex h-full w-full flex-col overflow-hidden md:w-1/2">
-            <div className="flex-1 space-y-6 overflow-y-auto p-6">
-              {/* Editable Details */}
-              <section>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  Details
-                </h3>
-                <div className="space-y-4">
+            <div className="border-b border-zinc-200 bg-white px-6 dark:border-zinc-800 dark:bg-zinc-900">
+              <nav aria-label="Frame detail tabs" className="flex gap-4">
+                {(['details', 'history'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`py-4 text-sm font-medium uppercase tracking-wider transition-colors ${
+                      activeTab === tab
+                        ? 'text-zinc-900 dark:text-zinc-100'
+                        : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300'
+                    }`}
+                  >
+                    {tab === 'details' ? 'Details' : 'Image History'}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeTab === 'details' && (
+                <section className="space-y-4">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                    Details
+                  </h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label
@@ -274,73 +292,76 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                       placeholder="Background setting..."
                     />
                   </div>
-                </div>
-              </section>
+                </section>
+              )}
 
-              {/* History */}
-              <section>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  Image History
-                </h3>
-                {Array.isArray(draft.imageHistory) && draft.imageHistory.length > 0 ? (
-                  <div className="grid grid-cols-4 gap-2">
-                    {draft.imageHistory.map((url, idx) => (
-                      <button
-                        key={`${url}-${idx}`}
-                        type="button"
-                        onClick={() => handleSelectHistoryImage(url)}
-                        aria-label={`Select history image ${idx + 1}`}
-                        className={`group relative aspect-square overflow-hidden rounded-lg transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                          draft.imageUrl === url
-                            ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/30'
-                            : 'ring-1 ring-zinc-200 hover:ring-zinc-300 dark:ring-zinc-700 dark:hover:ring-zinc-600'
-                        }`}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={url}
-                          alt={`History ${idx + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                        {draft.imageUrl === url && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/20 backdrop-blur-[1px]">
-                            <div className="rounded-full bg-indigo-600 p-1 shadow-lg">
-                              <svg
-                                className="h-3 w-3 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+              {activeTab === 'history' && (
+                <section>
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                    Image History
+                  </h3>
+                  {Array.isArray(draft.imageHistory) && draft.imageHistory.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {draft.imageHistory.map((url, idx) => (
+                        <button
+                          key={`${url}-${idx}`}
+                          type="button"
+                          onClick={() => handleSelectHistoryImage(url)}
+                          aria-label={`Select history image ${idx + 1}`}
+                          className={`group relative aspect-square overflow-hidden rounded-lg transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                            draft.imageUrl === url
+                              ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/30'
+                              : 'ring-1 ring-zinc-200 hover:ring-zinc-300 dark:ring-zinc-700 dark:hover:ring-zinc-600'
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`History ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          {draft.imageUrl === url && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/20 backdrop-blur-[1px]">
+                              <div className="rounded-full bg-indigo-600 p-1 shadow-lg">
+                                <svg
+                                  className="h-3 w-3 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 py-8 dark:border-zinc-700 dark:bg-zinc-800/50">
-                    <svg
-                      className="mb-2 h-8 w-8 text-zinc-400 dark:text-zinc-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">No history available</p>
-                  </div>
-                )}
-              </section>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 py-8 dark:border-zinc-700 dark:bg-zinc-800/50">
+                      <svg
+                        className="mb-2 h-8 w-8 text-zinc-400 dark:text-zinc-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        No history available
+                      </p>
+                    </div>
+                  )}
+                </section>
+              )}
             </div>
           </div>
         </div>

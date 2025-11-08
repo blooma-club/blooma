@@ -1,9 +1,8 @@
-"use client"
+'use client'
 
 import React from 'react'
 import { Moon, Sun } from 'lucide-react'
-
-const THEME_STORAGE_KEY = 'blooma_theme_preference'
+import { THEME_STORAGE_KEY } from '@/lib/theme'
 
 // localStorage에서 테마 설정 읽기
 const getStoredTheme = (): 'dark' | 'light' | null => {
