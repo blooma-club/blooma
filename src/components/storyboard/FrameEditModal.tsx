@@ -67,6 +67,7 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
               scene_number: draft.scene,
               shot_description: draft.shotDescription,
               shot_type: draft.shot,
+              angle: draft.angle,
               dialogue: draft.dialogue,
               sound: draft.sound,
               image_url: draft.imageUrl,
@@ -221,6 +222,23 @@ const FrameEditModal: React.FC<FrameEditModalProps> = ({ frame, projectId, onClo
                         placeholder="e.g., Medium, Close-up"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="angle"
+                      className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                    >
+                      Angle{' '}
+                    </label>
+                    <textarea
+                      id="angle"
+                      value={draft.angle || ''}
+                      onChange={e => setDraft(prev => ({ ...prev, angle: e.target.value }))}
+                      rows={2}
+                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1 text-sm text-zinc-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-400"
+                      placeholder="e.g., high angle, low angle..."
+                    />
                   </div>
 
                   <div>

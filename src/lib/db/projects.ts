@@ -185,6 +185,18 @@ export async function deleteProjectForUser(userId: string, projectId: string): P
   }
 }
 
+export async function getProjectForUser(
+  userId: string,
+  projectId: string,
+): Promise<Project> {
+  const projectRow = await getProjectById(projectId)
+  if (!projectRow || projectRow.user_id !== userId) {
+    throw new ProjectNotFoundError()
+  }
+
+  return enrichProjectRow(projectRow, userId)
+}
+
 export async function duplicateProjectForUser(
   userId: string,
   projectId: string,

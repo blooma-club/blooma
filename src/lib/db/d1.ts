@@ -90,6 +90,27 @@ function normalizeResults<T>(
   return Array.isArray(result) ? result : [result]
 }
 
+function extractMetaDuration(meta: unknown): number | null {
+  if (!meta || typeof meta !== 'object') return null
+  const durationValue = (meta as { duration?: unknown }).duration
+  if (typeof durationValue === 'number') return durationValue
+  if (typeof durationValue === 'string') {
+    const parsed = Number(durationValue)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function buildSqlPreview(sql: string, maxLength = 160): string {
+  const compact = sql.replace(/\s+/g, ' ').trim()
+  return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact
+}
+
+function formatDuration(ms: number | null): number | null {
+  if (typeof ms !== 'number' || Number.isNaN(ms)) return null
+  return Number(ms.toFixed(2))
+}
+
 async function parseResponse<T>(response: Response): Promise<CloudflareD1Response<T>> {
   const text = await response.text()
 
@@ -108,72 +129,159 @@ type QueryOptions = {
   requestInit?: RequestInit
 }
 
+type D1BatchStatement = {
+  sql: string
+  params?: unknown[]
+}
+
+type D1RequestPayload =
+  | {
+      sql: string
+      params?: unknown[]
+    }
+  | {
+      batch: D1BatchStatement[]
+    }
+
+function isBatchPayload(payload: D1RequestPayload): payload is { batch: D1BatchStatement[] } {
+  return 'batch' in payload
+}
+
+async function executeD1Request<T>(
+  requestPayload: D1RequestPayload,
+  options?: QueryOptions
+): Promise<D1StatementResult<T>[]> {
+  const batchPayload = isBatchPayload(requestPayload)
+  const sqlPreview = batchPayload
+    ? requestPayload.batch.map(entry => buildSqlPreview(entry.sql)).join(' | ')
+    : buildSqlPreview(requestPayload.sql)
+  const totalParams = batchPayload
+    ? requestPayload.batch.reduce((total, statement) => total + (statement.params?.length ?? 0), 0)
+    : requestPayload.params?.length ?? 0
+  const sqlForLog = batchPayload
+    ? requestPayload.batch.map(statement => statement.sql).join('; ')
+    : requestPayload.sql
+  const paramsForLog = batchPayload
+    ? requestPayload.batch.map(statement => statement.params ?? [])
+    : requestPayload.params ?? []
+  const requestBody = batchPayload
+    ? { batch: requestPayload.batch }
+    : { sql: requestPayload.sql, params: requestPayload.params }
+  const startedAt = performance.now()
+  let fetchDurationMs: number | null = null
+  let statementDurationMs: number | null = null
+  let rowCount: number | null = null
+  let lastError: string | null = null
+
+  try {
+    const { accountId, databaseId, apiToken, apiBaseUrl } = resolveConfig()
+
+    const endpoint = `${apiBaseUrl}/accounts/${accountId}/d1/database/${databaseId}/query`
+
+    const requestInit: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiToken}`,
+        ...options?.requestInit?.headers,
+      },
+      body: JSON.stringify(requestBody),
+      ...options?.requestInit,
+    }
+
+    const response = await fetch(endpoint, requestInit)
+    fetchDurationMs = performance.now() - startedAt
+
+    const responsePayload = await parseResponse<T>(response)
+
+    if (!response.ok || !responsePayload.success) {
+      lastError = 'HTTP_ERROR'
+
+      const messages =
+        responsePayload.errors?.map(error => error.message).join('; ') ||
+        `${response.status} ${response.statusText}`
+
+      // 더 자세한 에러 로깅 추가
+      console.error('[D1 Query Error]', {
+        status: response.status,
+        statusText: response.statusText,
+        errors: responsePayload.errors,
+        messages,
+        sql: sqlForLog.substring(0, 200) + (sqlForLog.length > 200 ? '...' : ''), // SQL 쿼리 일부만 로깅
+        paramsCount: totalParams,
+        endpoint: endpoint.replace(accountId, '[ACCOUNT_ID]').replace(databaseId, '[DATABASE_ID]'),
+      })
+
+      throw new D1QueryError('Cloudflare D1 query failed', {
+        status: response.status,
+        statusText: response.statusText,
+        errors: responsePayload.errors,
+        messages,
+        sql: batchPayload ? requestPayload.batch.map(statement => statement.sql) : requestPayload.sql,
+        params: paramsForLog,
+      })
+    }
+
+    const statements = normalizeResults(responsePayload.result)
+    const lastStatement = statements.at(-1)
+
+    if (!lastStatement) {
+      rowCount = 0
+      return []
+    }
+
+    rowCount = lastStatement.results?.length ?? 0
+    statementDurationMs = extractMetaDuration(lastStatement.meta)
+
+    if (!lastStatement.success) {
+      lastError = 'STATEMENT_ERROR'
+      throw new D1QueryError('Cloudflare D1 statement failed', {
+        error: lastStatement.error,
+        sql: batchPayload ? requestPayload.batch.map(statement => statement.sql) : requestPayload.sql,
+        params: paramsForLog,
+      })
+    }
+
+    return statements
+  } catch (error) {
+    if (fetchDurationMs === null) {
+      fetchDurationMs = performance.now() - startedAt
+    }
+    if (!lastError) {
+      lastError = error instanceof Error ? error.name : 'UNKNOWN_ERROR'
+    }
+    throw error
+  } finally {
+    console.log('⏱️ [D1] query timing', {
+      fetchMs: formatDuration(fetchDurationMs),
+      statementMs: formatDuration(statementDurationMs),
+      rows: rowCount,
+      paramsCount: totalParams,
+      error: lastError,
+      sqlPreview,
+    })
+  }
+}
+
 export async function queryD1<T = unknown>(
   sql: string,
   params: unknown[] = [],
   options?: QueryOptions
 ): Promise<T[]> {
-  const { accountId, databaseId, apiToken, apiBaseUrl } = resolveConfig()
-
-  const endpoint = `${apiBaseUrl}/accounts/${accountId}/d1/database/${databaseId}/query`
-
-  const requestInit: RequestInit = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiToken}`,
-      ...options?.requestInit?.headers,
-    },
-    body: JSON.stringify({ sql, params }),
-    ...options?.requestInit,
-  }
-
-  const response = await fetch(endpoint, requestInit)
-
-  const payload = await parseResponse<T>(response)
-
-  if (!response.ok || !payload.success) {
-    const messages =
-      payload.errors?.map(error => error.message).join('; ') ||
-      `${response.status} ${response.statusText}`
-
-    // 더 자세한 에러 로깅 추가
-    console.error('[D1 Query Error]', {
-      status: response.status,
-      statusText: response.statusText,
-      errors: payload.errors,
-      messages,
-      sql: sql.substring(0, 200) + (sql.length > 200 ? '...' : ''), // SQL 쿼리 일부만 로깅
-      paramsCount: params.length,
-      endpoint: endpoint.replace(accountId, '[ACCOUNT_ID]').replace(databaseId, '[DATABASE_ID]'),
-    })
-
-    throw new D1QueryError('Cloudflare D1 query failed', {
-      status: response.status,
-      statusText: response.statusText,
-      errors: payload.errors,
-      messages,
-      sql,
-      params,
-    })
-  }
-
-  const statements = normalizeResults(payload.result)
+  const statements = await executeD1Request<T>({ sql, params }, options)
   const lastStatement = statements.at(-1)
+  return lastStatement?.results ?? []
+}
 
-  if (!lastStatement) {
+export async function queryD1Batch<T = unknown>(
+  statements: D1BatchStatement[],
+  options?: QueryOptions
+): Promise<D1StatementResult<T>[]> {
+  if (statements.length === 0) {
     return []
   }
 
-  if (!lastStatement.success) {
-    throw new D1QueryError('Cloudflare D1 statement failed', {
-      error: lastStatement.error,
-      sql,
-      params,
-    })
-  }
-
-  return lastStatement.results ?? []
+  return executeD1Request<T>({ batch: statements }, options)
 }
 
 export async function queryD1Single<T = unknown>(

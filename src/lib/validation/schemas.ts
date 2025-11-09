@@ -86,6 +86,9 @@ export type CardsUpdateValidated = z.infer<typeof cardsUpdateSchema>
  */
 export const cardDeleteSchema = z.object({
   cardIds: z.array(z.string().uuid()).min(1).max(100, 'Cannot delete more than 100 cards at once'),
+  imageKeys: z
+    .record(z.string().uuid(), z.string().max(500))
+    .optional(),
 })
 
 export type CardDeleteValidated = z.infer<typeof cardDeleteSchema>
@@ -154,4 +157,3 @@ export const imageGenerationSchema = z.object({
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>
-

@@ -14,7 +14,7 @@ import PromptDock from '@/components/storyboard/PromptDock'
 import ThemeToggle from '@/components/ui/theme-toggle'
 import { SlidersHorizontal } from 'lucide-react'
 import { cardToFrame } from '@/lib/utils'
-import { createAndLinkCard } from '@/lib/cards'
+import { createCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
 import EmptyStoryboardState from '@/components/storyboard/EmptyStoryboardState'
@@ -49,6 +49,7 @@ export default function StoryboardPage() {
   const [videoSelectedIds, setVideoSelectedIds] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'storyboard' | 'models'>('storyboard')
   const [isAddingFrame, setIsAddingFrame] = useState(false)
+  const [initialLoadState, setInitialLoadState] = useState<'pending' | 'done'>('pending')
 
   const { characters: projectCharacters } = useProjectCharacters(projectId, userId)
 
@@ -118,6 +119,16 @@ export default function StoryboardPage() {
 
   // SWR 훅 사용 moved above
   const { projects } = useProjects()
+
+  const isInitialLoadPending = initialLoadState === 'pending'
+
+  useEffect(() => {
+    if (cardsInitialLoading || cardsLoading) {
+      setInitialLoadState('pending')
+    } else {
+      setInitialLoadState('done')
+    }
+  }, [cardsInitialLoading, cardsLoading])
 
   // 안정적인 이미지 업데이트 콜백
   // 통일된 카드 패치 함수
@@ -305,7 +316,7 @@ export default function StoryboardPage() {
       let inserted: Card | null = null
 
       try {
-        inserted = await createAndLinkCard(
+        inserted = await createCard(
           {
             userId,
             projectId: projectId,
@@ -758,11 +769,11 @@ export default function StoryboardPage() {
             {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
 
             {/* 콘텐츠 렌더링 */}
-            {derived.frames.length === 0 && (cardsInitialLoading || cardsLoading) && (
+            {isInitialLoadPending && (
               <LoadingGrid cardsLength={0} aspectRatio={ratio} cardWidth={cardWidth} />
             )}
 
-            {derived.frames.length === 0 && !cardsInitialLoading && !cardsLoading && (
+            {!isInitialLoadPending && derived.frames.length === 0 && (
               <EmptyStoryboardState
                 onCreateFirstCard={async () => {
                   if (!isAddingFrame) {
@@ -772,7 +783,7 @@ export default function StoryboardPage() {
               />
             )}
 
-            {derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
+            {!isInitialLoadPending && derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
               <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
                 <FrameGrid
                   frames={derived.frames}
@@ -807,7 +818,7 @@ export default function StoryboardPage() {
               </div>
             )}
 
-            {derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
+            {!isInitialLoadPending && derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
               <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
                 <FrameList
                   frames={derived.frames}

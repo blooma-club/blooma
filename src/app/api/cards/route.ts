@@ -4,7 +4,9 @@ import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors
 import { ApiError } from '@/lib/errors/api'
 import { cardInputSchema, cardsUpdateSchema, cardDeleteSchema, projectIdSchema } from '@/lib/validation/schemas'
 import { deleteImageFromR2 } from '@/lib/r2'
-import { queryD1, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
+import { queryD1 } from '@/lib/db/d1'
+import { normalizeCardRow, type CardRow } from '@/lib/db/cardRow'
+import type { Card } from '@/types'
 
 const handleError = createErrorHandler('api/cards')
 
@@ -63,47 +65,14 @@ function convertCardValidationError(error: CardValidationError): ApiError {
   return ApiError.badRequest(error.message)
 }
 
-type CardRow = {
-  id: string
-  project_id: string
-  user_id: string
-  type: string | null
-  title: string | null
-  content: string | null
-  user_input?: string | null
-  image_url?: string | null
-  image_urls?: string | null
-  selected_image_url?: number | string | null
-  image_key?: string | null
-  image_size?: number | string | null
-  image_type?: string | null
-  order_index?: number | string | null
-  next_card_id?: string | null
-  prev_card_id?: string | null
-  scene_number?: number | string | null
-  shot_type?: string | null
-  angle?: string | null
-  background?: string | null
-  mood_lighting?: string | null
-  dialogue?: string | null
-  sound?: string | null
-  image_prompt?: string | null
-  storyboard_status?: string | null
-  shot_description?: string | null
-  video_url?: string | null
-  video_key?: string | null
-  video_prompt?: string | null
-  card_width?: number | string | null
-  created_at?: string | null
-  updated_at?: string | null
+type CardUpdateInput = ReturnType<typeof cardsUpdateSchema.parse>['cards'][0]
+
+type PreparedCreateCard = {
+  card: ReturnType<typeof cardInputSchema.parse>
+  autoOrder: boolean
 }
 
-type CardLinkInfo = {
-  id: string
-  image_key: string | null
-  prev_card_id: string | null
-  next_card_id: string | null
-}
+const MAX_CASE_UPDATE_PARAMS = 220
 
 export async function GET(request: NextRequest) {
   try {
@@ -118,13 +87,25 @@ export async function GET(request: NextRequest) {
 
     const validatedProjectId = projectIdSchema.parse(projectId)
 
+    const sceneNumberParam = searchParams.get('scene_number')
+    const conditions = ['project_id = ?1', 'user_id = ?2']
+    const params: unknown[] = [validatedProjectId, userId]
+
+    if (sceneNumberParam !== null) {
+      const parsedSceneNumber = Number(sceneNumberParam)
+      if (!Number.isFinite(parsedSceneNumber)) {
+        throw ApiError.badRequest('scene_number must be a valid number')
+      }
+      conditions.push(`scene_number = ?${params.length + 1}`)
+      params.push(Math.trunc(parsedSceneNumber))
+    }
+
     const sql = `SELECT *
                  FROM cards
-                 WHERE project_id = ?1
-                   AND user_id = ?2
+                 WHERE ${conditions.join('\n                   AND ')}
                  ORDER BY order_index ASC`
-    const rows = await queryD1<CardRow>(sql, [validatedProjectId, userId])
-    const data = rows.map(normalizeCardRow)
+    const rows = await queryD1<CardRow>(sql, params)
+  const data = rows.map(normalizeCardRow)
 
     return createApiResponse(data)
   } catch (error) {
@@ -141,32 +122,41 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    // 단일 카드 또는 배열 처리
     if (Array.isArray(body)) {
       if (body.length === 0) {
         throw ApiError.badRequest('At least one card is required')
       }
 
       const validatedCards = body.map(card => cardInputSchema.parse(card))
-      const prepared = validatedCards.map(card => prepareCardInsert(card, userId))
+      const orderedCards = await assignOrderIndexes(validatedCards, userId)
+      const prepared = orderedCards.map(card => prepareCardInsert(card, userId, false))
 
-      for (const { sql, params } of prepared) {
-        await queryD1(sql, params)
+      for (const entry of prepared) {
+        await queryD1(entry.sql, entry.params)
       }
 
-      const ids = prepared.map(entry => entry.id)
-      const inserted = await fetchCardsByIds(ids, userId)
+      const inserted = prepared.map(entry => normalizeCardRow(entry.record as CardRow))
 
       return createApiResponse(inserted)
     }
 
     const validatedCard = cardInputSchema.parse(body)
-    const single = prepareCardInsert(validatedCard, userId)
-    await queryD1(single.sql, single.params)
+    const { card: orderedCard, autoOrder } = await assignSingleCardOrder(validatedCard, userId)
+    const prepared = prepareCardInsert(orderedCard, userId, autoOrder)
+    const rows = await queryD1<CardRow>(prepared.sql, prepared.params)
 
-    const [inserted] = await fetchCardsByIds([single.id], userId)
+    let insertedCard: Card | null = null
+    if (prepared.autoOrder) {
+      const [row] = rows
+      if (!row) {
+        throw new Error('Inserted card could not be retrieved')
+      }
+      insertedCard = normalizeCardRow(row)
+    } else {
+      insertedCard = normalizeCardRow(prepared.record as CardRow)
+    }
 
-    return createApiResponse(inserted ?? null)
+    return createApiResponse(insertedCard)
   } catch (error) {
     if (error instanceof CardValidationError) {
       return handleError(convertCardValidationError(error))
@@ -182,13 +172,12 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const validated = cardsUpdateSchema.parse(body)
 
-    const statements = validated.cards.map(card => prepareCardUpdate(card, userId))
-
-    for (const statement of statements) {
-      if (statement.setClauses.length === 0) {
-        continue
+    const batches = chunkCardUpdates(validated.cards, MAX_CASE_UPDATE_PARAMS)
+    for (const batch of batches) {
+      const statement = prepareCardsBulkUpdate(batch, userId)
+      if (statement) {
+        await queryD1(statement.sql, statement.params)
       }
-      await queryD1(statement.sql, statement.params)
     }
 
     const ids = validated.cards.map(card => card.id)
@@ -210,111 +199,37 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json()
     const validated = cardDeleteSchema.parse(body)
 
-    const cards = await loadCardsForDeletion(validated.cardIds, userId)
-    if (cards.length === 0) {
+    if (validated.cardIds.length === 0) {
       return createApiResponse({ deletedCount: 0, deletedImages: 0 })
     }
 
-    const idSet = new Set(cards.map(card => card.id))
-    const cardMap = new Map(cards.map(card => [card.id, card]))
-    const updateTimestamp = new Date().toISOString()
-    const neighborUpdates = new Map<
-      string,
-      { next_card_id?: string | null; prev_card_id?: string | null; updated_at: string }
-    >()
+    const providedImageKeys = validated.imageKeys ?? {}
+    const providedKeyValues = Object.values(providedImageKeys).filter((key): key is string => Boolean(key))
+    const missingCardIds = validated.cardIds.filter(
+      id => !Object.prototype.hasOwnProperty.call(providedImageKeys, id)
+    )
 
-    const findNextSurvivor = (startingId: string | null): string | null => {
-      let cursor = startingId
-      const visited = new Set<string>()
-      while (cursor && idSet.has(cursor)) {
-        if (visited.has(cursor)) {
-          cursor = null
-          break
-        }
-        visited.add(cursor)
-        const next = cardMap.get(cursor)?.next_card_id
-        if (!next) return null
-        cursor = next
-      }
-      return cursor ?? null
+    let fallbackImageKeys: string[] = []
+    if (missingCardIds.length > 0) {
+      const selectPlaceholders = createNumberedPlaceholders(missingCardIds.length)
+      const selectSql = `SELECT image_key
+                       FROM cards
+                       WHERE id IN (${selectPlaceholders.join(', ')})
+                         AND user_id = ?${missingCardIds.length + 1}`
+      const rows = await queryD1<{ image_key?: string | null }>(selectSql, [...missingCardIds, userId])
+      fallbackImageKeys = rows.map(row => row.image_key).filter((key): key is string => Boolean(key))
     }
 
-    const findPrevSurvivor = (startingId: string | null): string | null => {
-      let cursor = startingId
-      const visited = new Set<string>()
-      while (cursor && idSet.has(cursor)) {
-        if (visited.has(cursor)) {
-          cursor = null
-          break
-        }
-        visited.add(cursor)
-        const prev = cardMap.get(cursor)?.prev_card_id
-        if (!prev) return null
-        cursor = prev
-      }
-      return cursor ?? null
-    }
+    const imageKeys = Array.from(new Set([...providedKeyValues, ...fallbackImageKeys]))
 
-    for (const card of cards) {
-      if (card.prev_card_id && !idSet.has(card.prev_card_id)) {
-        const nextSurvivor = findNextSurvivor(card.next_card_id)
-        const patch = neighborUpdates.get(card.prev_card_id) ?? { updated_at: updateTimestamp }
-        patch.next_card_id = nextSurvivor
-        patch.updated_at = updateTimestamp
-        neighborUpdates.set(card.prev_card_id, patch)
-      }
-
-      if (card.next_card_id && !idSet.has(card.next_card_id)) {
-        const prevSurvivor = findPrevSurvivor(card.prev_card_id)
-        const patch = neighborUpdates.get(card.next_card_id) ?? { updated_at: updateTimestamp }
-        patch.prev_card_id = prevSurvivor
-        patch.updated_at = updateTimestamp
-        neighborUpdates.set(card.next_card_id, patch)
-      }
-    }
-
-    for (const [cardId, patch] of neighborUpdates.entries()) {
-      const setClauses: string[] = []
-      const params: unknown[] = []
-      let index = 1
-
-      if (patch.next_card_id !== undefined) {
-        setClauses.push(`next_card_id = ?${index}`)
-        params.push(patch.next_card_id)
-        index += 1
-      }
-
-      if (patch.prev_card_id !== undefined) {
-        setClauses.push(`prev_card_id = ?${index}`)
-        params.push(patch.prev_card_id)
-        index += 1
-      }
-
-      setClauses.push(`updated_at = ?${index}`)
-      params.push(patch.updated_at)
-      index += 1
-
-      const idPlaceholder = `?${index}`
-      params.push(cardId)
-      index += 1
-
-      const userPlaceholder = `?${index}`
-      params.push(userId)
-
-      const sql = `UPDATE cards SET ${setClauses.join(', ')} WHERE id = ${idPlaceholder} AND user_id = ${userPlaceholder}`
-      await queryD1(sql, params)
-    }
-
-    const imageKeys = cards.map(card => card.image_key).filter(Boolean) as string[]
     if (imageKeys.length > 0) {
-      const deletePromises = imageKeys.map(key => deleteImageFromR2(key))
-      await Promise.allSettled(deletePromises)
+      await Promise.allSettled(imageKeys.map(key => deleteImageFromR2(key)))
     }
 
     const deletePlaceholders = createNumberedPlaceholders(validated.cardIds.length)
-    const deleteSql = `DELETE FROM cards WHERE id IN (${deletePlaceholders.join(', ')}) AND user_id = ?${
-      validated.cardIds.length + 1
-    }`
+    const deleteSql = `DELETE FROM cards
+                       WHERE id IN (${deletePlaceholders.join(', ')})
+                         AND user_id = ?${validated.cardIds.length + 1}`
     await queryD1(deleteSql, [...validated.cardIds, userId])
 
     return createApiResponse({
@@ -329,7 +244,19 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-function prepareCardInsert(cardInput: ReturnType<typeof cardInputSchema.parse>, userId: string) {
+type PreparedInsertStatement = {
+  id: string
+  sql: string
+  params: unknown[]
+  record: Record<string, unknown>
+  autoOrder: boolean
+}
+
+function prepareCardInsert(
+  cardInput: ReturnType<typeof cardInputSchema.parse>,
+  userId: string,
+  autoOrder: boolean
+): PreparedInsertStatement {
   if (!cardInput.project_id) {
     throw new CardValidationError('project_id is required')
   }
@@ -342,7 +269,12 @@ function prepareCardInsert(cardInput: ReturnType<typeof cardInputSchema.parse>, 
 
   const now = new Date().toISOString()
   const id = cardInput.id ?? randomUUID()
-  const card = cardInput as unknown as Record<string, unknown>
+  const card = { ...(cardInput as unknown as Record<string, unknown>) }
+
+  if (autoOrder) {
+    delete card.order_index
+    delete card.scene_number
+  }
 
   const record: Record<string, unknown> = {
     id,
@@ -376,51 +308,126 @@ function prepareCardInsert(cardInput: ReturnType<typeof cardInputSchema.parse>, 
   const placeholders = createNumberedPlaceholders(columns.length)
   const params = columns.map(column => record[column])
 
-  const sql = `INSERT INTO cards (${columns.join(', ')})
-               VALUES (${placeholders.join(', ')})`
+  if (!autoOrder) {
+    const sql = `INSERT INTO cards (${columns.join(', ')})
+                 VALUES (${placeholders.join(', ')})`
+    return {
+      id,
+      sql,
+      params,
+      record,
+      autoOrder: false,
+    }
+  }
 
-  return { id, sql, params }
+  const projectPlaceholderIndex = columns.indexOf('project_id')
+  const userPlaceholderIndex = columns.indexOf('user_id')
+  if (projectPlaceholderIndex === -1 || userPlaceholderIndex === -1) {
+    throw new CardValidationError('project_id and user_id are required for auto-order inserts')
+  }
+
+  const computedColumns = ['order_index', 'scene_number']
+  const selectValues = [
+    ...placeholders,
+    'COALESCE(MAX(order_index), -1) + 1',
+    'COALESCE(MAX(order_index), -1) + 2',
+  ]
+
+  const sql = `INSERT INTO cards (${[...columns, ...computedColumns].join(', ')})
+               SELECT ${selectValues.join(', ')}
+               FROM cards
+               WHERE project_id = ?${projectPlaceholderIndex + 1}
+                 AND user_id = ?${userPlaceholderIndex + 1}
+               RETURNING *`
+
+  return {
+    id,
+    sql,
+    params,
+    record,
+    autoOrder: true,
+  }
 }
 
-function prepareCardUpdate(cardInput: ReturnType<typeof cardsUpdateSchema.parse>['cards'][0], userId: string) {
-  if (!cardInput.id) {
-    throw new CardValidationError('id is required for card updates')
+function prepareCardsBulkUpdate(cardInputs: CardUpdateInput[], userId: string) {
+  if (cardInputs.length === 0) {
+    return null
   }
 
-  const card = cardInput as unknown as Record<string, unknown>
-  const setClauses: string[] = []
   const params: unknown[] = []
   let index = 1
+  const columnCases = new Map<string, string[]>()
+  const cardIdIndex = new Map<string, number>()
 
-  for (const key of ALLOWED_KEYS) {
-    if (key === 'id' || key === 'project_id' || key === 'user_id') {
-      continue
+  const ensureCardIdPlaceholder = (cardId: string) => {
+    let idIndex = cardIdIndex.get(cardId)
+    if (idIndex === undefined) {
+      idIndex = index++
+      cardIdIndex.set(cardId, idIndex)
+      params.push(cardId)
     }
-
-    const value = card[key]
-    if (value === undefined) {
-      continue
-    }
-
-    setClauses.push(`${key} = ?${index}`)
-    params.push(transformValueForDb(key, value))
-    index += 1
+    return idIndex
   }
 
-  setClauses.push(`updated_at = ?${index}`)
+  for (const cardInput of cardInputs) {
+    if (!cardInput.id) {
+      throw new CardValidationError('id is required for card updates')
+    }
+
+    const card = cardInput as unknown as Record<string, unknown>
+
+    for (const key of ALLOWED_KEYS) {
+      if (key === 'id' || key === 'project_id' || key === 'user_id') {
+        continue
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(card, key)) {
+        continue
+      }
+
+      const value = card[key]
+      if (value === undefined) {
+        continue
+      }
+
+      const transformed = transformValueForDb(key, value)
+      const idPlaceholder = ensureCardIdPlaceholder(cardInput.id)
+      const valuePlaceholder = index++
+      params.push(transformed)
+
+      const entries = columnCases.get(key) ?? []
+      entries.push(`WHEN ?${idPlaceholder} THEN ?${valuePlaceholder}`)
+      columnCases.set(key, entries)
+    }
+  }
+
+  if (columnCases.size === 0) {
+    return null
+  }
+
+  const setClauses: string[] = []
+  for (const [column, entries] of columnCases) {
+    if (entries.length === 0) {
+      continue
+    }
+    setClauses.push(`${column} = CASE id ${entries.join(' ')} ELSE ${column} END`)
+  }
+
+  const updatedAtPlaceholder = index++
   params.push(new Date().toISOString())
-  index += 1
+  setClauses.push(`updated_at = ?${updatedAtPlaceholder}`)
 
-  const idPlaceholder = `?${index}`
-  params.push(cardInput.id)
-  index += 1
+  const idPlaceholders = Array.from(cardIdIndex.values()).map(id => `?${id}`)
 
-  const userPlaceholder = `?${index}`
+  const userPlaceholder = index++
   params.push(userId)
 
-  const sql = `UPDATE cards SET ${setClauses.join(', ')} WHERE id = ${idPlaceholder} AND user_id = ${userPlaceholder}`
+  const sql = `UPDATE cards
+               SET ${setClauses.join(', ')}
+               WHERE id IN (${idPlaceholders.join(', ')})
+                 AND user_id = ?${userPlaceholder}`
 
-  return { sql, params, setClauses }
+  return { sql, params }
 }
 
 function transformValueForDb(key: string, value: unknown): unknown {
@@ -468,7 +475,7 @@ async function fetchCardsByIds(ids: string[], userId: string) {
                  AND user_id = ?${ids.length + 1}`
   const rows = await queryD1<CardRow>(sql, [...ids, userId])
   const normalized = rows.map(normalizeCardRow)
-  const map = new Map<string, Record<string, unknown>>()
+  const map = new Map<string, Card>()
 
   for (const row of normalized) {
     if (typeof row.id === 'string') {
@@ -478,87 +485,168 @@ async function fetchCardsByIds(ids: string[], userId: string) {
 
   return ids
     .map(id => map.get(id))
-    .filter((row): row is Record<string, unknown> => row !== undefined)
-}
-
-async function loadCardsForDeletion(cardIds: string[], userId: string) {
-  const placeholders = createNumberedPlaceholders(cardIds.length)
-  const sql = `SELECT id, image_key, prev_card_id, next_card_id
-               FROM cards
-               WHERE id IN (${placeholders.join(', ')})
-                 AND user_id = ?${cardIds.length + 1}`
-  return queryD1<CardLinkInfo>(sql, [...cardIds, userId])
-}
-
-function normalizeCardRow(row: CardRow): Record<string, unknown> {
-  const imageUrls = parseImageUrls(row.image_urls)
-
-  return {
-    ...row,
-    image_urls: imageUrls,
-    selected_image_url: parseNullableInteger(row.selected_image_url),
-    image_size: parseNullableInteger(row.image_size),
-    order_index: parseNullableInteger(row.order_index),
-    scene_number: parseNullableInteger(row.scene_number),
-    card_width: parseNullableInteger(row.card_width),
-  }
-}
-
-function parseImageUrls(value: unknown): string[] | null {
-  if (!value) {
-    return null
-  }
-
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === 'string')
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return null
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed)
-      if (Array.isArray(parsed)) {
-        return parsed.filter((entry): entry is string => typeof entry === 'string')
-      }
-    } catch {
-      return [trimmed]
-    }
-  }
-
-  return null
-}
-
-function parseNullableInteger(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) {
-    return null
-  }
-
-  return Math.trunc(parsed)
-}
-
-function parseNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null
-  }
-
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) {
-    return null
-  }
-
-  return parsed
+    .filter((row): row is Card => row !== undefined)
 }
 
 function createNumberedPlaceholders(length: number, startIndex = 1) {
   return Array.from({ length }, (_, index) => `?${startIndex + index}`)
 }
 
+function countCardUpdateFields(cardInput: CardUpdateInput) {
+  const card = cardInput as unknown as Record<string, unknown>
+  let count = 0
+
+  for (const key of ALLOWED_KEYS) {
+    if (key === 'id' || key === 'project_id' || key === 'user_id') {
+      continue
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(card, key)) {
+      continue
+    }
+
+    const value = card[key]
+    if (value === undefined) {
+      continue
+    }
+
+    count += 1
+  }
+
+  return count
+}
+
+async function assignOrderIndexes(
+  cards: ReturnType<typeof cardInputSchema.parse>[],
+  userId: string
+): Promise<ReturnType<typeof cardInputSchema.parse>[]> {
+  const projectCounter = new Map<string, number>()
+
+  for (const card of cards) {
+    const projectId = card.project_id
+    if (!projectId) {
+      throw new CardValidationError('project_id is required')
+    }
+
+    if (!projectCounter.has(projectId)) {
+      const nextOrder = await fetchNextOrderIndex(projectId, userId)
+      projectCounter.set(projectId, nextOrder)
+    }
+  }
+
+  return cards.map(card => {
+    const projectId = card.project_id
+    if (!projectId) {
+      throw new CardValidationError('project_id is required')
+    }
+
+    const nextOrder = projectCounter.get(projectId)
+    if (nextOrder === undefined) {
+      throw new CardValidationError('Unable to determine order index for project')
+    }
+
+    projectCounter.set(projectId, nextOrder + 1)
+
+    return {
+      ...card,
+      order_index: nextOrder,
+      scene_number: nextOrder + 1,
+    }
+  })
+}
+
+async function shiftOrderIndexesForInsert(projectId: string, userId: string, startIndex: number) {
+  const now = new Date().toISOString()
+  const sql = `UPDATE cards
+                 SET order_index = order_index + 1,
+                     scene_number = COALESCE(scene_number, order_index + 1) + 1,
+                     updated_at = ?1
+               WHERE order_index >= ?2
+                 AND project_id = ?3
+                 AND user_id = ?4`
+  await queryD1(sql, [now, startIndex, projectId, userId])
+}
+
+async function assignSingleCardOrder(
+  cardInput: ReturnType<typeof cardInputSchema.parse>,
+  userId: string
+): Promise<PreparedCreateCard> {
+  const projectId = cardInput.project_id
+  if (!projectId) {
+    throw new CardValidationError('project_id is required')
+  }
+
+  const requestedOrder =
+    typeof cardInput.order_index === 'number' && Number.isFinite(cardInput.order_index)
+      ? Math.max(0, Math.trunc(cardInput.order_index))
+      : undefined
+
+  if (requestedOrder === undefined) {
+    return { card: cardInput, autoOrder: true }
+  }
+
+  const nextOrder = await fetchNextOrderIndex(projectId, userId)
+  if (requestedOrder >= nextOrder) {
+    return {
+      card: {
+        ...cardInput,
+        order_index: nextOrder,
+        scene_number: nextOrder + 1,
+      },
+      autoOrder: false,
+    }
+  }
+
+  await shiftOrderIndexesForInsert(projectId, userId, requestedOrder)
+  return {
+    card: {
+      ...cardInput,
+      order_index: requestedOrder,
+      scene_number: requestedOrder + 1,
+    },
+    autoOrder: false,
+  }
+}
+
+async function fetchNextOrderIndex(projectId: string, userId: string): Promise<number> {
+  const rows = await queryD1<{ max_order?: number | string | null }>(
+    `SELECT COALESCE(MAX(order_index), -1) AS max_order
+       FROM cards
+      WHERE project_id = ?1
+        AND user_id = ?2`,
+    [projectId, userId]
+  )
+
+  const raw = rows[0]?.max_order
+  const parsed = typeof raw === 'number' ? raw : Number(raw)
+  const safe = Number.isFinite(parsed) ? Math.trunc(parsed) : -1
+  return safe + 1
+}
+
+function chunkCardUpdates(cards: CardUpdateInput[], maxParams: number) {
+  const entries = cards
+    .map(card => ({ card, fieldCount: countCardUpdateFields(card) }))
+    .filter(entry => entry.fieldCount > 0)
+
+  const chunks: CardUpdateInput[][] = []
+  let currentChunk: CardUpdateInput[] = []
+  let placeholderCount = 2 // updated_at + user_id
+
+  for (const entry of entries) {
+    const contribution = entry.fieldCount + 1 // +1 for the card id placeholder
+    if (currentChunk.length > 0 && placeholderCount + contribution > maxParams) {
+      chunks.push(currentChunk)
+      currentChunk = []
+      placeholderCount = 2
+    }
+
+    currentChunk.push(entry.card)
+    placeholderCount += contribution
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk)
+  }
+
+  return chunks
+}

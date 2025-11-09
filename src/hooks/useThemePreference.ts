@@ -15,7 +15,7 @@ const getDocumentTheme = (): ThemePreference => {
 }
 
 export const useThemePreference = () => {
-  const [theme, setTheme] = useState<ThemePreference>(() => getDocumentTheme())
+  const [theme, setTheme] = useState<ThemePreference>('light')
 
   useEffect(() => {
     if (typeof window === 'undefined') return

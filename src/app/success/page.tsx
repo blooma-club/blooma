@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { CheckCircle2, ArrowRight, Sparkles, Shield, GaugeCircle } from 'lucide-react'
-import SiteNavbar from '@/components/layout/SiteNavbar'
 import { Button } from '@/components/ui/button'
+import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 type SuccessPageProps = {
   params: Promise<Record<string, never>>
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -43,7 +43,7 @@ export default async function PaymentSuccessPage({ searchParams }: SuccessPagePr
   ]
   return (
     <>
-      <SiteNavbar />
+      <SiteNavbarSignedIn />
       <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background/90 to-background">
         <section className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-6 pb-24 pt-20">
           <div className="rounded-3xl border border-primary/30 bg-primary/10 p-10 shadow-2xl shadow-primary/25 backdrop-blur">

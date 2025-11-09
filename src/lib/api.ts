@@ -1,7 +1,17 @@
 import useSWR from 'swr'
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import type { Project, ProjectInput, Card } from '@/types'
+import type {
+  Project,
+  ProjectInput,
+  Card,
+  DashboardProjectPreview,
+  StoryboardBasicCard,
+} from '@/types'
+import { useStoryboardCardsStore, selectOrderedCards } from '@/store/storyboardCards'
+
+type ProjectsResponse = { data?: Project[] }
+type DashboardProjectsResponse = { data?: DashboardProjectPreview[] }
 
 const fetcher = async (url: string) => {
   const res = await fetch(url, { credentials: 'include' })
@@ -13,7 +23,7 @@ const fetcher = async (url: string) => {
 export const useProjects = () => {
   const { userId } = useAuth()
   const storageKey = useMemo(() => (userId ? `projects_cache_${userId}` : null), [userId])
-  const cachedInitial = useMemo(() => {
+  const cachedInitial = useMemo<ProjectsResponse | undefined>(() => {
     try {
       if (typeof window === 'undefined' || !storageKey) return undefined
       const raw = window.sessionStorage.getItem(storageKey)
@@ -28,105 +38,260 @@ export const useProjects = () => {
     }
   }, [storageKey])
 
-  const { data, isLoading, mutate: mutateProjects } = useSWR(
-    userId ? '/api/projects' : null, 
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      keepPreviousData: true,
-      dedupingInterval: 2000,
-      fallbackData: cachedInitial
-    }
-  )
-  
-  const projects: Project[] = Array.isArray(data?.data) ? data.data : []
+  const {
+    data: dashboardData,
+    isLoading: isDashboardLoading,
+    mutate: mutateDashboard,
+  } = useSWR<DashboardProjectsResponse>(userId ? '/api/projects/dashboard' : null, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    keepPreviousData: true,
+  })
 
-  // 세션 캐시에 최신 프로젝트 목록 저장 (즉시 렌더용)
+  const {
+    data,
+    isLoading: isFullLoading,
+    mutate: mutateProjects,
+  } = useSWR<ProjectsResponse>(userId ? '/api/projects' : null, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    keepPreviousData: true,
+    dedupingInterval: 2000,
+    fallbackData: cachedInitial,
+  })
+
+  const dashboardProjects: DashboardProjectPreview[] = useMemo(
+    () => (Array.isArray(dashboardData?.data) ? dashboardData.data : []),
+    [dashboardData]
+  )
+  const fullProjects: Project[] = useMemo(
+    () => (Array.isArray(data?.data) ? data.data : []),
+    [data]
+  )
+
+  const projects: Project[] = useMemo(() => {
+    if (!userId) return []
+    const previewMap = new Map(dashboardProjects.map(entry => [entry.project_id, entry]))
+    const dashboardOrder = dashboardProjects.map(entry => entry.project_id)
+    const fullMap = new Map(fullProjects.map(project => [project.id, project]))
+
+    const ordered = dashboardOrder
+      .map(projectId => {
+        const preview = previewMap.get(projectId)
+        const full = fullMap.get(projectId)
+        if (full) {
+          return {
+            ...full,
+            preview_image: preview?.image_url ?? full.preview_image ?? null,
+            created_at: full.created_at ?? preview?.created_at ?? full.created_at,
+          }
+        }
+        if (!preview) {
+          return null
+        }
+        return {
+          id: preview.project_id,
+          user_id: userId,
+          title: preview.project_title ?? preview.title,
+          description: undefined,
+          created_at: preview.created_at ?? undefined,
+          preview_image: preview.image_url ?? null,
+        } as Project
+      })
+      .filter((project): project is Project => project !== null)
+
+    const remaining = fullProjects.filter(project => !previewMap.has(project.id))
+    return [...ordered, ...remaining]
+  }, [dashboardProjects, fullProjects, userId])
+
   useEffect(() => {
     try {
       if (typeof window === 'undefined' || !storageKey) return
       if (Array.isArray(projects)) {
         window.sessionStorage.setItem(storageKey, JSON.stringify(projects))
       }
-    } catch {}
+    } catch {
+      // ignore storage errors
+    }
   }, [projects, storageKey])
-  
+
+  const isLoading =
+    Boolean(userId) &&
+    projects.length === 0 &&
+    !dashboardData &&
+    (isDashboardLoading || isFullLoading)
+
   const createProject = async (projectData: ProjectInput) => {
-    const tempId = 'temp-' + Date.now()
-    const tempProject = { id: tempId, ...projectData, creating: true }
-    
-    // 즉시 UI 업데이트
-    mutateProjects({ data: [tempProject, ...projects] }, false)
-    
+    if (!userId) {
+      throw new Error('Authentication required')
+    }
+
+    const tempId = `temp-${Date.now()}`
+    const tempProject: Project = {
+      id: tempId,
+      user_id: userId,
+      title: projectData.title,
+      description: projectData.description,
+      preview_image: null,
+      created_at: new Date().toISOString(),
+    }
+
+    const optimisticPreview: DashboardProjectPreview = {
+      project_id: tempId,
+      project_title: projectData.title,
+      card_title: null,
+      title: projectData.title,
+      image_url: null,
+      created_at: new Date().toISOString(),
+    }
+
+    const originalDashboard = Array.isArray(dashboardData?.data) ? [...dashboardData.data] : []
+
+    mutateProjects(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return { data: [tempProject, ...base] }
+    }, false)
+
+    mutateDashboard(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return { data: [optimisticPreview, ...base] }
+    }, false)
+
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(projectData),
-        credentials: 'include'
+        credentials: 'include',
       })
-      
+
       if (!response.ok) throw new Error('Failed to create')
       const result = await response.json()
-      
-      // 임시 → 실제 교체
-      mutateProjects({ 
-        data: projects.map((p: any) => p.id === tempId ? result.data : p) 
+
+      mutateProjects(prev => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        return {
+          data: base.map(project => (project.id === tempId ? result.data : project)),
+        }
       }, false)
-      
+
+      mutateDashboard(prev => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        return {
+          data: base.map(entry =>
+            entry.project_id === tempId
+              ? {
+                  ...entry,
+                  project_id: result.data.id,
+                  project_title: result.data.title,
+                  title: result.data.title,
+                }
+              : entry
+          ),
+        }
+      }, false)
+
       return result.data
     } catch (error) {
-      // 실패시 제거
-      mutateProjects({ data: projects.filter((p: any) => p.id !== tempId) }, false)
+      mutateProjects(prev => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        return { data: base.filter(project => project.id !== tempId) }
+      }, false)
+      mutateDashboard({ data: originalDashboard }, false)
       throw error
     }
   }
-  
+
   const deleteProject = async (projectId: string) => {
-    const originalProjects = projects
-    
-    // 즉시 UI에서 제거
-    mutateProjects({ data: projects.filter((p: any) => p.id !== projectId) }, false)
-    
+    const originalProjects = fullProjects
+    const originalDashboard = Array.isArray(dashboardData?.data) ? [...dashboardData.data] : []
+
+    mutateProjects(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return { data: base.filter(project => project.id !== projectId) }
+    }, false)
+
+    mutateDashboard(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return { data: base.filter(entry => entry.project_id !== projectId) }
+    }, false)
+
     try {
       await fetch('/api/projects', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: projectId }),
-        credentials: 'include'
+        credentials: 'include',
       })
     } catch {
-      // 실패시 복구
       mutateProjects({ data: originalProjects }, false)
+      mutateDashboard({ data: originalDashboard }, false)
       throw new Error('삭제 실패')
     }
   }
 
   const updateProject = async (projectId: string, projectData: ProjectInput) => {
-    // 즉시 업데이트
-    const optimisticProjects = projects.map((p: any) => 
-      p.id === projectId ? { ...p, ...projectData } : p
-    )
-    mutateProjects({ data: optimisticProjects }, false)
-    
+    const originalDashboard = Array.isArray(dashboardData?.data) ? [...dashboardData.data] : []
+
+    mutateProjects(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return {
+        data: base.map(project =>
+          project.id === projectId ? { ...project, ...projectData } : project
+        ),
+      }
+    }, false)
+
+    mutateDashboard(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      return {
+        data: base.map(entry =>
+          entry.project_id === projectId
+            ? {
+                ...entry,
+                project_title: projectData.title ?? entry.project_title,
+                title: projectData.title ?? entry.title,
+              }
+            : entry
+        ),
+      }
+    }, false)
+
     try {
       const response = await fetch('/api/projects', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: projectId, ...projectData }),
-        credentials: 'include'
+        credentials: 'include',
       })
-      
+
       if (!response.ok) throw new Error('Failed to update')
       const result = await response.json()
-      
-      // 서버 응답으로 최종 업데이트
-      mutateProjects({ 
-        data: projects.map((p: any) => p.id === projectId ? result.data : p) 
+
+      mutateProjects(prev => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        return {
+          data: base.map(project => (project.id === projectId ? result.data : project)),
+        }
+      }, false)
+
+      mutateDashboard(prev => {
+        const base = Array.isArray(prev?.data) ? prev.data : []
+        return {
+          data: base.map(entry =>
+            entry.project_id === projectId
+              ? {
+                  ...entry,
+                  project_title: result.data.title,
+                  title: result.data.title,
+                }
+              : entry
+          ),
+        }
       }, false)
     } catch {
-      mutateProjects() // 실패시 서버에서 다시 로드
+      mutateDashboard({ data: originalDashboard }, false)
+      mutateProjects({ data: fullProjects }, false)
       throw new Error('업데이트 실패')
     }
   }
@@ -148,119 +313,191 @@ export const useProjects = () => {
       throw new Error('Duplicate response missing project data')
     }
 
-    mutateProjects(
-      (prev: { data: Project[] } | undefined) => {
-        const currentData: Project[] = Array.isArray(prev?.data) ? prev.data : []
-        const base = currentData.slice()
-        const index = base.findIndex(project => project.id === projectId)
-        if (index === -1) {
-          return { data: [duplicated, ...base] }
-        }
+    mutateProjects(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      const index = base.findIndex(project => project.id === projectId)
+      if (index === -1) {
+        return { data: [duplicated, ...base] }
+      }
+      const next = base.slice()
+      next.splice(index + 1, 0, duplicated)
+      return { data: next }
+    }, false)
 
-        base.splice(index + 1, 0, duplicated)
-        return { data: base }
-      },
-      false,
-    )
+    mutateDashboard(prev => {
+      const base = Array.isArray(prev?.data) ? prev.data : []
+      const source = base.find(entry => entry.project_id === projectId)
+      const duplicatePreview: DashboardProjectPreview = {
+        project_id: duplicated.id,
+        project_title: duplicated.title,
+        card_title: source?.card_title ?? null,
+        title: duplicated.title,
+        image_url: source?.image_url ?? null,
+        created_at: duplicated.created_at ?? new Date().toISOString(),
+      }
+      const next = base.slice()
+      const sourceIndex = next.findIndex(entry => entry.project_id === projectId)
+      if (sourceIndex === -1) {
+        next.unshift(duplicatePreview)
+      } else {
+        next.splice(sourceIndex + 1, 0, duplicatePreview)
+      }
+      return { data: next }
+    }, false)
 
     return duplicated
   }
-  
+
   return { projects, isLoading, createProject, deleteProject, updateProject, duplicateProject }
 }
 
 // 카드 관리
 export const useCards = (projectId: string) => {
   const { userId } = useAuth()
-  type CardsResponse = { data: Card[]; _fallback?: boolean }
-  const fallbackResponse: CardsResponse = { data: [], _fallback: true }
-  const { data = fallbackResponse, isLoading, mutate: mutateCards, error } = useSWR<CardsResponse>(
-    userId && projectId ? `/api/cards?project_id=${projectId}` : null,
-    fetcher,
-    {
-      // refreshInterval: 0, // 주기적 자동 새로고침 비활성화 (필요시 수동으로 mutate 호출)
-      revalidateOnFocus: false,
-      revalidateOnReconnect: true, // 네트워크 재연결 시에만 새로고침
-      fallbackData: fallbackResponse
-    }
-  )
-  const [hasInitialResponse, setHasInitialResponse] = useState(false)
+  const setProject = useStoryboardCardsStore(state => state.setProject)
+  const setLoadingState = useStoryboardCardsStore(state => state.setLoadingState)
+  const setBasicCards = useStoryboardCardsStore(state => state.setBasicCards)
+  const setFullCards = useStoryboardCardsStore(state => state.setFullCards)
+  const mergeFullCards = useStoryboardCardsStore(state => state.mergeFullCards)
+  const removeCards = useStoryboardCardsStore(state => state.removeCards)
+  const orderedCards = useStoryboardCardsStore(selectOrderedCards)
 
   useEffect(() => {
-    if (hasInitialResponse) return
-    if (!data?._fallback || error) {
-      setHasInitialResponse(true)
-    }
-  }, [data, error, hasInitialResponse])
+    setProject(projectId ?? null)
+  }, [projectId, setProject])
 
-  const cards = data?.data || []
-  const isInitialLoading = !hasInitialResponse
-  
+  const basicKey = userId && projectId ? `/api/projects/${projectId}/storyboard?scope=basic` : null
+  const fullKey = userId && projectId ? `/api/projects/${projectId}/storyboard?scope=full` : null
+
+  const { data: basicData, isLoading: isBasicLoading } = useSWR<{ data?: StoryboardBasicCard[] }>(
+    basicKey,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      keepPreviousData: true,
+    }
+  )
+
+  useEffect(() => {
+    if (!projectId) return
+    setLoadingState('basic', Boolean(basicKey) && isBasicLoading)
+  }, [projectId, basicKey, isBasicLoading, setLoadingState])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (Array.isArray(basicData?.data)) {
+      setBasicCards(projectId, basicData.data)
+    }
+  }, [projectId, basicData, setBasicCards])
+
+  const {
+    data: fullData,
+    isLoading: isFullLoading,
+    mutate: mutateCards,
+  } = useSWR<{ data?: Card[] }>(fullKey, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    keepPreviousData: true,
+  })
+
+  useEffect(() => {
+    if (!projectId) return
+    setLoadingState('full', Boolean(fullKey) && isFullLoading)
+  }, [projectId, fullKey, isFullLoading, setLoadingState])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (Array.isArray(fullData?.data)) {
+      setFullCards(projectId, fullData.data)
+    }
+  }, [projectId, fullData, setFullCards])
+
+  const cards = orderedCards
+  const hasBasicData = Array.isArray(basicData?.data)
+  const isInitialLoading = !hasBasicData && isBasicLoading
+  const isLoading = isInitialLoading
+
   const deleteCard = async (cardId: string) => {
-    // 즉시 제거 - 함수형 mutate로 최신 캐시 기반 처리
-    mutateCards((prev: any) => {
+    if (!projectId) return
+
+    removeCards(projectId, [cardId])
+    mutateCards(prev => {
       const base = Array.isArray(prev?.data) ? prev.data : []
-      return { data: base.filter((c: any) => c.id !== cardId) }
+      return { data: base.filter(card => card.id !== cardId) }
     }, false)
-    
+
     try {
       await fetch('/api/cards', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cardIds: [cardId] }),
-        credentials: 'include'
+        credentials: 'include',
       })
     } catch {
-      // 실패 시 서버에서 재검증
       await mutateCards()
       throw new Error('삭제 실패')
     }
   }
-  
+
   const updateCard = async (cardId: string, updates: Partial<Card>) => {
-    // 즉시 업데이트 (함수형 mutate)
-    mutateCards((prev: any) => {
+    if (!projectId) return
+
+    mergeFullCards(projectId, [{ id: cardId, ...updates }])
+    mutateCards(prev => {
       const base = Array.isArray(prev?.data) ? prev.data : []
-      const next = base.map((c: any) => (c.id === cardId ? { ...c, ...updates } : c))
-      return { data: next }
+      return {
+        data: base.map(card => (card.id === cardId ? { ...card, ...updates } : card)),
+      }
     }, false)
-    
+
     try {
       await fetch('/api/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cards: [{ id: cardId, ...updates }] }),
-        credentials: 'include'
+        credentials: 'include',
       })
     } catch {
-      await mutateCards() // 실패시 서버에서 다시 로드
+      await mutateCards()
       throw new Error('업데이트 실패')
     }
   }
 
   const updateCards = async (cardsToUpdate: Partial<Card>[]) => {
-    // 즉시 업데이트 (함수형 mutate)
-    mutateCards((prev: any) => {
+    if (!projectId || !cardsToUpdate.length) return
+
+    mergeFullCards(projectId, cardsToUpdate)
+    mutateCards(prev => {
       const base = Array.isArray(prev?.data) ? prev.data : []
-      const next = base.map((c: any) => {
-        const update = cardsToUpdate.find((u: any) => u.id === c.id)
-        return update ? { ...c, ...update } : c
-      })
-      return { data: next }
+      return {
+        data: base.map(card => {
+          const patch = cardsToUpdate.find(update => update.id === card.id)
+          return patch ? { ...card, ...patch } : card
+        }),
+      }
     }, false)
-    
+
     try {
       await fetch('/api/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cards: cardsToUpdate }),
-        credentials: 'include'
+        credentials: 'include',
       })
     } catch {
-      await mutateCards() // 실패시 서버에서 다시 로드
+      await mutateCards()
       throw new Error('업데이트 실패')
     }
   }
-  
-  return { cards, isLoading, isInitialLoading, deleteCard, updateCard, updateCards, mutate: mutateCards }
+
+  return {
+    cards,
+    isLoading,
+    isInitialLoading,
+    deleteCard,
+    updateCard,
+    updateCards,
+    mutate: mutateCards,
+  }
 }

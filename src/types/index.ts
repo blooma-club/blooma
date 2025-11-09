@@ -23,6 +23,15 @@ export interface Project {
   preview_image?: string | null // 첫 번째 씬의 미리보기 이미지
 }
 
+export interface DashboardProjectPreview {
+  project_id: string
+  project_title?: string | null
+  card_title?: string | null
+  title: string
+  image_url?: string | null
+  created_at?: string | null
+}
+
 // Simple Storyboard type for store compatibility
 export interface Storyboard {
   id: string
@@ -61,6 +70,7 @@ export interface Card {
   // Storyboard 메타데이터 필드 (완전 통합)
   scene_number?: number        // 씬 번호
   shot_type?: string          // 촬영 타입 (CU, MS, LS 등)
+  angle?: string              // 카메라 앵글 설명
   dialogue?: string           // 대사/내레이션
   sound?: string              // 음향 효과
   image_prompt?: string       // AI 이미지 생성 프롬프트
@@ -81,6 +91,17 @@ export interface Card {
 
   created_at?: string
   updated_at?: string
+}
+
+export interface StoryboardBasicCard {
+  id: string
+  project_id: string
+  user_id: string
+  title: string
+  type: Card['type']
+  order_index: number
+  scene_number?: number
+  image_url?: string | null
 }
 
 // 버전 타입
