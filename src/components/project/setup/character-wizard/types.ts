@@ -15,5 +15,9 @@ export type Character = {
   original_image_key?: string
   original_image_size?: number
   edit_prompt?: string
+  productAttachments?: Array<{
+    name: string
+    size: number
+    type: string
+  }>
 }
-

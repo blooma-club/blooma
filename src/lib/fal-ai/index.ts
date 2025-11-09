@@ -1,6 +1,14 @@
 import { fal } from '@fal-ai/client'
 import type { ImageSize } from '@fal-ai/client/endpoints'
-import type { FalAIModel, FalAIInputSchema, FalAISubmission, FalAIGenerationOptions, FalAIGenerationResult, FalAISubmissionUpdate, FalAIImageResult } from './types'
+import type {
+  FalAIModel,
+  FalAIInputSchema,
+  FalAISubmission,
+  FalAIGenerationOptions,
+  FalAIGenerationResult,
+  FalAISubmissionUpdate,
+  FalAIImageResult,
+} from './types'
 import { isFalAIModel } from './types'
 
 const FALLBACK_PLACEHOLDER_IMAGE =
@@ -16,7 +24,7 @@ function createPlaceholderImageResult(reason: string): FalAIGenerationResult {
   }
 }
 
-// 지원하는 Fal AI 모델들 
+// 지원하는 Fal AI 모델들
 export const FAL_AI_MODELS: FalAIModel[] = [
   {
     id: 'fal-ai/imagen4',
@@ -30,8 +38,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       negative_prompt: 'string?',
       width: 'number?',
       height: 'number?',
-      num_inference_steps: 'number?'
-    }
+      num_inference_steps: 'number?',
+    },
   },
   {
     id: 'fal-ai/imagen4-ultra',
@@ -45,8 +53,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       negative_prompt: 'string?',
       width: 'number?',
       height: 'number?',
-      num_inference_steps: 'number?'
-    }
+      num_inference_steps: 'number?',
+    },
   },
   {
     id: 'fal-ai/flux-pro/v1.1-ultra',
@@ -60,8 +68,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       aspect_ratio: 'string?',
       guidance_scale: 'number?',
       num_images: 'number?',
-      output_format: 'string?'
-    }
+      output_format: 'string?',
+    },
   },
   {
     id: 'fal-ai/gemini-25-flash-image/edit',
@@ -74,8 +82,24 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       prompt: 'string',
       image_urls: 'list<string>',
       num_images: 'number?',
-      output_format: 'string?'
-    }
+      output_format: 'string?',
+    },
+  },
+  {
+    id: 'fal-ai/nano-banana/edit',
+    name: 'Nano Banana Edit',
+    description:
+      'Fal Nano Banana edit workflow optimized for product, clothing, and accessory compositing',
+    category: 'inpainting',
+    maxResolution: '2048x2048',
+    credits: 5,
+    inputSchema: {
+      prompt: 'string',
+      image_urls: 'list<string>',
+      num_images: 'number?',
+      output_format: 'string?',
+      strength: 'number?',
+    },
   },
   {
     id: 'fal-ai/bytedance/seedream/v4/edit',
@@ -91,8 +115,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       num_images: 'number?',
       max_images: 'number?',
       seed: 'number?',
-      enable_safety_checker: 'boolean?'
-    }
+      enable_safety_checker: 'boolean?',
+    },
   },
   {
     id: 'fal-ai/gemini-25-flash-image',
@@ -104,8 +128,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     inputSchema: {
       prompt: 'string',
       num_images: 'number?',
-      output_format: 'string?'
-    }
+      output_format: 'string?',
+    },
   },
   {
     id: 'fal-ai/bytedance/seedream/v4/text-to-image',
@@ -121,8 +145,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       max_images: 'number?',
       seed: 'number?',
       sync_mode: 'boolean?',
-      enable_safety_checker: 'boolean?'
-    }
+      enable_safety_checker: 'boolean?',
+    },
   },
   // Veo 3.1 Image to Video
   {
@@ -157,7 +181,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       aspect_ratio: 'string?',
       resolution: 'string?',
       generate_audio: 'boolean?',
-    }
+    },
   },
   // Kling 2.1 Pro - Start Frame to End Frame
   {
@@ -175,7 +199,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       aspect_ratio: 'string?',
       negative_prompt: 'string?',
       cfg_scale: 'number?',
-    }
+    },
   },
   // Kling 2.5 Turbo Pro - Image to Video
   {
@@ -191,7 +215,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       duration: 'string?',
       negative_prompt: 'string?',
       cfg_scale: 'number?',
-    }
+    },
   },
   // Kling 2.5 Turbo Standard - Image to Video
   {
@@ -207,8 +231,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       duration: 'string?',
       negative_prompt: 'string?',
       cfg_scale: 'number?',
-    }
-  }
+    },
+  },
 ]
 
 // 기본 모델 설정 (프로덕션용)
@@ -252,8 +276,8 @@ export function initializeFalAI(): boolean {
 
 // 모델별 프롬프트 생성
 export function generateModelSpecificPrompt(
-  basePrompt: string, 
-  modelId: string, 
+  basePrompt: string,
+  modelId: string,
   style?: string,
   aspectRatio?: string
 ): string {
@@ -278,6 +302,9 @@ export function generateModelSpecificPrompt(
       break
     case 'fal-ai/gemini-25-flash-image/edit':
       enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
+      break
+    case 'fal-ai/nano-banana/edit':
+      enhancedPrompt = `${basePrompt}, require precise blending of clothing or product references while keeping the original subject intact`
       break
     case 'fal-ai/gemini-25-flash-image':
       enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
@@ -369,7 +396,6 @@ function resolveSeedreamImageSize(options: FalAIGenerationOptions): SeedreamImag
   return 'square_hd'
 }
 
-
 // 이미지 생성 함수 (통합)
 export async function generateImageWithModel(
   prompt: string,
@@ -401,7 +427,9 @@ export async function generateImageWithModel(
 
   if (!hasCredentials) {
     console.warn('[FAL] No FAL credentials detected. Falling back to placeholder image.')
-    return createPlaceholderImageResult('FAL credentials are not configured. Placeholder image returned.')
+    return createPlaceholderImageResult(
+      'FAL credentials are not configured. Placeholder image returned.'
+    )
   }
 
   const { enhancePrompt = true, ...generationOptions } = options
@@ -454,7 +482,8 @@ export async function generateImageWithModel(
 
       if (isAccessOrQuotaError(error)) {
         const formatted = formatFalError(error) || 'Forbidden'
-        const statusLabel = typeof maybeStatus === 'number' ? `status ${maybeStatus}` : 'access error'
+        const statusLabel =
+          typeof maybeStatus === 'number' ? `status ${maybeStatus}` : 'access error'
         const message = `FAL image generation blocked (${statusLabel}): ${formatted}. Placeholder image returned.`
         console.warn(`[FAL] ${message} (model: ${candidateModel})`)
         return createPlaceholderImageResult(message)
@@ -525,11 +554,9 @@ function formatFalError(error: unknown): string | null {
     }
     if (record.body && typeof record.body === 'object' && record.body !== null) {
       const bodyRecord = record.body as Record<string, unknown>
-      const nestedMessage = [
-        bodyRecord.message,
-        bodyRecord.detail,
-        bodyRecord.error,
-      ].find(value => typeof value === 'string' && value.trim().length > 0) as string | undefined
+      const nestedMessage = [bodyRecord.message, bodyRecord.detail, bodyRecord.error].find(
+        value => typeof value === 'string' && value.trim().length > 0
+      ) as string | undefined
       if (nestedMessage) {
         return nestedMessage
       }
@@ -548,7 +575,9 @@ function isAccessOrQuotaError(error: unknown): boolean {
   const message = formatFalError(error)
   if (!message) return false
 
-  return /(forbidden|unauthorized|permission|credential|api key|quota|payment|upgrade)/i.test(message)
+  return /(forbidden|unauthorized|permission|credential|api key|quota|payment|upgrade)/i.test(
+    message
+  )
 }
 
 // 모델별 이미지 생성 구현
@@ -557,63 +586,74 @@ async function generateImageByModel(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
-
   switch (modelId) {
     case 'fal-ai/imagen4':
       return await generateWithImagen4(prompt, options)
-    
+
     case 'fal-ai/imagen4-ultra':
       return await generateWithImagen4Ultra(prompt, options)
-    
+
     case 'fal-ai/flux-pro/v1.1-ultra':
       return await generateWithFluxProV11Ultra(prompt, options)
 
     case 'fal-ai/gemini-25-flash-image/edit':
       return await generateWithGemini25FlashImageEdit(prompt, options)
 
+    case 'fal-ai/nano-banana/edit':
+      return await generateWithNanoBananaEdit(prompt, options)
+
     case 'fal-ai/gemini-25-flash-image/text-to-image':
       return await generateWithGemini25FlashImageTextToImage(prompt, options)
 
     case 'fal-ai/bytedance/seedream/v4/text-to-image':
       return await generateWithSeedreamV4(prompt, options)
-    
+
     case 'fal-ai/bytedance/seedream/v4/edit':
       return await generateWithSeedreamV4Edit(prompt, options)
-    
+
     default:
       throw new Error(`Unsupported model: ${modelId}`)
   }
 }
 
 // Imagen 4 모델
-async function generateWithImagen4(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithImagen4(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   const aspectRatio = (options.aspectRatio || '1:1').replace(/\s+/g, '')
   const submission = (await fal.subscribe('fal-ai/imagen4/preview', {
     input: {
       prompt,
       // @ts-expect-error - Fal client types may not include all model-specific fields
       aspect_ratio: aspectRatio,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted'
-    }
+      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
+    },
   })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'imagen4')
 }
 
 // Imagen 4 Ultra 모델
-async function generateWithImagen4Ultra(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithImagen4Ultra(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   const submission = (await fal.subscribe('fal-ai/imagen4/preview/ultra', {
     input: {
       prompt,
       negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-    }
+    },
   })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'imagen4-ultra')
 }
 
 // Flux 1.1 Pro 모델
-async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithFluxProV11Ultra(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
   const submission = (await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
     input: {
@@ -623,61 +663,104 @@ async function generateWithFluxProV11Ultra(prompt: string, options: FalAIGenerat
       guidance_scale: options.guidanceScale || 3.5,
       num_images: options.numImages || 1,
       output_format: outputFormat,
-      safety_tolerance: (options.safetyTolerance || '2') as '1' | '2' | '3' | '4' | '5' | '6'
+      safety_tolerance: (options.safetyTolerance || '2') as '1' | '2' | '3' | '4' | '5' | '6',
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][flux-pro-v1.1-ultra]', update.status)
       }
-    }
+    },
   })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'flux-pro-v1.1-ultra')
 }
 
 // Gemini 2.5 Flash Image Edit 모델 (멀티 이미지 편집)
-async function generateWithGemini25FlashImageEdit(prompt: string, options: FalAIGenerationOptions): Promise<string[]> {
+async function generateWithGemini25FlashImageEdit(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string[]> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
-  const submission = await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
+  const submission = (await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
     input: {
       prompt,
       image_urls: options.imageUrls || [],
       num_images: options.numImages || 1,
-      output_format: outputFormat
+      output_format: outputFormat,
     },
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][gemini-25-flash-image-edit]', update.status)
       }
-    }
-  }) as FalAISubmission
+    },
+  })) as FalAISubmission
 
   return extractImageUrls(submission, 'gemini-25-flash-image-edit')
 }
 
+async function generateWithNanoBananaEdit(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
+  const referenceImages = [options.imageUrl, ...(options.imageUrls || [])].filter(
+    (value): value is string => Boolean(value && value.trim())
+  )
+
+  if (referenceImages.length === 0) {
+    throw new Error('Nano Banana edit requires at least one reference image')
+  }
+
+  const submission = (await fal.subscribe('fal-ai/nano-banana/edit', {
+    input: {
+      prompt,
+      image_urls: referenceImages,
+      num_images: options.numImages || 1,
+      output_format: resolveOutputFormat(options.outputFormat),
+    },
+    logs: true,
+    onQueueUpdate(update: FalAISubmissionUpdate) {
+      if (update?.status === 'IN_PROGRESS') {
+        console.log('[FAL][nano-banana-edit]', update.status)
+        update.logs?.forEach(log => {
+          if (log?.message) {
+            console.log('[FAL][nano-banana-edit]', log.message)
+          }
+        })
+      }
+    },
+  })) as FalAISubmission
+
+  return extractImageUrl(submission, 'nano-banana-edit')
+}
+
 // Gemini 2.5 Flash Image Text to Image 모델 (텍스트에서 이미지 생성)
-async function generateWithGemini25FlashImageTextToImage(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithGemini25FlashImageTextToImage(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
-  const submission = await fal.subscribe('fal-ai/gemini-25-flash-image', {
+  const submission = (await fal.subscribe('fal-ai/gemini-25-flash-image', {
     input: {
       prompt,
       num_images: options.numImages || 1,
-      output_format: outputFormat
+      output_format: outputFormat,
     },
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][gemini-25-flash-image-text-to-image]', update.status)
       }
-    }
-  }) as FalAISubmission
+    },
+  })) as FalAISubmission
 
   return extractImageUrl(submission, 'gemini-25-flash-image-text-to-image')
 }
 
-
 // Seedream 4.0 Text to Image 모델
-async function generateWithSeedreamV4(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithSeedreamV4(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
   const imageSize = resolveSeedreamImageSize(options)
 
@@ -689,21 +772,24 @@ async function generateWithSeedreamV4(prompt: string, options: FalAIGenerationOp
       max_images: options.maxImages || 1,
       seed: options.seed,
       sync_mode: options.syncMode || false,
-      enable_safety_checker: options.enableSafetyChecker !== false
+      enable_safety_checker: options.enableSafetyChecker !== false,
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][seedream-v4]', update.status)
       }
-    }
+    },
   })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'seedream-v4')
 }
 
 // Seedream 4.0 Edit 모델
-async function generateWithSeedreamV4Edit(prompt: string, options: FalAIGenerationOptions): Promise<string> {
+async function generateWithSeedreamV4Edit(
+  prompt: string,
+  options: FalAIGenerationOptions
+): Promise<string> {
   // 비율을 Seedream 4.0 형식으로 변환
   const imageSize = resolveSeedreamImageSize(options)
 
@@ -715,14 +801,14 @@ async function generateWithSeedreamV4Edit(prompt: string, options: FalAIGenerati
       num_images: options.numImages || 1,
       max_images: options.maxImages || 1,
       seed: options.seed,
-      enable_safety_checker: options.enableSafetyChecker !== false
+      enable_safety_checker: options.enableSafetyChecker !== false,
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
         console.log('[FAL][seedream-v4-edit]', update.status)
       }
-    }
+    },
   })) as unknown as FalAISubmission
 
   return extractImageUrl(submission, 'seedream-v4-edit')
@@ -731,39 +817,46 @@ async function generateWithSeedreamV4Edit(prompt: string, options: FalAIGenerati
 // 이미지 URL 추출 (모든 모델 공통)
 function extractImageUrl(submission: FalAISubmission, modelName: string): string {
   const elapsed = Date.now()
-  
+
   // data 필드가 배열인지 확인
-  const dataArray = Array.isArray(submission?.data) ? submission.data as FalAIImageResult[] : undefined
-  
-  let imageUrl: string | undefined = submission?.images?.[0]?.url
-    || submission?.output?.[0]?.url
-    || submission?.image?.url
-    || dataArray?.[0]?.url
-    || submission?.result?.[0]?.url
-    || submission?.artifacts?.[0]?.url
+  const dataArray = Array.isArray(submission?.data)
+    ? (submission.data as FalAIImageResult[])
+    : undefined
+
+  let imageUrl: string | undefined =
+    submission?.images?.[0]?.url ||
+    submission?.output?.[0]?.url ||
+    submission?.image?.url ||
+    dataArray?.[0]?.url ||
+    submission?.result?.[0]?.url ||
+    submission?.artifacts?.[0]?.url
 
   // 깊은 스캔으로 URL 찾기
   if (!imageUrl && submission && typeof submission === 'object') {
     try {
       const stack: unknown[] = [submission]
       const seen = new Set<unknown>()
-      
+
       while (stack.length) {
         const current = stack.pop()
         if (!current || typeof current !== 'object' || seen.has(current)) continue
-        
+
         seen.add(current)
         if (Array.isArray(current)) {
           for (const item of current) stack.push(item)
           continue
         }
-        
+
         const currentObj = current as Record<string, unknown>
-        if (!imageUrl && typeof currentObj.url === 'string' && /^https?:\/\//.test(currentObj.url)) {
+        if (
+          !imageUrl &&
+          typeof currentObj.url === 'string' &&
+          /^https?:\/\//.test(currentObj.url)
+        ) {
           imageUrl = currentObj.url
           break
         }
-        
+
         for (const key of Object.keys(currentObj)) {
           stack.push(currentObj[key])
         }
@@ -775,12 +868,13 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
 
   // Base64 처리
   if (!imageUrl) {
-    const base64 = submission?.output?.[0]?.b64 
-      || submission?.output?.[0]?.base64 
-      || submission?.image?.b64
-      || submission?.images?.[0]?.b64 
-      || submission?.images?.[0]?.base64
-    
+    const base64 =
+      submission?.output?.[0]?.b64 ||
+      submission?.output?.[0]?.base64 ||
+      submission?.image?.b64 ||
+      submission?.images?.[0]?.b64 ||
+      submission?.images?.[0]?.base64
+
     if (typeof base64 === 'string' && base64.length > 50) {
       imageUrl = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
     }
@@ -790,7 +884,7 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
     console.error(`[FAL][${modelName}][empty-image]`, {
       keys: Object.keys(submission || {}),
       elapsedMs: elapsed,
-      sample: JSON.stringify(submission || {}).slice(0, 900)
+      sample: JSON.stringify(submission || {}).slice(0, 900),
     })
     throw new Error(`No image generated from ${modelName}`)
   }
@@ -802,27 +896,39 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
 // 여러 이미지 URL 추출 (멀티 이미지 모델용)
 function extractImageUrls(submission: FalAISubmission, modelName: string): string[] {
   const elapsed = Date.now()
-  
-  let images: FalAIImageResult[] = submission?.images || (submission?.output as FalAIImageResult[]) || submission?.data || submission?.result || submission?.artifacts || []
-  
+
+  let images: FalAIImageResult[] =
+    submission?.images ||
+    (submission?.output as FalAIImageResult[]) ||
+    submission?.data ||
+    submission?.result ||
+    submission?.artifacts ||
+    []
+
   // 깊은 스캔으로 이미지 배열 찾기
   if (!Array.isArray(images) || images.length === 0) {
     if (submission && typeof submission === 'object') {
       try {
         const stack: unknown[] = [submission]
         const seen = new Set<unknown>()
-        
+
         while (stack.length) {
           const current = stack.pop()
           if (!current || typeof current !== 'object' || seen.has(current)) continue
-          
+
           seen.add(current)
           const currentObj = current as Record<string, unknown>
-          if (Array.isArray(currentObj) && currentObj.length > 0 && typeof currentObj[0] === 'object' && currentObj[0] !== null && 'url' in currentObj[0]) {
+          if (
+            Array.isArray(currentObj) &&
+            currentObj.length > 0 &&
+            typeof currentObj[0] === 'object' &&
+            currentObj[0] !== null &&
+            'url' in currentObj[0]
+          ) {
             images = currentObj as FalAIImageResult[]
             break
           }
-          
+
           for (const key of Object.keys(currentObj)) {
             stack.push(currentObj[key])
           }
@@ -834,15 +940,15 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
   }
 
   const urls: string[] = []
-  
+
   for (const img of images) {
     let url: string | undefined
-    
+
     // URL 찾기
     if (typeof img.url === 'string' && /^https?:\/\//.test(img.url)) {
       url = img.url
     }
-    
+
     // Base64 처리
     if (!url) {
       const base64 = img.b64 || img.base64
@@ -850,7 +956,7 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
         url = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
       }
     }
-    
+
     if (url) {
       urls.push(url)
     }
@@ -860,7 +966,7 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
     console.error(`[FAL][${modelName}][empty-images]`, {
       keys: Object.keys(submission || {}),
       elapsedMs: elapsed,
-      sample: JSON.stringify(submission || {}).slice(0, 900)
+      sample: JSON.stringify(submission || {}).slice(0, 900),
     })
     throw new Error(`No images generated from ${modelName}`)
   }
@@ -916,7 +1022,9 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
   if (mode === 'video') {
     // video 모드는 getVideoModelsForSelection(count)를 사용해야 함
     // 여기서는 기본값으로 image-to-video 모델만 반환 (하위 호환성)
-    console.warn('[getModelsForMode] video mode should use getVideoModelsForSelection(count) instead')
+    console.warn(
+      '[getModelsForMode] video mode should use getVideoModelsForSelection(count) instead'
+    )
     return IMAGE_TO_VIDEO_MODEL_IDS.map(id => getModelInfo(id)).filter(
       (model): model is FalAIModel => Boolean(model)
     )
@@ -932,9 +1040,7 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
 // 비디오 선택 개수에 따른 모델 목록 반환
 export function getVideoModelsForSelection(count: number): FalAIModel[] {
   const ids = count >= 2 ? START_TO_END_FRAME_MODEL_IDS : IMAGE_TO_VIDEO_MODEL_IDS
-  return ids
-    .map(id => getModelInfo(id))
-    .filter((model): model is FalAIModel => Boolean(model))
+  return ids.map(id => getModelInfo(id)).filter((model): model is FalAIModel => Boolean(model))
 }
 
 export function isStartEndVideoModel(id: string): boolean {
@@ -949,10 +1055,18 @@ export function isImageToVideoModelId(id: string): boolean {
 export function calculateModelCredits(modelId: string): number {
   const model = getModelInfo(modelId)
   if (!model) return 0
-  
+
   return model.credits
 }
 
 // 타입 re-export
-export type { FalAIModel, FalAIInputSchema, FalAISubmission, FalAIGenerationOptions, FalAIGenerationResult, FalAISubmissionUpdate, FalAIImageResult }
+export type {
+  FalAIModel,
+  FalAIInputSchema,
+  FalAISubmission,
+  FalAIGenerationOptions,
+  FalAIGenerationResult,
+  FalAISubmissionUpdate,
+  FalAIImageResult,
+}
 export { isFalAIModel }

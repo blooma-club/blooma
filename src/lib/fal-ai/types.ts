@@ -61,6 +61,10 @@ export interface FalAISubmissionUpdate {
   status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
   progress?: number
   error?: string
+  logs?: Array<{
+    message?: string
+    level?: string
+  }>
 }
 
 export interface FalAIImageResult {
