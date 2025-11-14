@@ -9,7 +9,6 @@ import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import { useProjects } from '@/lib/api'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
-import SiteFooter from '@/components/layout/footer'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -337,7 +336,6 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
-      <SiteFooter />
     </div>
   )
 }

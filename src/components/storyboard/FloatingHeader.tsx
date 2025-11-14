@@ -3,9 +3,8 @@ import React from 'react'
 import clsx from 'clsx'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, Edit3, Check, X, ArrowLeft } from 'lucide-react'
+import { Edit3, Check, X, ArrowLeft } from 'lucide-react'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
-import type { Project } from '@/types'
 
 interface FloatingHeaderProps {
   title: string
@@ -21,8 +20,6 @@ interface FloatingHeaderProps {
   className?: string
   projectId?: string
 }
-
-const ASPECT_RATIO_OPTIONS: StoryboardAspectRatio[] = ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16']
 
 export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
   title,
@@ -40,9 +37,6 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
 }) => {
   const { userId } = useAuth()
   const router = useRouter()
-  const [dropdownOpen, setDropdownOpen] = React.useState(false)
-  const displayIndex = total > 0 ? index + 1 : 0
-  const [navigationDropdownOpen, setNavigationDropdownOpen] = React.useState(false)
   
   // 프로젝트 제목 편집 관련 상태
   const [projectTitle, setProjectTitle] = React.useState<string>('')
@@ -119,39 +113,8 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
     }
   }
 
-  // 외부 클릭 시 드롭다운 닫기
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest('.dropdown-container')) {
-        setDropdownOpen(false)
-        setNavigationDropdownOpen(false)
-      }
-    }
-
-    if (dropdownOpen || navigationDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [dropdownOpen, navigationDropdownOpen])
-  const selectedAspect = aspectRatio ?? '16:9'
-  const showAspectControls = typeof onAspectRatioChange === 'function'
-  const navigationOptions = [
-    ...(onNavigateToCharacters
-      ? [{ value: 'models' as const, label: 'Models', onSelect: onNavigateToCharacters }]
-      : []),
-    { value: 'storyboard' as const, label: 'Storyboard', onSelect: onNavigateToStoryboard },
-  ]
-  const selectedView =
-    navigationOptions.find(option => option.value === currentView)?.value ??
-    navigationOptions[0]?.value ??
-    'storyboard'
-
   const containerClasses = clsx(
-    'pointer-events-auto backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 border border-neutral-200/80 dark:border-neutral-700/50 rounded-lg shadow-lg px-4 py-2.5 flex items-center justify-between gap-x-4 relative z-50 h-[48px]',
+    'pointer-events-auto backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 border border-neutral-200/80 dark:border-neutral-700/50 ring-1 ring-neutral-200/50 dark:ring-neutral-700/40 rounded-lg shadow-lg px-4 py-2.5 flex items-center justify-between gap-x-4 relative z-50 h-[48px]',
     className
   )
 
@@ -220,6 +183,20 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
               </button>
             </div>
           )
+        )}
+      </div>
+
+      {/* 우측: 진행 정보 배지 */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {typeof index === 'number' && typeof total === 'number' && total > 0 && (
+          <span
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 text-foreground border border-neutral-200/70 dark:border-neutral-700/50 ring-1 ring-neutral-200/50 dark:ring-neutral-700/40 shadow-sm"
+            aria-label={`Progress ${Math.max(0, index + 1)} of ${total}`}
+          >
+            <span>{Math.max(0, index + 1)}</span>
+            <span className="opacity-60">/</span>
+            <span>{total}</span>
+          </span>
         )}
       </div>
 

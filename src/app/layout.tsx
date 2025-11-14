@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import ToasterProvider from '@/components/ui/toast';
 import type { Metadata } from 'next';
 import { Instrument_Serif, Inter } from 'next/font/google';
+import { GeistSans } from 'geist/font/sans';
 import Script from 'next/script';
 import './globals.css';
 import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect';
@@ -50,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${instrumentSerif.variable}`}
+      className={`${inter.variable} ${GeistSans.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen">

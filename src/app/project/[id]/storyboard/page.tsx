@@ -574,32 +574,6 @@ export default function StoryboardPage() {
             />
           </div>
 
-          {/* 중앙: 뷰 전환 탭 (Storyboard/Models) */}
-          <div className="absolute left-1/2 -translate-x-1/2 z-10">
-            <div className="h-[48px] flex items-center rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 p-1 gap-0.5">
-              <button
-                onClick={handleNavigateToStoryboard}
-                className={`h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium ${
-                  viewMode === 'storyboard'
-                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                }`}
-              >
-                Storyboard
-              </button>
-              <button
-                onClick={handleNavigateToCharacters}
-                className={`h-[36px] px-5 rounded-md transition-all duration-200 text-sm font-medium ${
-                  viewMode === 'models'
-                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                }`}
-              >
-                Models
-              </button>
-            </div>
-          </div>
-
           {/* 우측: 통합 설정 헤더 그룹 */}
           <div className="flex-shrink-0 z-10">
             <div className="h-[48px] rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 flex items-center gap-1 px-2">
@@ -868,7 +842,7 @@ export default function StoryboardPage() {
               : undefined
           }
           selectedFrameId={selectedFrameId}
-          onClearSelectedShot={() => setIndex(-1)}
+          onClearSelectedShot={handleDeselectCard}
           mode={promptDockMode}
           onModeChange={setPromptDockMode}
           referenceImageUrl={
