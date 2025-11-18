@@ -33,6 +33,7 @@ import {
 } from '@/lib/constants'
 import { loadProjectRatio, saveProjectRatio } from '@/lib/localStorage'
 import { useBackgroundStore } from '@/store/backgrounds'
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 
 export default function StoryboardPage() {
   const params = useParams<{ id: string }>()
@@ -123,12 +124,14 @@ export default function StoryboardPage() {
   const isInitialLoadPending = initialLoadState === 'pending'
 
   useEffect(() => {
-    if (cardsInitialLoading || cardsLoading) {
+    if (!userId || cardsInitialLoading || cardsLoading) {
       setInitialLoadState('pending')
-    } else {
-      setInitialLoadState('done')
+      return
     }
-  }, [cardsInitialLoading, cardsLoading])
+    setInitialLoadState('done')
+  }, [userId, cardsInitialLoading, cardsLoading])
+
+  const { handleCreditError } = useHandleCreditError()
 
   // 안정적인 이미지 업데이트 콜백
   // 통일된 카드 패치 함수
@@ -371,12 +374,22 @@ export default function StoryboardPage() {
           error?: string
         }
 
+        // Check if the response indicates insufficient credits
+        if (!response.ok) {
+          // Try to handle credit errors - if it returns true, a popup was shown
+          if (handleCreditError(payload)) {
+            return // Popup was shown, no need to show additional error
+          }
+
+          const errorMsg = payload?.data?.error || payload?.error || '이미지를 생성할 수 없습니다.'
+          throw new Error(errorMsg)
+        }
+
         // API 응답 형식: { success: true, data: { imageUrl: ... } }
         const imageUrl = payload?.data?.imageUrl || payload?.imageUrl
 
-        if (!response.ok || !payload?.success || !imageUrl) {
-          const errorMsg = payload?.data?.error || payload?.error || '이미지를 생성할 수 없습니다.'
-          throw new Error(errorMsg)
+        if (!payload?.success || !imageUrl) {
+          throw new Error(payload?.data?.error || payload?.error || '이미지를 생성할 수 없습니다.')
         }
 
         const generatedImageUrl = imageUrl
@@ -409,6 +422,11 @@ export default function StoryboardPage() {
 
         // SWR로 카드가 업데이트되면 derived를 통해 반영됨
       } catch (error) {
+        // Try to handle credit errors - if it returns true, a popup was shown
+        if (handleCreditError(error)) {
+          return // Popup was shown, no need to show additional error
+        }
+
         // 오류 상태는 카드 업데이트 후 SWR을 통해 반영됨
         throw error instanceof Error
           ? error
@@ -783,62 +801,67 @@ export default function StoryboardPage() {
               />
             )}
 
-            {!isInitialLoadPending && derived.frames.length > 0 && (!isClient || storyboardViewMode === 'grid') && (
-              <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
-                <FrameGrid
-                  frames={derived.frames}
-                  mode={promptDockMode}
-                  onFrameOpen={frameIndex => {
-                    setIndex(frameIndex)
-                  }}
-                  onFrameEdit={frameId => {
-                    const frameData = derived.frames.find(f => f.id === frameId)
-                    if (frameData) setEditingFrame(frameData)
-                  }}
-                  onFrameDelete={handleFrameDeleteLocal}
-                  onAddFrame={handleFrameAddLocal}
-                  onImageUpload={handleImageUpload}
-                  deletingFrameId={deletingFrameId}
-                  isAddingFrame={isAddingFrame}
-                  loading={cardsLoading}
-                  cardsLength={queryCards.length}
-                  aspectRatio={ratio}
-                  cardWidth={cardWidth}
-                  selectedFrameId={selectedFrameId}
-                  onBackgroundClick={handleDeselectCard}
-                  selectedFrameIds={videoSelectedIds}
-                  onCardSelect={handleGridCardSelect}
-                  onReorder={(fromIndex, toIndex) => {
-                    const result = handleReorderFrames(fromIndex, toIndex)
-                    if (result) {
-                      setIndex(result.newIndex)
-                    }
-                  }}
-                />
-              </div>
-            )}
+            {!isInitialLoadPending &&
+              derived.frames.length > 0 &&
+              (!isClient || storyboardViewMode === 'grid') && (
+                <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
+                  <FrameGrid
+                    frames={derived.frames}
+                    mode={promptDockMode}
+                    onFrameOpen={frameIndex => {
+                      setIndex(frameIndex)
+                    }}
+                    onFrameEdit={frameId => {
+                      const frameData = derived.frames.find(f => f.id === frameId)
+                      if (frameData) setEditingFrame(frameData)
+                    }}
+                    onFrameDelete={handleFrameDeleteLocal}
+                    onAddFrame={handleFrameAddLocal}
+                    onImageUpload={handleImageUpload}
+                    deletingFrameId={deletingFrameId}
+                    isAddingFrame={isAddingFrame}
+                    loading={cardsLoading}
+                    cardsLength={queryCards.length}
+                    aspectRatio={ratio}
+                    cardWidth={cardWidth}
+                    selectedFrameId={selectedFrameId}
+                    onBackgroundClick={handleDeselectCard}
+                    selectedFrameIds={videoSelectedIds}
+                    onCardSelect={handleGridCardSelect}
+                    onReorder={(fromIndex, toIndex) => {
+                      const result = handleReorderFrames(fromIndex, toIndex)
+                      if (result) {
+                        setIndex(result.newIndex)
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
-            {!isInitialLoadPending && derived.frames.length > 0 && isClient && storyboardViewMode === 'list' && (
-              <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
-                <FrameList
-                  frames={derived.frames}
-                  onFrameEdit={frameIndex => {
-                    setIndex(frameIndex)
-                  }}
-                  onFrameEditMetadata={frameId => {
-                    const frameData = derived.frames.find(f => f.id === frameId)
-                    if (frameData) setEditingFrame(frameData)
-                  }}
-                  onFrameDelete={handleFrameDeleteLocal}
-                  onAddFrame={handleFrameAddLocal}
-                  onImageUpload={handleImageUpload}
-                  deletingFrameId={deletingFrameId}
-                  isAddingFrame={isAddingFrame}
-                  aspectRatio={ratio}
-                  selectedFrameId={selectedFrameId}
-                />
-              </div>
-            )}
+            {!isInitialLoadPending &&
+              derived.frames.length > 0 &&
+              isClient &&
+              storyboardViewMode === 'list' && (
+                <div style={{ pointerEvents: showWidthControls ? 'none' : 'auto' }}>
+                  <FrameList
+                    frames={derived.frames}
+                    onFrameEdit={frameIndex => {
+                      setIndex(frameIndex)
+                    }}
+                    onFrameEditMetadata={frameId => {
+                      const frameData = derived.frames.find(f => f.id === frameId)
+                      if (frameData) setEditingFrame(frameData)
+                    }}
+                    onFrameDelete={handleFrameDeleteLocal}
+                    onAddFrame={handleFrameAddLocal}
+                    onImageUpload={handleImageUpload}
+                    deletingFrameId={deletingFrameId}
+                    isAddingFrame={isAddingFrame}
+                    aspectRatio={ratio}
+                    selectedFrameId={selectedFrameId}
+                  />
+                </div>
+              )}
           </>
         )}
 

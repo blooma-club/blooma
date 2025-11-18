@@ -46,7 +46,7 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
   )
 
   const latestCharacterImageUrl = useMemo(
-    () => (characters.length ? (characters[characters.length - 1]?.imageUrl ?? null) : null),
+    () => (characters.length ? (characters[characters.length - 1]?.image_url ?? null) : null),
     [characters]
   )
 
@@ -66,14 +66,14 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
           prev
             ? {
                 ...prev,
-                originalImageUrl: character.imageUrl,
+                image_url: character.image_url,
               }
             : null
         )
       } else {
         setEditingCharacter({
           ...character,
-          originalImageUrl: character.imageUrl,
+          image_url: character.image_url,
         })
         setIsEditModalOpen(true)
       }

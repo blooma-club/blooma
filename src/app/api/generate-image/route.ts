@@ -72,14 +72,7 @@ export async function POST(request: NextRequest) {
       ? 'IMAGE_EDIT'
       : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
     const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory)
-    try {
-      await consumeCredits(userId, creditCost)
-    } catch (e) {
-      if (e instanceof InsufficientCreditsError) {
-        throw ApiError.forbidden('Insufficient credits')
-      }
-      throw e
-    }
+    await consumeCredits(userId, creditCost)
 
     const result = await generateImageWithModel(validated.prompt, effectiveModelId, {
       style: validated.style,

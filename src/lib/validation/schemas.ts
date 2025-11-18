@@ -157,3 +157,26 @@ export const imageGenerationSchema = z.object({
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>
+
+/**
+ * 이미지 편집 요청 스키마
+ */
+export const imageEditSchema = z
+  .object({
+    prompt: z.string().min(1, 'Prompt is required').max(10000, 'Prompt must be 10000 characters or less'),
+    image_urls: z
+      .array(z.string().url())
+      .min(1, 'At least one reference image is required')
+      .max(6, 'A maximum of 6 reference images is allowed'),
+    projectId: z.string().uuid().optional(),
+    storyboardId: z.string().uuid().optional(),
+    frameId: z.string().uuid(),
+    numImages: z.number().int().min(1).max(4).optional(),
+    output_format: z.enum(['jpeg', 'png', 'webp']).optional(),
+  })
+  .refine(data => Boolean(data.projectId) || Boolean(data.storyboardId), {
+    message: 'projectId or storyboardId is required',
+    path: ['projectId'],
+  })
+
+export type ImageEditValidated = z.infer<typeof imageEditSchema>

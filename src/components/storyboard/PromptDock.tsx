@@ -11,9 +11,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 import { useToast } from '@/components/ui/toast'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
-import { DEFAULT_MODEL, getModelsForMode, isImageToImageModel, getVideoModelsForSelection } from '@/lib/fal-ai'
+import {
+  DEFAULT_MODEL,
+  getModelsForMode,
+  isImageToImageModel,
+  getVideoModelsForSelection,
+} from '@/lib/fal-ai'
 
 type VideoGenerationRequest = {
   modelId: string
@@ -62,6 +69,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const isControlled = typeof mode !== 'undefined'
   const currentMode = isControlled ? (mode as 'generate' | 'edit' | 'video') : internalMode
 
+  const { handleCreditError } = useHandleCreditError()
   const { push: showToast } = useToast()
 
   const [prompt, setPrompt] = React.useState('')
@@ -108,9 +116,12 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
   const models = React.useMemo(() => {
     if (currentMode === 'video') {
-      const count = Array.isArray(videoSelection) && videoSelection.length > 0
-        ? videoSelection.length
-        : (selectedFrameId ? 1 : 0)
+      const count =
+        Array.isArray(videoSelection) && videoSelection.length > 0
+          ? videoSelection.length
+          : selectedFrameId
+            ? 1
+            : 0
       return getVideoModelsForSelection(count)
     }
     if (usingImageToImage) {
@@ -212,17 +223,21 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       setError(null)
 
       try {
-        const start = (Array.isArray(videoSelection) && videoSelection.length > 0)
-          ? videoSelection[0]
-          : (selectedFrameId ? { id: selectedFrameId, imageUrl: referenceImageUrl ?? null } : undefined)
-        const end = (Array.isArray(videoSelection) && videoSelection.length > 1) ? videoSelection[1] : undefined
+        const start =
+          Array.isArray(videoSelection) && videoSelection.length > 0
+            ? videoSelection[0]
+            : selectedFrameId
+              ? { id: selectedFrameId, imageUrl: referenceImageUrl ?? null }
+              : undefined
+        const end =
+          Array.isArray(videoSelection) && videoSelection.length > 1 ? videoSelection[1] : undefined
         await onGenerateVideo({
           modelId: selectedModel.id,
           prompt: trimmed.length > 0 ? trimmed : undefined,
           startFrameId: start?.id as string,
           endFrameId: count >= 2 && end ? (end.id as string) : (undefined as unknown as string),
           startImageUrl: start?.imageUrl ?? null,
-          endImageUrl: count >= 2 ? end?.imageUrl ?? null : null,
+          endImageUrl: count >= 2 ? (end?.imageUrl ?? null) : null,
         })
       } catch (e) {
         const msg =
@@ -283,12 +298,16 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         body: JSON.stringify(requestBody),
       })
       const json = await res.json().catch(() => ({}))
-      
-      // API 응답 형식: { success: true, data: { imageUrl: ... } }
-      const imageUrl = json?.data?.imageUrl || json?.imageUrl
-      
-      if (!res.ok || !json?.success || !imageUrl) {
-        let errorMsg = json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
+
+      // Check if the response indicates insufficient credits
+      if (!res.ok) {
+        // Try to handle credit errors - if it returns true, a popup was shown
+        if (handleCreditError(json)) {
+          return // Popup was shown, no need to show additional error
+        }
+
+        let errorMsg =
+          json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
 
         if (res.status === 404) {
           const modelName = selectedModel?.name || modelId
@@ -303,10 +322,23 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
         throw new Error(errorMsg)
       }
+
+      // API 응답 형식: { success: true, data: { imageUrl: ... } }
+      const imageUrl = json?.data?.imageUrl || json?.imageUrl
+
+      if (!json?.success || !imageUrl) {
+        throw new Error(json?.error || json?.data?.error || 'Failed to generate image')
+      }
+
       await onCreateFrame(imageUrl as string)
       setPrompt('')
       setPromptImageDataUrl(null)
     } catch (e) {
+      // Try to handle credit errors - if it returns true, a popup was shown
+      if (handleCreditError(e)) {
+        return // Popup was shown, no need to show additional error
+      }
+
       const msg = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다'
       setError(msg)
 
@@ -327,13 +359,20 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   }
 
   const isVideoMode = currentMode === 'video'
-  const videoCount = Array.isArray(videoSelection) && videoSelection.length > 0
-    ? videoSelection.length
-    : (isVideoMode && selectedFrameId ? 1 : 0)
+  const videoCount =
+    Array.isArray(videoSelection) && videoSelection.length > 0
+      ? videoSelection.length
+      : isVideoMode && selectedFrameId
+        ? 1
+        : 0
   const buttonDisabled =
     submitting ||
     (isVideoMode
-      ? (videoCount === 1 ? !selectedModel : videoCount === 2 ? !selectedModel : true)
+      ? videoCount === 1
+        ? !selectedModel
+        : videoCount === 2
+          ? !selectedModel
+          : true
       : !prompt.trim())
 
   return (
@@ -351,9 +390,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       {/* 메인 입력 컨테이너 */}
       <div className="pointer-events-auto relative">
         {/* 실제 컨텐츠 */}
-        <div
-          className="relative rounded-lg border border-border bg-background/95 backdrop-blur-md p-3 shadow-lg"
-        >
+        <div className="relative rounded-lg border border-border bg-background/95 backdrop-blur-md p-3 shadow-lg">
           <div className="flex flex-col gap-2.5">
             {/* 상단: 모드 탭, 배지, 모델 선택 */}
             <div className="flex items-center justify-between gap-2">
@@ -394,7 +431,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 </Tabs>
 
                 {currentMode === 'video' ? (
-                  (Array.isArray(videoSelection) && videoSelection.length > 0) ? (
+                  Array.isArray(videoSelection) && videoSelection.length > 0 ? (
                     <span
                       className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
                       role="status"
@@ -407,20 +444,21 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                       {videoCount === 1 ? (
                         <>Video {videoSelection[0]?.shotNumber ?? ''}</>
                       ) : (
-                        <>Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End {videoSelection[1]?.shotNumber ?? ''}</>
+                        <>
+                          Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End{' '}
+                          {videoSelection[1]?.shotNumber ?? ''}
+                        </>
                       )}
                     </span>
-                  ) : (
-                    selectedFrameId && typeof selectedShotNumber === 'number' ? (
-                      <span
-                        className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
-                        role="status"
-                        aria-label={`Video ${selectedShotNumber}`}
-                      >
-                        <>Video {selectedShotNumber}</>
-                      </span>
-                    ) : null
-                  )
+                  ) : selectedFrameId && typeof selectedShotNumber === 'number' ? (
+                    <span
+                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
+                      role="status"
+                      aria-label={`Video ${selectedShotNumber}`}
+                    >
+                      <>Video {selectedShotNumber}</>
+                    </span>
+                  ) : null
                 ) : (
                   typeof selectedShotNumber === 'number' && (
                     <span
@@ -448,17 +486,12 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 min-w-[126px] px-3 text-sm"
-                    >
+                    <Button variant="outline" className="h-9 min-w-[126px] px-3 text-sm">
                       <span className="truncate text-left">{selectedModel?.name || 'Model'}</span>
                       <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground"
-                  >
+                  <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
                     {models.map(m => (
                       <DropdownMenuItem
                         key={m.id}
@@ -484,9 +517,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
             </div>
 
             {/* 중간: 프롬프트 입력 영역 */}
-            <div
-              className="flex items-center gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0"
-            >
+            <div className="flex items-center gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
               {currentMode !== 'video' && (
                 <>
                   <input
@@ -535,8 +566,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   currentMode === 'edit'
                     ? 'Modify the image…'
                     : currentMode === 'video'
-                    ? 'Describe the video direction… (optional)'
-                    : 'Create a scene…'
+                      ? 'Describe the video direction… (optional)'
+                      : 'Create a scene…'
                 }
                 aria-label="prompt input"
                 className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-6 max-h-32"
@@ -552,8 +583,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   currentMode === 'edit'
                     ? 'Apply changes'
                     : currentMode === 'video'
-                    ? 'Generate video'
-                    : 'Generate'
+                      ? 'Generate video'
+                      : 'Generate'
                 }
               >
                 {submitting ? (

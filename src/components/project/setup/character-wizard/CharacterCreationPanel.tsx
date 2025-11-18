@@ -15,6 +15,7 @@ import { DEFAULT_MODEL } from '@/lib/fal-ai'
 import { CHARACTER_SYSTEM_PROMPT, GENERATE_DESCRIPTION_PLACEHOLDER } from './constants'
 import { ensureCharacterStyle } from './utils'
 import type { Character } from './types'
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 
 type Props = {
   mode: 'generate' | 'upload'
@@ -152,6 +153,8 @@ export function CharacterCreationPanel({
     [boundedPreviewIndex, uploadFiles.length]
   )
 
+  const { handleCreditError } = useHandleCreditError()
+
   const handleCreateCharacter = useCallback(async () => {
     if (!creationName.trim()) {
       setCreationError('Model name is required')
@@ -203,7 +206,18 @@ export function CharacterCreationPanel({
           }),
         })
         const data = await res.json()
-        if (!res.ok || !data?.imageUrl) throw new Error(data?.error || 'Image generation failed')
+
+        // Check if the response indicates insufficient credits
+        if (!res.ok) {
+          // Try to handle credit errors - if it returns true, a popup was shown
+          if (handleCreditError(data)) {
+            return // Popup was shown, no need to show additional error
+          }
+
+          throw new Error(data?.error || 'Image generation failed')
+        }
+
+        if (!data?.imageUrl) throw new Error(data?.error || 'Image generation failed')
 
         try {
           const uploadRes = await fetch('/api/characters/upload-image', {
@@ -260,14 +274,19 @@ export function CharacterCreationPanel({
       const entry: Character = {
         id: characterId,
         name: creationName.trim(),
-        imageUrl: finalImageUrl,
-        ...(imageKey && { imageKey }),
-        ...(imageSize && { imageSize }),
+        image_url: finalImageUrl,
+        ...(imageKey && { image_key: imageKey }),
+        ...(imageSize && { image_size: imageSize }),
       }
 
       onCharacterCreated(entry)
       resetForm()
     } catch (e: unknown) {
+      // Try to handle credit errors - if it returns true, a popup was shown
+      if (handleCreditError(e)) {
+        return // Popup was shown, no need to show additional error
+      }
+
       setCreationError(e instanceof Error ? e.message : 'Failed to create model')
     } finally {
       setIsSaving(false)

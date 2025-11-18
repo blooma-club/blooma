@@ -74,10 +74,10 @@ export function CharacterList({
             className="group relative rounded-lg border border-neutral-800 bg-neutral-900 p-3 shadow transition hover:border-neutral-700"
           >
             <div className="relative aspect-[3/4] w-full overflow-hidden rounded bg-neutral-800">
-              {char.imageUrl ? (
+              {char.image_url ? (
                 <>
                   <Image
-                    src={char.imageUrl}
+                    src={char.image_url}
                     alt={char.name}
                     width={240}
                     height={320}
