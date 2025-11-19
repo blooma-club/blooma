@@ -14,11 +14,15 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const total = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 0
+    const total =
+      typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 0
     const used =
-      typeof user.credits_used === 'number' && Number.isFinite(user.credits_used) ? user.credits_used : 0
+      typeof user.credits_used === 'number' && Number.isFinite(user.credits_used)
+        ? user.credits_used
+        : 0
     const remaining = Math.max(total - used, 0)
-    const percentage = total > 0 ? Math.max(Math.min(Math.round((remaining / total) * 100), 100), 0) : 0
+    const percentage =
+      total > 0 ? Math.max(Math.min(Math.round((remaining / total) * 100), 100), 0) : 0
 
     return NextResponse.json({
       success: true,

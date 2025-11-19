@@ -73,7 +73,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/gemini-25-flash-image/edit',
-    name: 'Gemini 2.5 Flash Image Edit',
+    name: 'Gemini 2.5 Flash Image',
     description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
     category: 'inpainting',
     maxResolution: '1024x1024',
@@ -87,7 +87,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/nano-banana/edit',
-    name: 'Nano Banana Edit',
+    name: 'Nano Banana',
     description:
       'Fal Nano Banana edit workflow optimized for product, clothing, and accessory compositing',
     category: 'inpainting',
@@ -103,7 +103,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/bytedance/seedream/v4/edit',
-    name: 'Seedream v4 Edit',
+    name: 'Seedream 4.0',
     description: 'ByteDance Seedream 4.0 Edit - unified image generation and editing model',
     category: 'inpainting',
     maxResolution: '2048x2048',

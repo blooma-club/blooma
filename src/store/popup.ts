@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type PopupType = 'notEnoughCredit' | 'trialExpired' | 'planMismatch' | null
+export type PopupType = 'notEnoughCredit' | null
 
 interface PopupState {
   activePopup: PopupType
@@ -8,8 +8,8 @@ interface PopupState {
   closePopup: () => void
 }
 
-export const usePopupStore = create<PopupState>((set) => ({
+export const usePopupStore = create<PopupState>(set => ({
   activePopup: null,
-  openPopup: (popupType) => set({ activePopup: popupType }),
+  openPopup: popupType => set({ activePopup: popupType }),
   closePopup: () => set({ activePopup: null }),
 }))

@@ -8,8 +8,6 @@ import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
 import { useProjects } from '@/lib/api'
-import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
-import SiteFooter from '@/components/layout/footer'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -117,10 +115,6 @@ export default function DashboardPage() {
         <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,hsl(var(--foreground)/0.10)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground)/0.10)_1px,transparent_1px)] [background-size:24px_24px]" />
       </div>
 
-      {/* 상단 내비게이션 */}
-      <SiteNavbarSignedIn />
-
-      {/* 메인 */}
       <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* 헤더 섹션 */}
         <div className="mb-8">
@@ -337,7 +331,6 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
-      <SiteFooter />
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
+import { useAuth } from '@clerk/nextjs'
 import { ChevronDown, Plus, Edit3, X, ImagePlus, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,6 +15,8 @@ import {
 
 import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 import { useToast } from '@/components/ui/toast'
+import { useProjectCharacters } from '@/hooks/useProjectCharacters'
+import type { Character } from '@/types'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import {
   DEFAULT_MODEL,
@@ -29,6 +32,12 @@ type VideoGenerationRequest = {
   endFrameId?: string
   startImageUrl?: string | null
   endImageUrl?: string | null
+}
+
+type CharacterSelection = {
+  id: string
+  mention: string | null
+  imageUrl: string | null
 }
 
 type PromptDockProps = {
@@ -48,6 +57,10 @@ type PromptDockProps = {
   onGenerateVideo?: (request: VideoGenerationRequest) => Promise<void>
   // External video selection (up to two frames when in video mode)
   videoSelection?: Array<{ id: string; shotNumber?: number; imageUrl?: string | null }>
+  // Callback before submitting (for landing page flow)
+  // Returns false to cancel submission, true/void to continue
+  // Can receive prompt text for passing to next page
+  onBeforeSubmit?: (prompt: string) => Promise<boolean | void>
 }
 
 export const PromptDock: React.FC<PromptDockProps> = props => {
@@ -64,10 +77,18 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     selectedFrameId,
     onGenerateVideo,
     videoSelection = [],
+    onBeforeSubmit,
   } = props
   const [internalMode, setInternalMode] = React.useState<'generate' | 'edit' | 'video'>('generate')
   const isControlled = typeof mode !== 'undefined'
   const currentMode = isControlled ? (mode as 'generate' | 'edit' | 'video') : internalMode
+
+  const { userId } = useAuth()
+  const {
+    characters: availableUserModels,
+    isLoading: characterListLoading,
+    error: characterListError,
+  } = useProjectCharacters(projectId, userId, { projectScoped: false })
 
   const { handleCreditError } = useHandleCreditError()
   const { push: showToast } = useToast()
@@ -77,6 +98,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [characterSelections, setCharacterSelections] = React.useState<CharacterSelection[]>([])
   // Start/End 수동 선택 로직 제거됨 (Grid 멀티선택 사용)
 
   React.useEffect(() => {
@@ -106,11 +128,11 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   React.useEffect(() => {
     adjustTextareaHeight()
   }, [prompt, adjustTextareaHeight])
-
-  const [promptImageDataUrl, setPromptImageDataUrl] = React.useState<string | null>(null)
+  // 최대 3장까지 참조 이미지 업로드 허용
+  const [promptImageDataUrls, setPromptImageDataUrls] = React.useState<string[]>([])
 
   const usingImageToImage =
-    currentMode !== 'video' && (currentMode === 'edit' || Boolean(promptImageDataUrl))
+    currentMode !== 'video' && (currentMode === 'edit' || promptImageDataUrls.length > 0)
 
   // 비디오 모드 보조 상태 제거됨
 
@@ -150,10 +172,16 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
   const handlePromptImageSelect = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
+      const files = event.target.files
+      if (!files || files.length === 0) return
 
-      if (!file.type.startsWith('image/')) {
+      const currentCount = promptImageDataUrls.length
+      const available = Math.max(0, 3 - currentCount)
+      const toRead = Array.from(files)
+        .filter(f => f.type.startsWith('image/'))
+        .slice(0, available)
+
+      if (toRead.length === 0) {
         showToast({
           title: 'Unsupported file',
           description: 'Please choose an image file.',
@@ -162,39 +190,244 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         return
       }
 
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result
-        if (typeof result === 'string') {
-          setPromptImageDataUrl(result)
-          if (!isImageToImageModel(modelId)) {
-            const fallbackModel = getModelsForMode('edit')[0]
-            if (fallbackModel) {
-              setModelId(fallbackModel.id)
+      let completed = 0
+      const results: string[] = []
+      toRead.forEach(file => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result
+          if (typeof result === 'string') {
+            results.push(result)
+          }
+          completed++
+          if (completed === toRead.length) {
+            setPromptImageDataUrls(prev => {
+              const merged = [...prev, ...results].slice(0, 3)
+              return merged
+            })
+            if (!isImageToImageModel(modelId)) {
+              const fallbackModel = getModelsForMode('edit')[0]
+              if (fallbackModel) {
+                setModelId(fallbackModel.id)
+              }
             }
           }
-        } else {
-          showToast({
-            title: 'Image load failed',
-            description: 'Unable to read the selected image.',
-          })
         }
-      }
-      reader.onerror = () => {
-        showToast({
-          title: 'Image load failed',
-          description: 'Unable to read the selected image.',
-        })
-      }
-      reader.readAsDataURL(file)
+        reader.onerror = () => {
+          completed++
+          if (completed === toRead.length) {
+            if (results.length === 0) {
+              showToast({
+                title: 'Image load failed',
+                description: 'Unable to read the selected image.',
+              })
+            }
+          }
+        }
+        reader.readAsDataURL(file)
+      })
+
       event.target.value = ''
     },
-    [modelId, showToast]
+    [modelId, promptImageDataUrls.length, showToast]
   )
+
+  // to remove model mention user can
+  // 1. remove the image
+  const handleRemovePromptImage = React.useCallback((targetUrl: string) => {
+    if (!targetUrl) return
+    setPromptImageDataUrls(prev => prev.filter(url => url !== targetUrl))
+    setCharacterSelections(prev => {
+      const related = prev.filter(selection => selection.imageUrl === targetUrl)
+      if (related.length === 0) {
+        return prev
+      }
+      setPrompt(prevPrompt => {
+        let updated = prevPrompt
+        related.forEach(selection => {
+          if (selection.mention) {
+            updated = removeMentionTokenFromPrompt(updated, selection.mention)
+          }
+        })
+        return updated
+      })
+      return prev.filter(selection => selection.imageUrl !== targetUrl)
+    })
+  }, [])
+
+  // 2. remove the mention
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  const removeMentionTokenFromPrompt = (input: string, mention: string) => {
+    if (!mention) return input
+    const pattern = new RegExp(`(^|\\s)${escapeRegex(mention)}(?=\\s|$)`, 'g')
+    return input
+      .replace(pattern, (_, leadingSpace) => (leadingSpace ? leadingSpace : ''))
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  }
+
+  const createMentionToken = (name?: string | null) => {
+    if (typeof name !== 'string') return null
+    const trimmed = name.trim()
+    if (!trimmed) return null
+    return `@${trimmed.replace(/\s+/g, '')}`
+  }
+
+  // to add model mention
+  // 1. type the mention
+  React.useEffect(() => {
+    if (!availableUserModels || availableUserModels.length === 0) {
+      return
+    }
+
+    const matchedSelections = availableUserModels
+      .map(model => {
+        const mentionToken = createMentionToken(model.name)
+        if (!mentionToken || !prompt.includes(mentionToken)) {
+          return null
+        }
+        const normalizedImage = typeof model.image_url === 'string' ? model.image_url.trim() : null
+        const selection: CharacterSelection = {
+          id: model.id,
+          mention: mentionToken,
+          imageUrl: normalizedImage && normalizedImage.length > 0 ? normalizedImage : null,
+        }
+        return selection
+      })
+      .filter((value): value is CharacterSelection => value !== null)
+
+    if (matchedSelections.length === 0) {
+      return
+    }
+
+    setCharacterSelections(prev => {
+      let changed = false
+      let next = prev
+
+      matchedSelections.forEach(selection => {
+        const existing = next.find(item => item.id === selection.id)
+        if (!existing) {
+          next = [...next, selection]
+          changed = true
+          return
+        }
+        if (existing.mention !== selection.mention || existing.imageUrl !== selection.imageUrl) {
+          next = next.map(item => (item.id === selection.id ? selection : item))
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+
+    const attachments = matchedSelections
+      .map(selection => selection.imageUrl)
+      .filter(
+        (url): url is string =>
+          typeof url === 'string' && url.length > 0 && !promptImageDataUrls.includes(url)
+      )
+
+    if (attachments.length === 0 || promptImageDataUrls.length >= 3) {
+      return
+    }
+
+    setPromptImageDataUrls(prev => {
+      let updated = prev
+      attachments.forEach(url => {
+        if (updated.length >= 3 || updated.includes(url)) {
+          return
+        }
+        updated = [...updated, url]
+      })
+      return updated
+    })
+  }, [availableUserModels, prompt, promptImageDataUrls])
+
+  //2. select from dropdown
+  const handleCharacterModelSelect = React.useCallback(
+    (character: Character) => {
+      if (!character) return
+
+      const mentionToken = createMentionToken(character.name)
+      if (mentionToken) {
+        setPrompt(prev => {
+          if (prev.includes(mentionToken)) {
+            return prev
+          }
+          const needsSpace = prev.length > 0 && !/\s$/.test(prev)
+          return `${prev}${needsSpace ? ' ' : ''}${mentionToken} `
+        })
+      }
+
+      const rawImageUrl = typeof character.image_url === 'string' ? character.image_url.trim() : ''
+      if (rawImageUrl.length > 0) {
+        if (promptImageDataUrls.includes(rawImageUrl)) {
+          // already attached, but keep tracking selection state
+        } else if (promptImageDataUrls.length >= 3) {
+          showToast({
+            title: 'Image limit reached',
+            description: 'You can attach up to 3 reference images.',
+          })
+        } else {
+          setPromptImageDataUrls(prev => [...prev, rawImageUrl])
+        }
+      }
+
+      setCharacterSelections(prev => {
+        const existing = prev.find(selection => selection.id === character.id)
+        const nextEntry: CharacterSelection = {
+          id: character.id,
+          mention: mentionToken,
+          imageUrl: rawImageUrl.length > 0 ? rawImageUrl : null,
+        }
+        if (existing) {
+          if (existing.mention === nextEntry.mention && existing.imageUrl === nextEntry.imageUrl) {
+            return prev
+          }
+          return prev.map(selection => (selection.id === character.id ? nextEntry : selection))
+        }
+        return [...prev, nextEntry]
+      })
+    },
+    [promptImageDataUrls, showToast]
+  )
+
+  // handle removal of mentions when prompt changes, via versa
+  React.useEffect(() => {
+    if (characterSelections.length === 0) return
+    const missingSelections = characterSelections.filter(
+      selection => selection.mention && !prompt.includes(selection.mention)
+    )
+    if (missingSelections.length === 0) {
+      return
+    }
+    const idsToRemove = new Set(missingSelections.map(selection => selection.id))
+    const imagesToRemove = missingSelections
+      .map(selection => selection.imageUrl)
+      .filter((url): url is string => typeof url === 'string' && url.length > 0)
+
+    if (imagesToRemove.length > 0) {
+      setPromptImageDataUrls(prev => prev.filter(url => !imagesToRemove.includes(url)))
+    }
+    setCharacterSelections(prev => prev.filter(selection => !idsToRemove.has(selection.id)))
+  }, [characterSelections, prompt])
 
   const handleSubmit = async () => {
     const trimmed = prompt.trim()
     if (submitting) return
+
+    if (currentMode !== 'video' && !trimmed) return
+
+    // Allow landing page to handle authentication/project creation before proceeding
+    if (onBeforeSubmit) {
+      const shouldContinue = await onBeforeSubmit(trimmed)
+      if (shouldContinue === false) {
+        // Landing page handled navigation or blocked submission; reset local prompt
+        setPrompt('')
+        return
+      }
+    }
 
     if (currentMode === 'video') {
       if (!onGenerateVideo) {
@@ -239,6 +472,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
           startImageUrl: start?.imageUrl ?? null,
           endImageUrl: count >= 2 ? (end?.imageUrl ?? null) : null,
         })
+        // 비디오 생성 성공 후 프롬프트 초기화
+        setPrompt('')
       } catch (e) {
         const msg =
           e instanceof Error ? e.message : 'Failed to generate video with the selected frames.'
@@ -252,8 +487,6 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       }
       return
     }
-
-    if (!trimmed) return
 
     // Edit 모드에서 레퍼런스 이미지가 없으면 토스트 표시
     if (currentMode === 'edit' && !referenceImageUrl) {
@@ -274,7 +507,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       aspectRatio,
       currentMode,
       referenceImageUrl,
-      attachedImage: usingImageToImage && promptImageDataUrl ? 'inline-data-url' : null,
+      attachedImages:
+        usingImageToImage && promptImageDataUrls.length > 0
+          ? `${promptImageDataUrls.length} inline`
+          : null,
     })
 
     try {
@@ -284,8 +520,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         aspectRatio,
       }
 
-      if (promptImageDataUrl) {
-        requestBody.imageUrls = [promptImageDataUrl]
+      if (promptImageDataUrls.length > 0) {
+        requestBody.imageUrls = promptImageDataUrls
       }
 
       if (currentMode === 'edit' && referenceImageUrl) {
@@ -332,7 +568,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
       await onCreateFrame(imageUrl as string)
       setPrompt('')
-      setPromptImageDataUrl(null)
+      setPromptImageDataUrls([])
     } catch (e) {
       // Try to handle credit errors - if it returns true, a popup was shown
       if (handleCreditError(e)) {
@@ -388,225 +624,372 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       aria-live="polite"
     >
       {/* 메인 입력 컨테이너 */}
-      <div className="pointer-events-auto relative">
-        {/* 실제 컨텐츠 */}
-        <div className="relative rounded-lg border border-border bg-background/95 backdrop-blur-md p-3 shadow-lg">
-          <div className="flex flex-col gap-2.5">
-            {/* 상단: 모드 탭, 배지, 모델 선택 */}
-            <div className="flex items-center justify-between gap-2">
-              {/* 왼쪽: 탭과 배지 */}
-              <div className="flex items-center gap-3 min-w-0">
-                <Tabs
-                  value={currentMode}
-                  onValueChange={v => {
-                    const next = v as 'generate' | 'edit' | 'video'
-                    if (!isControlled) setInternalMode(next)
-                    onModeChange?.(next)
-                  }}
-                  className="flex-shrink-0"
+      <div className="pointer-events-auto relative flex flex-col gap-3">
+        {/* 상단: 모드 탭, 배지, 모델 선택 */}
+        <div className="flex items-center justify-between gap-3">
+          {/* 왼쪽: 탭과 배지 */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <Tabs
+              value={currentMode}
+              onValueChange={v => {
+                const next = v as 'generate' | 'edit' | 'video'
+                if (!isControlled) setInternalMode(next)
+                onModeChange?.(next)
+              }}
+              className="flex-shrink-0"
+            >
+              <TabsList className="h-9 gap-1 p-1 bg-muted">
+                <TabsTrigger
+                  value="generate"
+                  className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                  title="Generate new image"
                 >
-                  <TabsList className="h-9 gap-1 p-1 bg-muted">
-                    <TabsTrigger
-                      value="generate"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
-                      title="Generate new image"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="edit"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
-                      title="Edit current image"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="video"
-                      className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-background"
-                      title="Generate video"
-                    >
-                      <Video className="h-4 w-4" />
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  <Plus className="h-4 w-4" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="edit"
+                  className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                  title="Edit current image"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="video"
+                  className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                  title="Generate video"
+                >
+                  <Video className="h-4 w-4" />
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-                {currentMode === 'video' ? (
-                  Array.isArray(videoSelection) && videoSelection.length > 0 ? (
-                    <span
-                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
-                      role="status"
-                      aria-label={
-                        videoCount === 1
-                          ? `Video ${videoSelection[0]?.shotNumber ?? ''}`
-                          : `Start ${videoSelection[0]?.shotNumber ?? ''} -> End ${videoSelection[1]?.shotNumber ?? ''}`
-                      }
-                    >
-                      {videoCount === 1 ? (
-                        <>Video {videoSelection[0]?.shotNumber ?? ''}</>
-                      ) : (
-                        <>
-                          Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End{' '}
-                          {videoSelection[1]?.shotNumber ?? ''}
-                        </>
-                      )}
-                    </span>
-                  ) : selectedFrameId && typeof selectedShotNumber === 'number' ? (
-                    <span
-                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
-                      role="status"
-                      aria-label={`Video ${selectedShotNumber}`}
-                    >
-                      <>Video {selectedShotNumber}</>
-                    </span>
-                  ) : null
-                ) : (
-                  typeof selectedShotNumber === 'number' && (
-                    <span
-                      className="group relative inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium flex-shrink-0 whitespace-nowrap select-none bg-muted text-muted-foreground ring-1 ring-border/60 shadow-sm"
-                      role="status"
-                      aria-label={`Selected ${currentMode} shot ${selectedShotNumber}`}
-                    >
-                      {currentMode === 'edit' ? 'Edit' : 'Generate'} {selectedShotNumber}
-                      {onClearSelectedShot && (
-                        <button
-                          type="button"
-                          onClick={onClearSelectedShot}
-                          className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-muted-foreground border border-border shadow-sm hover:bg-accent hover:text-accent-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
-                          aria-label="Clear selection"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </span>
-                  )
-                )}
-              </div>
-
-              {/* 오른쪽: 모델 선택 */}
-              <div className="flex items-center gap-2.5 flex-shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-9 min-w-[126px] px-3 text-sm">
-                      <span className="truncate text-left">{selectedModel?.name || 'Model'}</span>
-                      <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                    {models.map(m => (
-                      <DropdownMenuItem
-                        key={m.id}
-                        onClick={() => {
-                          const validModelId = models.find(model => model.id === m.id)
-                            ? m.id
-                            : models[0]?.id
-                          if (validModelId) {
-                            setModelId(validModelId)
-                          }
-                        }}
-                        className={clsx(
-                          'rounded-sm px-2.5 py-2 text-sm',
-                          modelId === m.id && 'bg-accent text-accent-foreground'
-                        )}
-                      >
-                        {m.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            {/* 중간: 프롬프트 입력 영역 */}
-            <div className="flex items-center gap-2 rounded-md border border-input bg-background p-2 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
-              {currentMode !== 'video' && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePromptImageSelect}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting}
-                    className="h-8 w-8 rounded-md p-0 flex items-center justify-center flex-shrink-0"
-                    aria-label="Add reference image"
+            {/* 배지 */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {currentMode === 'video' ? (
+                Array.isArray(videoSelection) && videoSelection.length > 0 ? (
+                  <span
+                    className={clsx(
+                      'group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm',
+                      'bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 ring-purple-200/50 dark:ring-purple-800/50 hover:ring-purple-300 dark:hover:ring-purple-700 hover:bg-purple-100 dark:hover:bg-purple-950/50'
+                    )}
+                    role="status"
+                    aria-label={
+                      videoCount === 1
+                        ? `Video ${videoSelection[0]?.shotNumber ?? ''}`
+                        : `Start ${videoSelection[0]?.shotNumber ?? ''} -> End ${videoSelection[1]?.shotNumber ?? ''}`
+                    }
                   >
-                    <ImagePlus className="h-4 w-4" />
-                  </Button>
-                </>
+                    {videoCount === 1 ? (
+                      <>Video {videoSelection[0]?.shotNumber ?? ''}</>
+                    ) : (
+                      <>
+                        Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End{' '}
+                        {videoSelection[1]?.shotNumber ?? ''}
+                      </>
+                    )}
+                    {onClearSelectedShot && (
+                      <button
+                        type="button"
+                        onClick={onClearSelectedShot}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 border border-purple-300 dark:border-purple-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1 ml-1"
+                        aria-label="Clear selection"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                ) : selectedFrameId && typeof selectedShotNumber === 'number' ? (
+                  <span
+                    className={clsx(
+                      'group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm',
+                      'bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 ring-purple-200/50 dark:ring-purple-800/50 hover:ring-purple-300 dark:hover:ring-purple-700 hover:bg-purple-100 dark:hover:bg-purple-950/50'
+                    )}
+                    role="status"
+                    aria-label={`Video ${selectedShotNumber}`}
+                  >
+                    <>Video {selectedShotNumber}</>
+                    {onClearSelectedShot && (
+                      <button
+                        type="button"
+                        onClick={onClearSelectedShot}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 border border-purple-300 dark:border-purple-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1 ml-1"
+                        aria-label="Clear selection"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                ) : null
+              ) : (
+                typeof selectedShotNumber === 'number' && (
+                  <span
+                    className={clsx(
+                      'group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm',
+                      currentMode === 'edit'
+                        ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 ring-orange-200/50 dark:ring-orange-800/50 hover:ring-orange-300 dark:hover:ring-orange-700 hover:bg-orange-100 dark:hover:bg-orange-950/50'
+                        : 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 ring-blue-200/50 dark:ring-blue-800/50 hover:ring-blue-300 dark:hover:ring-blue-700 hover:bg-blue-100 dark:hover:bg-blue-950/50'
+                    )}
+                    role="status"
+                    aria-label={`Selected ${currentMode} shot ${selectedShotNumber}`}
+                  >
+                    {currentMode === 'edit' ? 'Edit' : 'Generate'} {selectedShotNumber}
+                    {onClearSelectedShot && (
+                      <button
+                        type="button"
+                        onClick={onClearSelectedShot}
+                        className={clsx(
+                          'inline-flex h-5 w-5 items-center justify-center rounded-full border transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 ml-1',
+                          currentMode === 'edit'
+                            ? 'bg-orange-100 dark:bg-orange-900/50 hover:bg-orange-200 dark:hover:bg-orange-800 text-orange-700 dark:text-orange-300 hover:text-orange-900 dark:hover:text-orange-100 border-orange-300 dark:border-orange-700 focus:ring-orange-400'
+                            : 'bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 border-blue-300 dark:border-blue-700 focus:ring-blue-400'
+                        )}
+                        aria-label="Clear selection"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                )
               )}
-              {currentMode !== 'video' && promptImageDataUrl && (
-                <div className="relative group overflow-hidden rounded-md ring-1 ring-border bg-muted/30 animate-in fade-in">
+            </div>
+          </div>
+
+          {/* 오른쪽: 모델 선택 */}
+          <div className="flex-shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 min-w-[140px] px-3 text-sm bg-background hover:bg-muted/50 border border-border dark:border-white/20 transition-colors"
+                >
+                  <span className="truncate text-left">{selectedModel?.name || 'Model'}</span>
+                  <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
+                {models.map(m => (
+                  <DropdownMenuItem
+                    key={m.id}
+                    onClick={() => {
+                      const validModelId = models.find(model => model.id === m.id)
+                        ? m.id
+                        : models[0]?.id
+                      if (validModelId) {
+                        setModelId(validModelId)
+                      }
+                    }}
+                    className={clsx(
+                      'rounded-sm px-2.5 py-2 text-sm',
+                      modelId === m.id && 'bg-accent text-accent-foreground'
+                    )}
+                  >
+                    {m.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* 중간: 프롬프트 입력 영역 (참조 이미지 미리보기 + 텍스트 입력 + 하단 컨트롤) */}
+        <div className="rounded-xl border border-border/90 dark:border-white/20 bg-background/80 p-3 flex flex-col gap-3 transition-all focus-within:ring-2 focus-within:ring-ring/60 focus-within:ring-offset-0 focus-within:border-border dark:focus-within:border-white/30 focus-within:bg-background shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(255,255,255,0.08),0_1px_2px_rgba(255,255,255,0.12)]">
+          {/* 상단: 참조 이미지 미리보기 (업로드 시 노출, 최대 3장) */}
+          {currentMode !== 'video' && promptImageDataUrls.length > 0 && (
+            <div className="flex items-center gap-2.5">
+              {promptImageDataUrls.map((url, idx) => (
+                <div
+                  key={`${url}-${idx}`}
+                  className="relative group overflow-hidden rounded-md ring-1 ring-border/90 dark:ring-white/20 border border-border/90 dark:border-white/20 bg-muted/40 animate-in fade-in shadow-[0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(255,255,255,0.12),0_1px_1px_rgba(255,255,255,0.1)]"
+                >
                   <img
-                    src={promptImageDataUrl}
-                    alt="Prompt reference preview"
-                    className="h-10 w-10 md:h-12 md:w-12 object-cover"
+                    src={url}
+                    alt={`Prompt reference preview ${idx + 1}`}
+                    className="h-16 w-16 md:h-20 md:w-20 object-cover"
                   />
                   <button
                     type="button"
-                    onClick={() => setPromptImageDataUrl(null)}
+                    onClick={() => handleRemovePromptImage(url)}
                     className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-muted-foreground border border-border shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                     aria-label="Remove reference image"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
-              )}
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  currentMode === 'edit'
-                    ? 'Modify the image…'
-                    : currentMode === 'video'
-                      ? 'Describe the video direction… (optional)'
-                      : 'Create a scene…'
-                }
-                aria-label="prompt input"
-                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-6 max-h-32"
-                disabled={submitting}
-                rows={1}
-              />
-              <Button
-                type="button"
-                onClick={() => void handleSubmit()}
-                disabled={buttonDisabled}
-                className="h-8 w-8 rounded-md p-0 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
-                aria-label={
-                  currentMode === 'edit'
-                    ? 'Apply changes'
-                    : currentMode === 'video'
-                      ? 'Generate video'
-                      : 'Generate'
-                }
-              >
-                {submitting ? (
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-                ) : currentMode === 'video' ? (
-                  <Video className="h-3.5 w-3.5" />
-                ) : currentMode === 'edit' ? (
-                  <Edit3 className="h-3.5 w-3.5" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-              </Button>
+              ))}
             </div>
+          )}
 
-            {/* 에러 메시지 */}
-            {error && (
-              <div className="rounded-md border border-destructive bg-destructive/10 px-2.5 py-1.5 animate-in fade-in">
-                <p className="text-xs text-destructive">{error}</p>
-              </div>
+          {/* 상단: 텍스트 입력 */}
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              currentMode === 'edit'
+                ? 'Modify the image…'
+                : currentMode === 'video'
+                  ? 'Describe the video direction… (optional)'
+                  : 'Create a scene…'
+            }
+            aria-label="prompt input"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-12 max-h-32 leading-relaxed"
+            disabled={submitting}
+            rows={1}
+          />
+
+          {/* 하단: 컨트롤 바 (이미지 업로드, 카메라, 배경, 모델, 제출) */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* 이미지 업로드 */}
+            {currentMode !== 'video' && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePromptImageSelect}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitting || promptImageDataUrls.length >= 3}
+                  className="h-9 w-9 rounded-md p-0 flex items-center justify-center flex-shrink-0 border border-border dark:border-white/20 hover:bg-muted/50 transition-colors"
+                  aria-label="Add reference image"
+                >
+                  <ImagePlus className="h-4 w-4" />
+                </Button>
+              </>
             )}
+
+            {/* 카메라 세팅 드롭다운 (UX 미구현) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 px-3 text-sm border border-border dark:border-white/20"
+                >
+                  Camera
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
+                <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 모델(캐릭터) 드롭다운 (UX 미구현) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 px-3 text-sm border border-border dark:border-white/20"
+                >
+                  Model
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
+                {!userId ? (
+                  <DropdownMenuItem disabled>Sign in to view your models</DropdownMenuItem>
+                ) : characterListLoading ? (
+                  <DropdownMenuItem disabled>Loading models...</DropdownMenuItem>
+                ) : characterListError ? (
+                  <DropdownMenuItem disabled>Unable to load models</DropdownMenuItem>
+                ) : availableUserModels.length === 0 ? (
+                  <DropdownMenuItem disabled>No models available yet</DropdownMenuItem>
+                ) : (
+                  availableUserModels.map(model => {
+                    const isSelected = characterSelections.some(
+                      selection => selection.id === model.id
+                    )
+
+                    return (
+                      <DropdownMenuItem
+                        key={model.id}
+                        className={clsx(
+                          'flex items-center gap-3 py-2',
+                          isSelected && 'bg-accent/10 text-accent-foreground'
+                        )}
+                        onSelect={() => handleCharacterModelSelect(model)}
+                      >
+                        {model.image_url ? (
+                          <img
+                            src={model.image_url}
+                            alt={model.name}
+                            className="h-10 w-10 rounded-md object-cover border border-border/80 dark:border-white/30"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground uppercase border border-border/80 dark:border-white/30">
+                            {((model.name ?? '??').slice(0, 2) || '??').toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="text-sm font-medium leading-tight text-foreground">
+                            {model.name}
+                          </span>
+                          {model.description ? (
+                            <span className="text-xs text-muted-foreground leading-tight">
+                              {model.description}
+                            </span>
+                          ) : null}
+                        </div>
+                      </DropdownMenuItem>
+                    )
+                  })
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 배경 드롭다운 (UX 미구현) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 px-3 text-sm border border-border dark:border-white/20"
+                >
+                  Background
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
+                <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 제출 버튼 */}
+            <Button
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={buttonDisabled}
+              className="h-9 w-9 rounded-md p-0 flex items-center justify-center disabled:opacity-50 bg-orange-500 hover:bg-orange-600 text-white transition-colors ml-auto"
+              aria-label={
+                currentMode === 'edit'
+                  ? 'Apply changes'
+                  : currentMode === 'video'
+                    ? 'Generate video'
+                    : 'Generate'
+              }
+            >
+              {submitting ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+              ) : currentMode === 'video' ? (
+                <Video className="h-3.5 w-3.5" />
+              ) : currentMode === 'edit' ? (
+                <Edit3 className="h-3.5 w-3.5" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+            </Button>
           </div>
         </div>
+
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 animate-in fade-in ring-1 ring-destructive/20">
+            <p className="text-xs text-destructive font-medium">{error}</p>
+          </div>
+        )}
       </div>
     </div>
   )

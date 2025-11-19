@@ -59,7 +59,7 @@ export const useFrameManagement = (
           order_index: targetIndex,
           scene_number: targetIndex + 1,
           card_width: widthForCard,
-          storyboard_status: 'generating',
+          storyboard_status: 'ready',
         }
         const merged = [...base]
         merged.splice(targetIndex, 0, tempCard)

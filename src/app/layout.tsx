@@ -1,11 +1,12 @@
 import { ClerkProvider } from '@clerk/nextjs'
 import ToasterProvider from '@/components/ui/toast'
-import { GlobalPopupProvider } from '@/components/GlobalPopupProvider'
 import type { Metadata } from 'next'
 import { Instrument_Serif, Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
 import Script from 'next/script'
 import './globals.css'
 import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect'
+import { GlobalPopupProvider } from '@/components/GlobalPopupProvider'
 import { THEME_STORAGE_KEY } from '@/lib/theme'
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -51,11 +52,7 @@ export default function RootLayout({
   )
 
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${instrumentSerif.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={`${inter.variable} ${GeistSans.variable}`} suppressHydrationWarning>
       <body className="min-h-screen">
         <Script
           id="theme-init"

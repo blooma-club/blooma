@@ -73,7 +73,9 @@ export default function CreditsIndicator({ className }: CreditsIndicatorProps) {
             </div>
 
             <Button variant="default" size="sm" asChild className="w-full">
-              <Link href="/dashboard/billing">Add more credits</Link>
+              <Link href="/customerportal" target="_blank">
+                Add more credits
+              </Link>
             </Button>
           </div>
         </div>

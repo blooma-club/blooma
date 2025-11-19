@@ -139,10 +139,10 @@
   .font-sans {
     font-family: var(--font-hanken-sans), sans-serif;
   }
-  .font-instrument-serif {
-    font-family: var(--font-instrument-serif), serif;
   }
-}
+  .font-geist-sans {
+    font-family: var(--font-geist-sans), sans-serif;
+  }
 
   /* 🃏 향상된 카드 컴포넌트 */
   .card {

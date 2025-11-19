@@ -76,7 +76,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
     }
   }, [visible, onClose])
   return (
-    <div className={clsx('w-full sm:w-[208px] relative z-[60]', className)}>
+    <div className={clsx('w-full sm:w-[260px] relative z-[60]', className)}>
       <div
         ref={cardRef}
         className={clsx(
@@ -143,7 +143,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
           {/* 프리셋 버튼들 */}
           <div className="space-y-2">
             <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Quick presets</span>
-            <div className="flex gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {PRESETS.map(preset => (
                 <button
                   key={preset.label}
@@ -151,7 +151,7 @@ const StoryboardWidthControls: React.FC<StoryboardWidthControlsProps> = ({
                   data-preset="true"
                   onClick={() => onCardWidthChange(preset.value)}
                   className={clsx(
-                    'flex-1 px-2 py-1 text-xs rounded-md border transition-colors',
+                    'px-2 py-1.5 text-xs rounded-md border transition-colors text-center min-w-0 truncate',
                     Math.abs(normalizedCardWidth - preset.value) < 20
                       ? 'bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] border-[hsl(var(--accent))]'
                       : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/70'

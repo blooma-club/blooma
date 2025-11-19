@@ -238,12 +238,6 @@ export default function AccountDropdown() {
               </div>
               <div className="px-4 py-3 space-y-3 text-sm">
                 <div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Your plan</p>
-                  <p className="mt-1 font-medium text-neutral-900 dark:text-white">
-                    {isCreditsLoading || isSubscriptionLoading ? 'Loading…' : planLabel}
-                  </p>
-                </div>
-                <div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Current cycle</p>
                   <p className="mt-1 text-neutral-800 dark:text-neutral-200">
                     {isSubscriptionLoading

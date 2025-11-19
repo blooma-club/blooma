@@ -6,6 +6,18 @@ import { Project, type ProjectInput } from '@/types'
 import { Calendar, MoreVertical, Edit3, Trash2, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
 
 interface ProjectCardProps {
   project: Project
@@ -30,6 +42,9 @@ export const ProjectCard = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [editTitle, setEditTitle] = useState(project.title)
+  const [editDescription, setEditDescription] = useState(project.description ?? '')
+  const [isSaving, setIsSaving] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -44,9 +59,34 @@ export const ProjectCard = ({
     return () => document.removeEventListener('mousedown', onDown)
   }, [isMenuOpen])
 
+  useEffect(() => {
+    if (!isEditModalOpen) return
+    setEditTitle(project.title)
+    setEditDescription(project.description ?? '')
+  }, [isEditModalOpen, project.title, project.description])
+
   const handleGoToProjectSetup = () => {
     // 프로젝트 인덱스를 통해 적절한 페이지로 라우팅
     router.push(`/project/${project.id}`)
+  }
+
+  const handleSave = async () => {
+    const trimmedTitle = editTitle.trim()
+    if (!trimmedTitle) return
+
+    setIsSaving(true)
+    try {
+      await onUpdate(project.id, {
+        title: trimmedTitle,
+        description: editDescription.trim() ? editDescription.trim() : undefined,
+      })
+      setIsEditModalOpen(false)
+    } catch (error) {
+      console.error('Failed to update project:', error)
+      alert('Failed to update project. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const formatDate = (dateString?: string) => {
@@ -241,5 +281,54 @@ export const ProjectCard = ({
     </div>
   )
 
-  return viewMode === 'grid' ? renderGridView() : renderListView()
+  return (
+    <>
+      {viewMode === 'grid' ? renderGridView() : renderListView()}
+      <Dialog
+        open={isEditModalOpen}
+        onOpenChange={open => {
+          setIsEditModalOpen(open)
+          if (!open) {
+            setIsMenuOpen(false)
+            setIsSaving(false)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit project</DialogTitle>
+            <DialogDescription>Update the title or description for this project.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor={`project-title-${project.id}`}>Title</Label>
+              <Input
+                id={`project-title-${project.id}`}
+                value={editTitle}
+                onChange={event => setEditTitle(event.target.value)}
+                placeholder="Enter a project title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`project-description-${project.id}`}>Description</Label>
+              <Textarea
+                id={`project-description-${project.id}`}
+                value={editDescription}
+                onChange={event => setEditDescription(event.target.value)}
+                placeholder="Add more context about this project"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving || !editTitle.trim()}>
+              {isSaving ? 'Saving...' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
 }
