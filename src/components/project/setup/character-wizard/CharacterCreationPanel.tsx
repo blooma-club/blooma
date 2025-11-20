@@ -407,6 +407,22 @@ export function CharacterCreationPanel({
               </div>
             ) : null}
           </div>
+        </div>
+
+        <div className="flex w-full flex-col gap-4 lg:w-3/5">
+          <div>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              Model name
+            </label>
+            <input
+              type="text"
+              value={creationName}
+              onChange={e => setCreationName(e.target.value)}
+              placeholder="Enter model name"
+              ref={nameInputRef}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+            />
+          </div>
 
           {mode === 'upload' && (
             <div className="flex flex-1 flex-col gap-4">
@@ -457,22 +473,6 @@ export function CharacterCreationPanel({
               />
             </div>
           )}
-        </div>
-
-        <div className="flex w-full flex-col gap-4 lg:w-3/5">
-          <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
-              Model name
-            </label>
-            <input
-              type="text"
-              value={creationName}
-              onChange={e => setCreationName(e.target.value)}
-              placeholder="Enter model name"
-              ref={nameInputRef}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
-            />
-          </div>
 
           {mode === 'generate' && (
             <>

@@ -110,18 +110,6 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6">
-      {activeMode && (
-        <CharacterCreationPanel
-          mode={activeMode}
-          onClose={handleCloseCreation}
-          onCharacterCreated={handleCharacterCreated}
-          allowedModels={allowedCharacterModels}
-          projectId={projectId}
-          userId={userId}
-          latestCharacterImageUrl={latestCharacterImageUrl}
-        />
-      )}
-
       <CharacterList
         characters={characters}
         onEdit={handleEditCharacter}
@@ -138,6 +126,18 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
         projectId={projectId}
         userId={userId}
       />
+
+      {activeMode && (
+        <CharacterCreationPanel
+          mode={activeMode}
+          onClose={handleCloseCreation}
+          onCharacterCreated={handleCharacterCreated}
+          allowedModels={allowedCharacterModels}
+          projectId={projectId}
+          userId={userId}
+          latestCharacterImageUrl={latestCharacterImageUrl}
+        />
+      )}
     </div>
   )
 }

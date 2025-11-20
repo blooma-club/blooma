@@ -70,19 +70,11 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
                     className={`relative ${tab.id === 'models' && isActive ? 'animate-pulse' : ''}`}
                   >
                     <Icon className="size-5 shrink-0" />
-                    {tab.id === 'models' && isActive && (
-                      <div className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-purple-500 shadow-lg shadow-purple-500/50" />
-                    )}
                   </div>
                   {!isCollapsed && (
                     <div className="flex-1 text-left">
                       <div className="text-sm">{tab.name}</div>
                       {isActive && <div className="text-xs text-gray-400">{tab.description}</div>}
-                    </div>
-                  )}
-                  {tab.id === 'models' && !isCollapsed && (
-                    <div className="relative z-10 flex size-6 items-center justify-center rounded-full bg-purple-600/40 text-xs text-purple-300 ring-1 ring-purple-500/50">
-                      {modelsCount}
                     </div>
                   )}
                 </div>

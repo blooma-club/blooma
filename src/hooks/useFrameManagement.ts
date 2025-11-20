@@ -47,6 +47,58 @@ export const useFrameManagement = (
       // 1) Optimistic add (temp card)
       const tempId = `temp-${Date.now()}`
       const widthForCard = clampCardWidth(latestCardWidthRef.current)
+      const duplicateFields: Partial<Card> | null = (() => {
+        if (!duplicateCardId) return null
+
+        const sourceCard = (cards || []).find((card: Card) => card.id === duplicateCardId)
+        const sourceFrame = framesRef.current.find((frame) => frame.id === duplicateCardId) ?? null
+
+        const rawHistory = sourceCard?.image_urls
+        const historyFromCard = Array.isArray(rawHistory)
+          ? rawHistory.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+          : []
+        const historyFromFrame = Array.isArray(sourceFrame?.imageHistory)
+          ? sourceFrame.imageHistory.filter((url) => typeof url === 'string' && url.trim().length > 0)
+          : []
+        const duplicateHistory = historyFromCard.length
+          ? [...historyFromCard]
+          : historyFromFrame.length
+            ? [...historyFromFrame]
+            : []
+
+        const duplicateImageUrl =
+          (sourceCard ? getImageUrlFromCard(sourceCard) : undefined) ?? sourceFrame?.imageUrl
+
+        if (!duplicateImageUrl) return null
+
+        if (!duplicateHistory.includes(duplicateImageUrl)) {
+          duplicateHistory.unshift(duplicateImageUrl)
+        }
+
+        const selectedIndex = duplicateHistory.indexOf(duplicateImageUrl)
+
+        const fields: Partial<Card> = {
+          image_url: duplicateImageUrl,
+          image_urls: duplicateHistory,
+          storyboard_status: sourceCard?.storyboard_status ?? sourceFrame?.status ?? 'ready',
+        }
+
+        if (selectedIndex >= 0) {
+          fields.selected_image_url = selectedIndex
+        }
+
+        if (sourceCard?.image_key) {
+          fields.image_key = sourceCard.image_key
+        }
+        if (typeof sourceCard?.image_size === 'number') {
+          fields.image_size = sourceCard.image_size
+        }
+        if (sourceCard?.image_type) {
+          fields.image_type = sourceCard.image_type
+        }
+
+        return fields
+      })()
       mutate((prev: any) => {
         const base = Array.isArray(prev?.data) ? prev.data : []
         const tempCard: any = {
@@ -60,6 +112,7 @@ export const useFrameManagement = (
           scene_number: targetIndex + 1,
           card_width: widthForCard,
           storyboard_status: 'ready',
+          ...(duplicateFields ?? {}),
         }
         const merged = [...base]
         merged.splice(targetIndex, 0, tempCard)
@@ -84,6 +137,9 @@ export const useFrameManagement = (
           typeof inserted.card_width === 'number' && Number.isFinite(inserted.card_width)
             ? { ...inserted, card_width: clampCardWidth(inserted.card_width) }
             : { ...inserted, card_width: widthForCard }
+        const normalizedInsertedWithDuplicate = duplicateFields
+          ? { ...normalizedInserted, ...duplicateFields }
+          : normalizedInserted
 
         // 3) Replace temp with real, reindex, then persist order
         let afterReplace: Card[] = []
@@ -92,9 +148,9 @@ export const useFrameManagement = (
           const idx = base.findIndex((c: any) => c.id === tempId)
           const merged = [...base]
           if (idx >= 0) {
-            merged[idx] = normalizedInserted
+            merged[idx] = normalizedInsertedWithDuplicate
           } else {
-            merged.splice(targetIndex, 0, normalizedInserted)
+            merged.splice(targetIndex, 0, normalizedInsertedWithDuplicate)
           }
           const reindexed = rebuildCardSequence(merged) as Card[]
           afterReplace = reindexed
@@ -102,66 +158,6 @@ export const useFrameManagement = (
         }, false)
 
         const insertedCardId = normalizedInserted.id
-        let duplicateFields: Partial<Card> | null = null
-
-        if (duplicateCardId) {
-          const sourceCard = (cards || []).find((card: Card) => card.id === duplicateCardId)
-          const sourceFrame = framesRef.current.find(frame => frame.id === duplicateCardId) || null
-
-          const rawHistory = sourceCard?.image_urls
-          const historyFromCard = Array.isArray(rawHistory)
-            ? rawHistory.filter(
-                (url): url is string => typeof url === 'string' && url.trim().length > 0
-              )
-            : []
-          const historyFromFrame = Array.isArray(sourceFrame?.imageHistory)
-            ? sourceFrame.imageHistory.filter(
-                url => typeof url === 'string' && url.trim().length > 0
-              )
-            : []
-          const duplicateHistory = historyFromCard.length
-            ? [...historyFromCard]
-            : historyFromFrame.length
-              ? [...historyFromFrame]
-              : []
-
-          const duplicateImageUrl =
-            (sourceCard ? getImageUrlFromCard(sourceCard) : undefined) ?? sourceFrame?.imageUrl
-
-          if (duplicateImageUrl) {
-            if (!duplicateHistory.includes(duplicateImageUrl)) {
-              duplicateHistory.unshift(duplicateImageUrl)
-            }
-
-            const selectedIndex = duplicateHistory.indexOf(duplicateImageUrl)
-
-            duplicateFields = {
-              image_url: duplicateImageUrl,
-              image_urls: duplicateHistory,
-              storyboard_status: sourceCard?.storyboard_status ?? sourceFrame?.status ?? 'ready',
-            }
-
-            if (selectedIndex >= 0) {
-              duplicateFields.selected_image_url = selectedIndex
-            }
-
-            if (sourceCard?.image_key) {
-              duplicateFields.image_key = sourceCard.image_key
-            }
-            if (typeof sourceCard?.image_size === 'number') {
-              duplicateFields.image_size = sourceCard.image_size
-            }
-            if (sourceCard?.image_type) {
-              duplicateFields.image_type = sourceCard.image_type
-            }
-          }
-        }
-
-        if (duplicateFields && insertedCardId) {
-          afterReplace = afterReplace.map(card =>
-            card.id === insertedCardId ? { ...card, ...duplicateFields } : card
-          )
-        }
 
         const duplicatePatch =
           duplicateFields && insertedCardId

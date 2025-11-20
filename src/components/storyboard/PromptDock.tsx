@@ -24,6 +24,9 @@ import {
   isImageToImageModel,
   getVideoModelsForSelection,
 } from '@/lib/fal-ai'
+import { backgroundOptions, type BackgroundOption } from '@/data/backgrounds'
+import { getSavedBackgroundSelection, saveBackgroundSelection } from '@/data/backgroundStorage'
+import { cameraFilters, type CameraFilterOption } from '@/data/cameraFilters'
 
 type VideoGenerationRequest = {
   modelId: string
@@ -99,6 +102,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [characterSelections, setCharacterSelections] = React.useState<CharacterSelection[]>([])
+  const [selectedCameraFilter, setSelectedCameraFilter] = React.useState<CameraFilterOption | null>(
+    null
+  )
+  const [selectedBackground, setSelectedBackground] = React.useState<BackgroundOption | null>(null)
   // Start/End 수동 선택 로직 제거됨 (Grid 멀티선택 사용)
 
   React.useEffect(() => {
@@ -170,6 +177,43 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
   // Start/End Chip UI 관련 클래스 제거됨
 
+  const addPromptImageUrl = React.useCallback((url: string) => {
+    setPromptImageDataUrls(prev => {
+      if (prev.includes(url)) return prev
+      const next = [...prev, url]
+      return next.length <= 3 ? next : next.slice(-3)
+    })
+  }, [])
+
+  const removePromptImageUrl = React.useCallback((url: string) => {
+    setPromptImageDataUrls(prev => prev.filter(item => item !== url))
+  }, [])
+
+  React.useEffect(() => {
+    const saved = getSavedBackgroundSelection()
+    if (!saved) return
+    const match = backgroundOptions.find(option => option.id === saved)
+    if (match) {
+      setSelectedBackground(match)
+      addPromptImageUrl(match.image_url)
+    }
+  }, [addPromptImageUrl])
+
+  const handleBackgroundSelect = React.useCallback(
+    (option: BackgroundOption | null) => {
+      const previousImage = selectedBackground?.image_url
+      setSelectedBackground(option)
+      saveBackgroundSelection(option?.id ?? null)
+      if (previousImage && previousImage !== option?.image_url) {
+        removePromptImageUrl(previousImage)
+      }
+      if (option?.image_url) {
+        addPromptImageUrl(option.image_url)
+      }
+    },
+    [addPromptImageUrl, removePromptImageUrl, saveBackgroundSelection, selectedBackground]
+  )
+
   const handlePromptImageSelect = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files
@@ -234,26 +278,33 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
   // to remove model mention user can
   // 1. remove the image
-  const handleRemovePromptImage = React.useCallback((targetUrl: string) => {
-    if (!targetUrl) return
-    setPromptImageDataUrls(prev => prev.filter(url => url !== targetUrl))
-    setCharacterSelections(prev => {
-      const related = prev.filter(selection => selection.imageUrl === targetUrl)
-      if (related.length === 0) {
-        return prev
+  const handleRemovePromptImage = React.useCallback(
+    (targetUrl: string) => {
+      if (!targetUrl) return
+      setPromptImageDataUrls(prev => prev.filter(url => url !== targetUrl))
+      if (selectedBackground?.image_url === targetUrl) {
+        setSelectedBackground(null)
+        saveBackgroundSelection(null)
       }
-      setPrompt(prevPrompt => {
-        let updated = prevPrompt
-        related.forEach(selection => {
-          if (selection.mention) {
-            updated = removeMentionTokenFromPrompt(updated, selection.mention)
-          }
+      setCharacterSelections(prev => {
+        const related = prev.filter(selection => selection.imageUrl === targetUrl)
+        if (related.length === 0) {
+          return prev
+        }
+        setPrompt(prevPrompt => {
+          let updated = prevPrompt
+          related.forEach(selection => {
+            if (selection.mention) {
+              updated = removeMentionTokenFromPrompt(updated, selection.mention)
+            }
+          })
+          return updated
         })
-        return updated
+        return prev.filter(selection => selection.imageUrl !== targetUrl)
       })
-      return prev.filter(selection => selection.imageUrl !== targetUrl)
-    })
-  }, [])
+    },
+    [selectedBackground, saveBackgroundSelection]
+  )
 
   // 2. remove the mention
   const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -872,11 +923,36 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   variant="outline"
                   className="h-9 px-3 text-sm border border-border dark:border-white/20"
                 >
-                  Camera
+                  {selectedCameraFilter?.label ?? 'Camera'}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
+                <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
+                <DropdownMenuItem
+                  key="camera-none"
+                  className={clsx(
+                    'rounded-sm px-2.5 py-2 text-sm',
+                    !selectedCameraFilter && 'bg-accent text-accent-foreground'
+                  )}
+                  onSelect={() => {
+                    setSelectedCameraFilter(null)
+                  }}
+                >
+                  Clear selection
+                </DropdownMenuItem>
+                {cameraFilters.map(filter => (
+                  <DropdownMenuItem
+                    key={filter.id}
+                    className={clsx(
+                      'rounded-sm px-2.5 py-2 text-sm',
+                      filter.id === selectedCameraFilter?.id && 'bg-accent text-accent-foreground'
+                    )}
+                    onSelect={() => {
+                      setSelectedCameraFilter(filter)
+                    }}
+                  >
+                    {filter.label}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -949,13 +1025,41 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   variant="outline"
                   className="h-9 px-3 text-sm border border-border dark:border-white/20"
                 >
-                  Background
+                  {selectedBackground?.label ?? 'Background'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenuItem
+                  key="background-none"
+                  className={clsx(
+                    'rounded-sm px-2.5 py-2 text-sm',
+                    !selectedBackground && 'bg-accent text-accent-foreground'
+                  )}
+                  onSelect={() => handleBackgroundSelect(null)}
+                >
+                  Clear selection
+                </DropdownMenuItem>
+                {backgroundOptions.map(option => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    className={clsx(
+                      'rounded-sm px-2.5 py-2 text-sm',
+                      option.id === selectedBackground?.id && 'bg-accent text-accent-foreground'
+                    )}
+                    onSelect={() => handleBackgroundSelect(option)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={option.image_url}
+                        alt={option.label}
+                        className="h-8 w-8 rounded border border-border/80 object-cover"
+                      />
+                      <span>{option.label}</span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
             {/* 제출 버튼 */}
             <Button
