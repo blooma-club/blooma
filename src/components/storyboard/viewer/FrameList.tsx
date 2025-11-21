@@ -60,6 +60,7 @@ export const FrameList: React.FC<FrameListProps> = ({
   selectedFrameId,
 }) => {
   const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
+  const previewWidthPx = PORTRAIT_RATIOS.includes(aspectRatio) ? 288 : 384
   const maxHeight = PORTRAIT_RATIOS.includes(aspectRatio) ? 520 : 360
   return (
     <div className="flex justify-center">
@@ -110,6 +111,7 @@ export const FrameList: React.FC<FrameListProps> = ({
                     onOpen={() => onFrameEdit(i)}
                     onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
                     aspectRatio={aspectRatio}
+                  cardWidth={previewWidthPx}
                   />
                 </div>
 

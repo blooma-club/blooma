@@ -104,6 +104,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  transpilePackages: ['geist'],
   images: {
     remotePatterns,
     dangerouslyAllowSVG: true,

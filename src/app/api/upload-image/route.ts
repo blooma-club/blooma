@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { uploadImageToR2, uploadCharacterImageToR2, deleteImageFromR2 } from '@/lib/r2'
 import { queryD1, queryD1Single, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
+import { insertUploadedAsset } from '@/lib/db/customAssets'
 
 export const runtime = 'nodejs'
 
@@ -24,11 +25,16 @@ export async function POST(request: NextRequest) {
     const editPrompt = sanitizeOptionalString(formData.get('editPrompt'))
     const isUpdate = parseBoolean(formData.get('isUpdate'))
     const uploadType = sanitizeOptionalString(formData.get('type'))?.toLowerCase()
+    
+    // Determine upload context
     const isCharacterUpload = uploadType === 'character' || !!characterId
+    const isModelUpload = uploadType === 'model'
+    const isBackgroundUpload = uploadType === 'background'
+    
+    const targetId = isCharacterUpload ? characterId : 
+                    (isModelUpload || isBackgroundUpload) ? (formData.get('assetId') as string) : frameId
 
-    const targetId = isCharacterUpload ? characterId : frameId
-
-    if (!file || !projectId || !targetId) {
+    if (!file || (!projectId && !isModelUpload && !isBackgroundUpload) || !targetId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -37,6 +43,47 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     const base64 = buffer.toString('base64')
     const dataUrl = `data:${file.type};base64,${base64}`
+
+    // Special handling for 'model' and 'background' types
+    if (isModelUpload || isBackgroundUpload) {
+      try {
+        // Use R2 upload helper (reusing character logic for now as it handles custom paths well, or generic image upload)
+        // Ideally, we might want specific folders like 'models/' or 'backgrounds/'
+        // For now, we can reuse generic upload or character upload which structures by ID.
+        // Let's use uploadCharacterImageToR2 for custom assets as it creates a unique path.
+        const assetResult = await uploadCharacterImageToR2(targetId!, dataUrl, projectId || 'shared')
+        
+        const assetUrl = assetResult.publicUrl || assetResult.signedUrl
+        if (!assetUrl) throw new Error('Failed to get uploaded asset URL')
+        
+        const tableName = isModelUpload ? 'uploaded_models' : 'uploaded_backgrounds'
+        const assetName = sanitizeOptionalString(formData.get('name')) || file.name.split('.')[0]
+        const assetSubtitle = sanitizeOptionalString(formData.get('subtitle'))
+
+        const savedAsset = await insertUploadedAsset(tableName, {
+          id: targetId!,
+          user_id: userId,
+          project_id: projectId,
+          name: assetName,
+          subtitle: assetSubtitle,
+          image_url: assetUrl,
+          image_key: assetResult.key,
+          image_size: typeof assetResult.size === 'number' ? assetResult.size : file.size,
+          image_content_type: file.type
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: savedAsset
+        })
+      } catch (error) {
+        console.error(`Failed to upload ${uploadType}:`, error)
+        return NextResponse.json({ 
+          error: `Failed to upload ${uploadType}`, 
+          message: error instanceof Error ? error.message : 'Unknown error' 
+        }, { status: 500 })
+      }
+    }
 
     // If this is an "empty" / unsaved storyboard (local working area),
     // do NOT persist the uploaded image to R2. Return the data URL so the
@@ -117,6 +164,7 @@ export async function POST(request: NextRequest) {
             userId,
             projectId ?? null,
             characterName,
+            null,
             null,
             editPrompt ?? null,
             characterUrl,

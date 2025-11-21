@@ -2,7 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { ChevronDown, Plus, Edit3, X, ImagePlus, Video } from 'lucide-react'
+import { Plus, Edit3, X, ImagePlus, Video, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -14,6 +14,35 @@ import {
 import { useToast } from '@/components/ui/toast'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { DEFAULT_MODEL, getModelsForMode, isImageToImageModel, getVideoModelsForSelection } from '@/lib/fal-ai'
+import CameraLibrary, { type CameraPreset } from '@/components/storyboard/libraries/CameraLibrary'
+import ModelLibraryDropdown, { type ModelLibraryAsset } from '@/components/storyboard/libraries/ModelLibraryDropdown'
+import BackgroundLibraryDropdown, {
+  type BackgroundLibraryAsset,
+} from '@/components/storyboard/libraries/BackgroundLibraryDropdown'
+import ImagePreviewModal from '@/components/storyboard/ImagePreviewModal'
+
+const mergePromptWithPreset = (current: string, addition: string) => {
+  const trimmedAddition = addition.trim()
+  if (!trimmedAddition) return current
+  const trimmedCurrent = current.trim()
+  if (!trimmedCurrent) return trimmedAddition
+  if (trimmedCurrent.includes(trimmedAddition)) return trimmedCurrent
+  return `${trimmedCurrent}\n${trimmedAddition}`.trim()
+}
+
+const removePresetFromPrompt = (current: string, removal: string) => {
+  const trimmedRemoval = removal.trim()
+  if (!trimmedRemoval) return current
+  const next = current.replace(trimmedRemoval, '').replace(/\n{2,}/g, '\n').trim()
+  return next
+}
+
+type ReferenceImage = {
+  id: string
+  url: string
+  type: 'upload' | 'model' | 'background' | 'frame'
+  label?: string
+}
 
 type VideoGenerationRequest = {
   modelId: string
@@ -104,11 +133,163 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     adjustTextareaHeight()
   }, [prompt, adjustTextareaHeight])
 
-  // 최대 3장까지 참조 이미지 업로드 허용
-  const [promptImageDataUrls, setPromptImageDataUrls] = React.useState<string[]>([])
+  // 통합된 참조 이미지 관리 (최대 3장)
+  const [referenceImages, setReferenceImages] = React.useState<ReferenceImage[]>([])
+  const [selectedCameraPreset, setSelectedCameraPreset] = React.useState<CameraPreset | null>(null)
+  const [selectedModelAsset, setSelectedModelAsset] = React.useState<ModelLibraryAsset | null>(null)
+  const [selectedBackgroundAsset, setSelectedBackgroundAsset] = React.useState<BackgroundLibraryAsset | null>(null)
+  const [imageCount, setImageCount] = React.useState(1)
+  const [resolution, setResolution] = React.useState<'1K' | '2K' | '4K'>('1K')
+  const [duration, setDuration] = React.useState<'5' | '10'>('5')
+  const [imagePreview, setImagePreview] = React.useState<string[] | null>(null)
+
+  // 드롭다운 열림 상태 관리
+  const [cameraDropdownOpen, setCameraDropdownOpen] = React.useState(false)
+  const [modelDropdownOpen, setModelDropdownOpen] = React.useState(false)
+  const [backgroundDropdownOpen, setBackgroundDropdownOpen] = React.useState(false)
+
+  // Model/Background 선택 시 참조 이미지 배열에 추가
+  React.useEffect(() => {
+    setReferenceImages(prev => {
+      let updated = prev.filter(img => img.type !== 'model' && img.type !== 'background')
+      
+      if (selectedModelAsset) {
+        updated.push({
+          id: `model-${selectedModelAsset.id}`,
+          url: selectedModelAsset.imageUrl,
+          type: 'model',
+          label: selectedModelAsset.name,
+        })
+      }
+      
+      if (selectedBackgroundAsset) {
+        updated.push({
+          id: `background-${selectedBackgroundAsset.id}`,
+          url: selectedBackgroundAsset.imageUrl,
+          type: 'background',
+          label: selectedBackgroundAsset.name,
+        })
+      }
+      
+      return updated.slice(0, 3)
+    })
+  }, [selectedModelAsset, selectedBackgroundAsset])
+
+  const handleApplyCameraPreset = React.useCallback(
+    (preset: CameraPreset) => {
+      setSelectedCameraPreset(preset)
+      // 프롬프트 입력창에는 표시하지 않고, API 요청 시에만 백그라운드로 포함
+    },
+    []
+  )
+
+  const handleClearCameraPreset = React.useCallback(() => {
+    setSelectedCameraPreset(null)
+  }, [])
+
+  // 드롭다운 열림/닫힘 핸들러 (하나가 열리면 다른 것들은 닫힘)
+  const handleCameraDropdownChange = React.useCallback((open: boolean) => {
+    setCameraDropdownOpen(open)
+    if (open) {
+      setModelDropdownOpen(false)
+      setBackgroundDropdownOpen(false)
+    }
+  }, [])
+
+  const handleModelDropdownChange = React.useCallback((open: boolean) => {
+    setModelDropdownOpen(open)
+    if (open) {
+      setCameraDropdownOpen(false)
+      setBackgroundDropdownOpen(false)
+    }
+  }, [])
+
+  const handleBackgroundDropdownChange = React.useCallback((open: boolean) => {
+    setBackgroundDropdownOpen(open)
+    if (open) {
+      setCameraDropdownOpen(false)
+      setModelDropdownOpen(false)
+    }
+  }, [])
+
+  const handleSelectModelAsset = React.useCallback((asset: ModelLibraryAsset) => {
+    setSelectedModelAsset(asset)
+  }, [])
+
+  const handleSelectBackgroundAsset = React.useCallback((asset: BackgroundLibraryAsset) => {
+    setSelectedBackgroundAsset(asset)
+  }, [])
+
+  const handleRemoveReferenceImage = React.useCallback((id: string) => {
+    const image = referenceImages.find(img => img.id === id)
+    if (!image || image.type === 'frame') {
+      return
+    }
+
+    if (image.type === 'model') {
+      setSelectedModelAsset(null)
+    } else if (image.type === 'background') {
+      setSelectedBackgroundAsset(null)
+    } else {
+      // 업로드한 이미지 제거
+      setReferenceImages(prev => prev.filter(img => img.id !== id))
+    }
+  }, [referenceImages])
+
+  // Ensure edit mode always has the selected frame's image as the primary reference
+  React.useEffect(() => {
+    setReferenceImages(prev => {
+      const withoutFrame = prev.filter(img => img.type !== 'frame')
+
+      if (currentMode !== 'edit' || !referenceImageUrl || !selectedFrameId) {
+        return withoutFrame
+      }
+
+      const frameReference: ReferenceImage = {
+        id: `frame-${selectedFrameId}`,
+        url: referenceImageUrl,
+        type: 'frame',
+        label: 'Selected frame',
+      }
+
+      return [frameReference, ...withoutFrame].slice(0, 3)
+    })
+  }, [currentMode, referenceImageUrl, selectedFrameId])
+
+  const handleClearModelAsset = React.useCallback(() => {
+    setSelectedModelAsset(null)
+  }, [])
+
+  const handleClearBackgroundAsset = React.useCallback(() => {
+    setSelectedBackgroundAsset(null)
+  }, [])
+
+  const resetAfterGeneration = React.useCallback(() => {
+    setReferenceImages([])
+    setSelectedModelAsset(null)
+    setSelectedBackgroundAsset(null)
+    setPrompt('')
+  }, [])
+
+  const handleApplyGeneratedImage = React.useCallback(
+    async (imageUrl: string) => {
+      await onCreateFrame(imageUrl)
+      resetAfterGeneration()
+      setError(null)
+    },
+    [onCreateFrame, resetAfterGeneration]
+  )
+
+  const handlePreviewApply = React.useCallback(
+    async (imageUrl: string) => {
+      await handleApplyGeneratedImage(imageUrl)
+      setImagePreview(null)
+    },
+    [handleApplyGeneratedImage]
+  )
 
   const usingImageToImage =
-    currentMode !== 'video' && (currentMode === 'edit' || promptImageDataUrls.length > 0)
+    currentMode !== 'video' && (currentMode === 'edit' || referenceImages.length > 0)
 
   // 비디오 모드 보조 상태 제거됨
 
@@ -127,19 +308,24 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
   // Start/End 수동 선택 핸들러 제거됨
 
-  // 모델 ID state - 초기값을 고정값으로 설정
-  const [modelId, setModelId] = React.useState<string>(DEFAULT_MODEL)
-
-  // 현재 선택된 모델이 유효한지 확인하고 필요시 업데이트
-  const matchedModel = models.find(m => m.id === modelId)
-  const selectedModel = matchedModel ?? models[0]
-
-  // 모델이 유효하지 않으면 현재 모드의 첫 번째 모델로 업데이트
-  React.useEffect(() => {
-    if (!matchedModel && selectedModel) {
-      setModelId(selectedModel.id)
+  // 모델 자동 선택 로직
+  // 1. 비디오 모드: 비디오 모델 사용 (외부 로직에서 처리되거나 models 배열 첫 번째 사용)
+  // 2. 편집 모드 또는 참조 이미지가 있는 경우: fal-ai/nano-banana-pro/edit (Image-to-Image)
+  // 3. 생성 모드이고 참조 이미지가 없는 경우: fal-ai/nano-banana-pro (Text-to-Image)
+  const modelId = React.useMemo(() => {
+    if (currentMode === 'video') {
+      // 비디오 모델은 getVideoModelsForSelection 등으로 처리되지만, fallback으로 유지
+      return 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video' 
     }
-  }, [matchedModel, selectedModel?.id])
+    
+    if (currentMode === 'edit' || referenceImages.length > 0 || (selectedFrameId && currentMode === 'generate')) {
+      return 'fal-ai/nano-banana-pro/edit'
+    }
+    
+    return 'fal-ai/nano-banana-pro'
+  }, [currentMode, referenceImages.length, selectedFrameId])
+
+  const selectedModel = models.find(m => m.id === modelId) ?? models[0]
 
   // Start/End Chip UI 관련 클래스 제거됨
 
@@ -148,7 +334,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       const files = event.target.files
       if (!files || files.length === 0) return
 
-      const currentCount = promptImageDataUrls.length
+      const currentCount = referenceImages.length
       const available = Math.max(0, 3 - currentCount)
       const toRead = Array.from(files)
         .filter(f => f.type.startsWith('image/'))
@@ -164,26 +350,25 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       }
 
       let completed = 0
-      const results: string[] = []
-      toRead.forEach(file => {
+      const results: ReferenceImage[] = []
+      toRead.forEach((file, index) => {
         const reader = new FileReader()
         reader.onload = () => {
           const result = reader.result
           if (typeof result === 'string') {
-            results.push(result)
+            results.push({
+              id: `upload-${Date.now()}-${index}`,
+              url: result,
+              type: 'upload',
+            })
           }
           completed++
           if (completed === toRead.length) {
-            setPromptImageDataUrls(prev => {
+            setReferenceImages(prev => {
               const merged = [...prev, ...results].slice(0, 3)
               return merged
             })
-            if (!isImageToImageModel(modelId)) {
-              const fallbackModel = getModelsForMode('edit')[0]
-              if (fallbackModel) {
-                setModelId(fallbackModel.id)
-              }
-            }
+            // 모델은 상태에 따라 자동으로 전환되므로 별도 처리 불필요
           }
         }
         reader.onerror = () => {
@@ -202,7 +387,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
       event.target.value = ''
     },
-    [modelId, promptImageDataUrls.length, showToast]
+    [modelId, referenceImages.length, showToast]
   )
 
   const handleSubmit = async () => {
@@ -248,18 +433,24 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       setError(null)
 
       try {
+        // 카메라 프리셋 프롬프트를 백그라운드로 병합 (사용자 입력창에는 표시하지 않음)
+        const finalVideoPrompt = selectedCameraPreset
+          ? mergePromptWithPreset(trimmed, selectedCameraPreset.prompt)
+          : trimmed
+
         const start = (Array.isArray(videoSelection) && videoSelection.length > 0)
           ? videoSelection[0]
           : (selectedFrameId ? { id: selectedFrameId, imageUrl: referenceImageUrl ?? null } : undefined)
         const end = (Array.isArray(videoSelection) && videoSelection.length > 1) ? videoSelection[1] : undefined
         await onGenerateVideo({
           modelId: selectedModel.id,
-          prompt: trimmed.length > 0 ? trimmed : undefined,
+          prompt: finalVideoPrompt.length > 0 ? finalVideoPrompt : undefined,
           startFrameId: start?.id as string,
           endFrameId: count >= 2 && end ? (end.id as string) : (undefined as unknown as string),
           startImageUrl: start?.imageUrl ?? null,
           endImageUrl: count >= 2 ? end?.imageUrl ?? null : null,
-        })
+          duration,
+        } as any)
         // 비디오 생성 성공 후 프롬프트 초기화
         setPrompt('')
       } catch (e) {
@@ -295,18 +486,25 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       aspectRatio,
       currentMode,
       referenceImageUrl,
-      attachedImages: usingImageToImage && promptImageDataUrls.length > 0 ? `${promptImageDataUrls.length} inline` : null,
+      attachedImages: usingImageToImage && referenceImages.length > 0 ? `${referenceImages.length} inline` : null,
     })
 
     try {
+      // 카메라 프리셋 프롬프트를 백그라운드로 병합 (사용자 입력창에는 표시하지 않음)
+      const finalPrompt = selectedCameraPreset
+        ? mergePromptWithPreset(trimmed, selectedCameraPreset.prompt)
+        : trimmed
+
       const requestBody: any = {
-        prompt: trimmed,
+        prompt: finalPrompt,
         modelId,
         aspectRatio,
+        numImages: imageCount,
+        resolution,
       }
 
-      if (promptImageDataUrls.length > 0) {
-        requestBody.imageUrls = promptImageDataUrls
+      if (referenceImages.length > 0) {
+        requestBody.imageUrls = referenceImages.map(img => img.url)
       }
 
       if (currentMode === 'edit' && referenceImageUrl) {
@@ -322,8 +520,12 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       
       // API 응답 형식: { success: true, data: { imageUrl: ... } }
       const imageUrl = json?.data?.imageUrl || json?.imageUrl
+      const responseImageUrls = json?.data?.imageUrls || json?.imageUrls
+      const allImages = Array.isArray(responseImageUrls)
+        ? responseImageUrls.filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
+        : []
       
-      if (!res.ok || !json?.success || !imageUrl) {
+      if (!res.ok || !json?.success || (!imageUrl && allImages.length === 0)) {
         let errorMsg = json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
 
         if (res.status === 404) {
@@ -339,9 +541,11 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
         throw new Error(errorMsg)
       }
-      await onCreateFrame(imageUrl as string)
-      setPrompt('')
-      setPromptImageDataUrls([])
+      if (allImages.length > 1) {
+        setImagePreview(allImages)
+      } else {
+        await handleApplyGeneratedImage(imageUrl as string)
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다'
       setError(msg)
@@ -399,27 +603,30 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 }}
                 className="flex-shrink-0"
               >
-                <TabsList className="h-9 gap-1 p-1 bg-muted">
+                <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-background/60 backdrop-blur-md p-1 shadow-sm supports-[backdrop-filter]:bg-background/40">
                   <TabsTrigger
                     value="generate"
-                    className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                    className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-300 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground/70 data-[state=inactive]:hover:text-foreground hover:bg-muted/50"
                     title="Generate new image"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                    <span className="hidden sm:inline">Generate</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="edit"
-                    className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                    className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-300 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground/70 data-[state=inactive]:hover:text-foreground hover:bg-muted/50"
                     title="Edit current image"
                   >
-                    <Edit3 className="h-4 w-4" />
+                    <Edit3 className="w-3.5 h-3.5" strokeWidth={2} />
+                    <span className="hidden sm:inline">Edit</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="video"
-                    className="px-3 py-1.5 rounded-md h-8 text-sm transition-colors data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-50 data-[state=active]:text-black dark:data-[state=active]:text-neutral-900"
+                    className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-300 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=inactive]:text-muted-foreground/70 data-[state=inactive]:hover:text-foreground hover:bg-muted/50"
                     title="Generate video"
                   >
-                    <Video className="h-4 w-4" />
+                    <Video className="w-3.5 h-3.5" strokeWidth={2} />
+                    <span className="hidden sm:inline">Video</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -430,8 +637,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 (Array.isArray(videoSelection) && videoSelection.length > 0) ? (
                   <span
                     className={clsx(
-                      "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm",
-                      "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 ring-purple-200/50 dark:ring-purple-800/50 hover:ring-purple-300 dark:hover:ring-purple-700 hover:bg-purple-100 dark:hover:bg-purple-950/50"
+                      "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap select-none border transition-all duration-300",
+                      "bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20 backdrop-blur-sm shadow-sm hover:bg-violet-500/20"
                     )}
                     role="status"
                     aria-label={
@@ -449,10 +656,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                       <button
                         type="button"
                         onClick={onClearSelectedShot}
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 border border-purple-300 dark:border-purple-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1 ml-1"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-500/20 hover:bg-violet-500/30 text-violet-600 dark:text-violet-300 transition-colors focus:outline-none ml-1"
                         aria-label="Clear selection"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-2.5 w-2.5" />
                       </button>
                     )}
                   </span>
@@ -460,8 +667,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   selectedFrameId && typeof selectedShotNumber === 'number' ? (
                     <span
                       className={clsx(
-                        "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm",
-                        "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 ring-purple-200/50 dark:ring-purple-800/50 hover:ring-purple-300 dark:hover:ring-purple-700 hover:bg-purple-100 dark:hover:bg-purple-950/50"
+                        "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap select-none border transition-all duration-300",
+                        "bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20 backdrop-blur-sm shadow-sm hover:bg-violet-500/20"
                       )}
                       role="status"
                       aria-label={`Video ${selectedShotNumber}`}
@@ -471,10 +678,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                         <button
                           type="button"
                           onClick={onClearSelectedShot}
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 border border-purple-300 dark:border-purple-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1 ml-1"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-500/20 hover:bg-violet-500/30 text-violet-600 dark:text-violet-300 transition-colors focus:outline-none ml-1"
                           aria-label="Clear selection"
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-2.5 w-2.5" />
                         </button>
                       )}
                     </span>
@@ -484,10 +691,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 typeof selectedShotNumber === 'number' && (
                   <span
                     className={clsx(
-                      "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 whitespace-nowrap select-none border ring-1 transition-all shadow-sm",
-                      currentMode === 'edit'
-                        ? "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 ring-orange-200/50 dark:ring-orange-800/50 hover:ring-orange-300 dark:hover:ring-orange-700 hover:bg-orange-100 dark:hover:bg-orange-950/50"
-                        : "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 ring-blue-200/50 dark:ring-blue-800/50 hover:ring-blue-300 dark:hover:ring-blue-700 hover:bg-blue-100 dark:hover:bg-blue-950/50"
+                      "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap select-none border transition-all duration-300",
+                      "bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20 backdrop-blur-sm shadow-sm hover:bg-violet-500/20"
                     )}
                     role="status"
                     aria-label={`Selected ${currentMode} shot ${selectedShotNumber}`}
@@ -497,15 +702,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                       <button
                         type="button"
                         onClick={onClearSelectedShot}
-                        className={clsx(
-                          "inline-flex h-5 w-5 items-center justify-center rounded-full border transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 ml-1",
-                          currentMode === 'edit'
-                            ? "bg-orange-100 dark:bg-orange-900/50 hover:bg-orange-200 dark:hover:bg-orange-800 text-orange-700 dark:text-orange-300 hover:text-orange-900 dark:hover:text-orange-100 border-orange-300 dark:border-orange-700 focus:ring-orange-400"
-                            : "bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 border-blue-300 dark:border-blue-700 focus:ring-blue-400"
-                        )}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-500/20 hover:bg-violet-500/30 text-violet-600 dark:text-violet-300 transition-colors focus:outline-none ml-1"
                         aria-label="Clear selection"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-2.5 w-2.5" />
                       </button>
                     )}
                   </span>
@@ -514,67 +714,151 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
               </div>
             </div>
 
-            {/* 오른쪽: 모델 선택 */}
-            <div className="flex-shrink-0">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="h-9 min-w-[140px] px-3 text-sm bg-background hover:bg-muted/50 border border-border dark:border-white/20 transition-colors"
-                  >
-                    <span className="truncate text-left">{selectedModel?.name || 'Model'}</span>
-                    <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60 flex-shrink-0 text-current" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground"
-                >
-                  {models.map(m => (
-                    <DropdownMenuItem
-                      key={m.id}
-                      onClick={() => {
-                        const validModelId = models.find(model => model.id === m.id)
-                          ? m.id
-                          : models[0]?.id
-                        if (validModelId) {
-                          setModelId(validModelId)
-                        }
-                      }}
-                      className={clsx(
-                        'rounded-sm px-2.5 py-2 text-sm',
-                        modelId === m.id && 'bg-accent text-accent-foreground'
-                      )}
+            {/* 오른쪽: 이미지 개수 + 해상도 + Duration */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* 해상도 선택 (이미지 모드) */}
+              {currentMode !== 'video' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/50 hover:bg-accent/50 border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm"
+                      title="Resolution"
                     >
-                      {m.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <span className="text-xs font-medium text-foreground/90">{resolution}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                    sideOffset={8}
+                  >
+                    <div className="px-2 py-1.5 mb-1 border-b border-border/30">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Res</span>
+                    </div>
+                    {(['1K', '2K', '4K'] as const).map(res => (
+                      <DropdownMenuItem
+                        key={res}
+                        onClick={() => setResolution(res)}
+                        className={clsx(
+                          'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
+                          resolution === res
+                            ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                            : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {res}
+                        {resolution === res && <Check className="h-3 w-3 ml-2" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Duration 선택 (비디오 모드) */}
+              {currentMode === 'video' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/50 hover:bg-accent/50 border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm"
+                      title="Video Duration"
+                    >
+                      <span className="text-xs font-medium text-foreground/90">{duration}s</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                    sideOffset={8}
+                  >
+                    <div className="px-2 py-1.5 mb-1 border-b border-border/30">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Time</span>
+                    </div>
+                    {(['5', '10'] as const).map(sec => (
+                      <DropdownMenuItem
+                        key={sec}
+                        onClick={() => setDuration(sec)}
+                        className={clsx(
+                          'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
+                          duration === sec
+                            ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                            : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {sec}s
+                        {duration === sec && <Check className="h-3 w-3 ml-2" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {currentMode !== 'video' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="glass"
+                      className="h-9 px-3 text-xs font-semibold tracking-wide rounded-xl"
+                      aria-label={`Generate ×${imageCount}`}
+                    >
+                      ×{imageCount}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="z-[95] w-24 p-1.5 rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl shadow-2xl">
+                    {[1, 2, 3, 4].map(count => (
+                      <DropdownMenuItem
+                        key={count}
+                        onClick={() => setImageCount(count)}
+                        className={clsx(
+                          "flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5",
+                          imageCount === count
+                            ? "bg-violet-500/10 text-violet-600 dark:text-violet-300"
+                            : "hover:bg-violet-500/5 text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        ×{count}
+                        {imageCount === count && <Check className="h-3 w-3" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
 
           {/* 중간: 프롬프트 입력 영역 (참조 이미지 미리보기 + 텍스트 입력 + 하단 컨트롤) */}
-          <div className="rounded-xl border border-border/90 dark:border-white/20 bg-background/80 p-3 flex flex-col gap-3 transition-all focus-within:ring-2 focus-within:ring-ring/60 focus-within:ring-offset-0 focus-within:border-border dark:focus-within:border-white/30 focus-within:bg-background shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(255,255,255,0.08),0_1px_2px_rgba(255,255,255,0.12)]">
-            {/* 상단: 참조 이미지 미리보기 (업로드 시 노출, 최대 3장) */}
-            {currentMode !== 'video' && promptImageDataUrls.length > 0 && (
-              <div className="flex items-center gap-2.5">
-                {promptImageDataUrls.map((url, idx) => (
-                  <div key={`${url}-${idx}`} className="relative group overflow-hidden rounded-md ring-1 ring-border/90 dark:ring-white/20 border border-border/90 dark:border-white/20 bg-muted/40 animate-in fade-in shadow-[0_2px_4px_rgba(0,0,0,0.1),0_1px_1px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(255,255,255,0.12),0_1px_1px_rgba(255,255,255,0.1)]">
+          <div className="rounded-2xl border border-violet-200/20 dark:border-violet-800/30 bg-background/80 backdrop-blur-xl p-3 flex flex-col gap-3 transition-all focus-within:ring-1 focus-within:ring-violet-500/20 focus-within:ring-offset-0 focus-within:border-violet-500/30 focus-within:bg-background/95 shadow-[0_8px_32px_-8px_rgba(139,92,246,0.15)] dark:shadow-[0_8px_32px_-8px_rgba(139,92,246,0.25)] supports-[backdrop-filter]:bg-background/60">
+            {/* 상단: 참조 이미지 미리보기 (업로드/모델/배경 통합, 최대 3장) */}
+            {currentMode !== 'video' && referenceImages.length > 0 && (
+              <div className="flex items-center gap-2.5 px-1 pt-1">
+                {referenceImages.map(img => (
+                  <div key={img.id} className="relative group overflow-hidden rounded-xl border border-border/20 bg-muted/20 shadow-sm hover:scale-105 transition-transform duration-300">
                     <img
-                      src={url}
-                      alt={`Prompt reference preview ${idx + 1}`}
-                      className="h-16 w-16 md:h-20 md:w-20 object-cover"
+                      src={img.url}
+                      alt={img.label || `Reference ${img.type}`}
+                      className="h-14 w-14 md:h-16 md:w-16 object-cover"
                     />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPromptImageDataUrls(prev => prev.filter((_, i) => i !== idx))
-                      }
-                      className="absolute -top-1.5 -right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-muted-foreground border border-border shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                      aria-label="Remove reference image"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    {img.label && (
+                      <span className="absolute left-0 top-0 rounded-br-lg bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-white">
+                        {img.type === 'model'
+                          ? 'Model'
+                          : img.type === 'background'
+                          ? 'BG'
+                          : img.type === 'frame'
+                          ? 'Frame'
+                          : 'Ref'}
+                      </span>
+                    )}
+                    {img.type !== 'frame' && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveReferenceImage(img.id)}
+                        className="absolute top-0.5 right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white/90 hover:bg-black/70 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                        aria-label={`Remove ${img.type} reference`}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -594,13 +878,13 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   : 'Create a scene…'
               }
               aria-label="prompt input"
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-12 max-h-32 leading-relaxed"
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 resize-none overflow-y-auto focus:outline-none focus:ring-0 min-h-[3rem] max-h-32 leading-relaxed px-1"
               disabled={submitting}
               rows={1}
             />
             
             {/* 하단: 컨트롤 바 (이미지 업로드, 카메라, 배경, 모델, 제출) */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* 이미지 업로드 */}
               {currentMode !== 'video' && (
                 <>
@@ -614,54 +898,49 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="glass"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting || promptImageDataUrls.length >= 3}
-                    className="h-9 w-9 rounded-md p-0 flex items-center justify-center flex-shrink-0 border border-border dark:border-white/20 hover:bg-muted/50 transition-colors"
+                    disabled={submitting || referenceImages.length >= 3}
+                    className="h-9 w-9 rounded-lg p-0 flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-foreground"
                     aria-label="Add reference image"
                   >
-                    <ImagePlus className="h-4 w-4" />
+                    <ImagePlus className="h-4 w-4" strokeWidth={1.5} />
                   </Button>
                 </>
               )}
-
-              {/* 카메라 세팅 드롭다운 (UX 미구현) */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 px-3 text-sm border border-border dark:border-white/20">Camera</Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                  <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* 모델(캐릭터) 드롭다운 (UX 미구현) */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 px-3 text-sm border border-border dark:border-white/20">Model</Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                  <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* 배경 드롭다운 (UX 미구현) */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 px-3 text-sm border border-border dark:border-white/20">Background</Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-md p-1.5 z-[80] border border-border bg-popover text-popover-foreground">
-                  <DropdownMenuItem disabled>Not implemented</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <CameraLibrary
+                selectedPreset={selectedCameraPreset}
+                onSelect={handleApplyCameraPreset}
+                onClear={handleClearCameraPreset}
+                open={cameraDropdownOpen}
+                onOpenChange={handleCameraDropdownChange}
+              />
+              <ModelLibraryDropdown
+                selectedAsset={selectedModelAsset}
+                onSelect={handleSelectModelAsset}
+                onClear={handleClearModelAsset}
+                open={modelDropdownOpen}
+                onOpenChange={handleModelDropdownChange}
+              />
+              <BackgroundLibraryDropdown
+                selectedAsset={selectedBackgroundAsset}
+                onSelect={handleSelectBackgroundAsset}
+                onClear={handleClearBackgroundAsset}
+                open={backgroundDropdownOpen}
+                onOpenChange={handleBackgroundDropdownChange}
+              />
 
               {/* 제출 버튼 */}
               <Button
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={buttonDisabled}
-                className="h-9 w-9 rounded-md p-0 flex items-center justify-center disabled:opacity-50 bg-orange-500 hover:bg-orange-600 text-white transition-colors ml-auto"
+                variant="violet"
+                className={clsx(
+                  "h-9 w-9 rounded-lg p-0 flex items-center justify-center ml-auto relative overflow-hidden",
+                  buttonDisabled && "bg-muted text-muted-foreground shadow-none hover:bg-muted hover:shadow-none hover:scale-100 opacity-50 cursor-not-allowed"
+                )}
                 aria-label={
                   currentMode === 'edit'
                     ? 'Apply changes'
@@ -671,13 +950,16 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 }
               >
                 {submitting ? (
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                  <>
+                    <div className="absolute inset-0 bg-black/10 dark:bg-white/10 animate-pulse" />
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent relative z-10"></div>
+                  </>
                 ) : currentMode === 'video' ? (
-                  <Video className="h-3.5 w-3.5" />
+                  <Video className="h-3.5 w-3.5" strokeWidth={2} />
                 ) : currentMode === 'edit' ? (
-                  <Edit3 className="h-3.5 w-3.5" />
+                  <Edit3 className="h-3.5 w-3.5" strokeWidth={2} />
                 ) : (
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
                 )}
               </Button>
             </div>
@@ -690,6 +972,13 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
             </div>
           )}
       </div>
+      {imagePreview && (
+        <ImagePreviewModal
+          images={imagePreview}
+          onApply={handlePreviewApply}
+          onClose={() => setImagePreview(null)}
+        />
+      )}
     </div>
   )
 }

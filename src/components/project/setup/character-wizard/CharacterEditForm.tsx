@@ -211,7 +211,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
         : []
       const modelId =
         editTab === 'product'
-          ? 'fal-ai/nano-banana/edit'
+          ? 'fal-ai/nano-banana-pro/edit'
           : 'fal-ai/gemini-25-flash-image/edit'
 
       const requestBody: Record<string, unknown> = {

@@ -54,8 +54,8 @@ export interface Card {
   content: string
   user_input?: string // User input prompt for generating/editing content
   image_url?: string // 단일 이미지 URL (새로운 방식)
-  image_urls?: string[] // JSON array of up to 3 image URLs (기존 방식)
-  selected_image_url?: number // Index of the selected image (0, 1, or 2)
+  image_urls?: string[] // JSON array of up to 20 image URLs (history)
+  selected_image_url?: number // Index of the selected image
   image_key?: string // R2 키 (삭제용)
   image_size?: number // 파일 크기
   image_type?: string // uploaded/generated
@@ -154,8 +154,8 @@ export interface CardInput {
   title: string
   content: string
   user_input?: string // User input prompt for generating/editing content
-  image_urls?: string[] // JSON array of up to 3 image URLs
-  selected_image_url?: number // Index of the selected image (0, 1, or 2)
+  image_urls?: string[] // JSON array of up to 20 image URLs
+  selected_image_url?: number // Index of the selected image
 
   order_index?: number
   card_width?: number

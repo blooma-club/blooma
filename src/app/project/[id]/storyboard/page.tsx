@@ -6,14 +6,13 @@ import type { Card } from '@/types'
 import { useParams } from 'next/navigation'
 import { useHydratedUIStore } from '@/store/ui'
 import { useAuth } from '@clerk/nextjs'
-import FrameEditModal from '@/components/storyboard/FrameEditModal'
+import dynamic from 'next/dynamic'
 import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
 import FrameList from '@/components/storyboard/viewer/FrameList'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
-import PromptDock from '@/components/storyboard/PromptDock'
 import ThemeToggle from '@/components/ui/theme-toggle'
+import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
 import { SlidersHorizontal } from 'lucide-react'
-import { cardToFrame } from '@/lib/utils'
 import { createCard } from '@/lib/cards'
 import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
@@ -33,6 +32,21 @@ import {
 } from '@/lib/constants'
 import { loadProjectRatio, saveProjectRatio } from '@/lib/localStorage'
 import { useBackgroundStore } from '@/store/backgrounds'
+import {
+  getOrCreateFrameFromCard,
+  pruneFrameCache,
+  type FrameCache,
+} from '@/lib/storyboard/frameCache'
+
+const FrameInfoModal = dynamic(() => import('@/components/storyboard/FrameInfoModal'), {
+  loading: () => null,
+  ssr: false,
+})
+
+const PromptDock = dynamic(() => import('@/components/storyboard/PromptDock'), {
+  loading: () => null,
+  ssr: false,
+})
 
 export default function StoryboardPage() {
   const params = useParams<{ id: string }>()
@@ -115,7 +129,10 @@ export default function StoryboardPage() {
     handleDeleteFrame,
     handleReorderFrames,
     handleGenerateVideo,
+    videoPreview,
+    setVideoPreview,
   } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
+  const frameCacheRef = useRef<FrameCache>(new Map())
 
   // SWR 훅 사용 moved above
   const { projects } = useProjects()
@@ -269,14 +286,18 @@ export default function StoryboardPage() {
     const orderedCards = [...queryCards].sort(
       (a: Card, b: Card) => (a.order_index ?? 0) - (b.order_index ?? 0)
     )
+    const cache = frameCacheRef.current
     const frames = orderedCards.map((card, idx) => {
-      const baseFrame = cardToFrame(card, idx)
       const normalizedWidth =
-        typeof baseFrame.cardWidth === 'number' && Number.isFinite(baseFrame.cardWidth)
-          ? clampCardWidth(baseFrame.cardWidth)
+        typeof card.card_width === 'number' && Number.isFinite(card.card_width)
+          ? clampCardWidth(card.card_width)
           : resolvedCardWidth
-      return { ...baseFrame, cardWidth: normalizedWidth }
+      return getOrCreateFrameFromCard(card, idx, normalizedWidth, cache)
     })
+    pruneFrameCache(
+      cache,
+      orderedCards.map(card => card.id)
+    )
     const title =
       orderedCards.length > 0
         ? `Storyboard: ${(orderedCards[0].title ?? '').replace(/^Scene \d+:?\s*/, '') || 'Untitled'}`
@@ -429,7 +450,7 @@ export default function StoryboardPage() {
   // 비디오 모드 동기화용 정규화된 selectedFrameId (dependency array 일관성 유지)
   const normalizedSelectedFrameId = useMemo(() => selectedFrameId ?? '', [selectedFrameId])
 
-  // 현재 선택된 프레임 데이터 (편집 모달 등에서 사용)
+  // 현재 선택된 프레임 데이터 (정보 모달 등에서 사용)
   const selectedFrame = useMemo(
     () => (index >= 0 ? derived.frames[index] : null),
     [index, derived.frames]
@@ -519,38 +540,78 @@ export default function StoryboardPage() {
     }
   }, [promptDockMode, normalizedSelectedFrameId])
 
-  // Grid에서 카드 클릭(Shift 멀티선택 포함) 처리
+  // Grid에서 카드 선택 처리 (Shift/버튼 멀티선택 포함)
   const handleGridCardSelect = useCallback(
-    (id: string, e: React.MouseEvent) => {
-      if (promptDockMode !== 'video') {
-        // 비디오 모드가 아니면 단일 선택만 유지
-        setIndex(derived.frames.findIndex(fr => fr.id === id))
+    (id: string, options?: { multi?: boolean; toggle?: boolean; role?: 'start' | 'end' }) => {
+      const framesSnapshot = framesRef.current ?? []
+      const targetIndex = framesSnapshot.findIndex(fr => fr.id === id)
+
+      // 비디오 모드가 아니거나 단일 선택 모드
+      if (promptDockMode !== 'video' || !options?.multi) {
+        // Toggle 옵션이 있고 이미 선택된 경우 해제
+        if (options?.toggle && selectedFrameId === id) {
+          setIndex(-1)
+          setVideoSelectedIds([])
+          return
+        }
+        // 일반 선택
+        setVideoSelectedIds(promptDockMode === 'video' ? [id] : [])
+        if (targetIndex >= 0) {
+          setIndex(targetIndex)
+        }
         return
       }
 
-      const isShift = e.shiftKey === true
-      // Shift가 아니면 단일 선택으로 전환
-      if (!isShift) {
-        setVideoSelectedIds([id])
-        setIndex(derived.frames.findIndex(fr => fr.id === id))
-        return
-      }
-
-      // Shift인 경우 토글 + 최대 2 제한
+      // 비디오 모드 멀티 선택
       setVideoSelectedIds(prev => {
         const exists = prev.includes(id)
+        const existsIndex = exists ? prev.indexOf(id) : -1
+
+        // Role 기반 선택 (start 또는 end로 명시적 설정)
+        if (options?.role) {
+          if (options.role === 'start') {
+            // Start로 설정: 기존 start가 있으면 제거하고 새로 추가
+            const withoutCurrent = prev.filter(item => item !== id)
+            return [id, ...withoutCurrent].slice(0, 2)
+          } else if (options.role === 'end') {
+            // End로 설정: 기존 end가 있으면 제거하고 새로 추가
+            const withoutCurrent = prev.filter(item => item !== id)
+            if (withoutCurrent.length === 0) {
+              // Start가 없으면 start로 설정
+              return [id]
+            }
+            return [withoutCurrent[0], id].slice(0, 2)
+          }
+        }
+
+        // Toggle 로직 (기존 동작)
         if (exists) {
-          const next = prev.filter(x => x !== id)
+          if (options?.toggle === false) {
+            return prev
+          }
+          const next = prev.filter(item => item !== id)
+          if (!next.length) {
+            setIndex(-1)
+          }
           return next
         }
+
+        // 새로 추가
         if (prev.length >= 2) {
-          // 2개 초과 금지: 유지
-          return prev
+          const next = [...prev.slice(1), id]
+          if (targetIndex >= 0) {
+            setIndex(targetIndex)
+          }
+          return next
+        }
+
+        if (targetIndex >= 0) {
+          setIndex(targetIndex)
         }
         return [...prev, id]
       })
     },
-    [promptDockMode, derived.frames]
+    [promptDockMode, selectedFrameId]
   )
 
   return (
@@ -816,11 +877,12 @@ export default function StoryboardPage() {
           </>
         )}
 
-        {/* 프레임 편집 모달 */}
+        {/* 프레임 정보 모달 */}
         {editingFrame && (
-          <FrameEditModal
+          <FrameInfoModal
             frame={editingFrame}
             projectId={projectId}
+            aspectRatio={ratio}
             onClose={() => setEditingFrame(null)}
             onSaved={() => {
               // SWR에 의해 자동 반영되므로 모달만 닫음
@@ -893,6 +955,10 @@ export default function StoryboardPage() {
             }
           }}
         />
+      )}
+
+      {videoPreview && (
+        <VideoPreviewModal url={videoPreview.url} onClose={() => setVideoPreview(null)} />
       )}
     </div>
   )

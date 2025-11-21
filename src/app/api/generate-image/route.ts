@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
       height: validated.height,
       image_url: validated.image_url,
       imageUrls: validated.imageUrls,
-      enhancePrompt: validated.enhancePrompt,
     })
 
     // Prepare image URLs for the generation
@@ -87,7 +86,8 @@ export async function POST(request: NextRequest) {
       width: validated.width,
       height: validated.height,
       imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined,
-      enhancePrompt: validated.enhancePrompt,
+      numImages: validated.numImages ?? 1,
+      resolution: validated.resolution,
     })
 
     if (!result.success) {
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
 
     return createApiResponse({
       imageUrl: result.imageUrl,
+      imageUrls: result.imageUrls,
       prompt: validated.prompt,
       modelUsed: effectiveModelId,
       modelInfo: {

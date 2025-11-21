@@ -33,8 +33,8 @@ export const cardInputSchema = z.object({
   
   // 이미지 관련
   image_url: z.string().url().optional(),
-  image_urls: z.array(z.string().url()).max(3, 'Maximum 3 image URLs allowed').optional(),
-  selected_image_url: z.number().int().min(0).max(2).optional(),
+  image_urls: z.array(z.string().url()).max(20, 'Maximum 20 image URLs allowed').optional(),
+  selected_image_url: z.number().int().min(0).max(19).optional(),
   image_key: z.string().max(500).optional(),
   image_size: z.number().int().positive().optional(),
   image_type: z.enum(['uploaded', 'generated']).optional(),
@@ -153,7 +153,8 @@ export const imageGenerationSchema = z.object({
   height: z.number().int().min(128).max(4096).optional(),
   image_url: z.string().url().optional(),
   imageUrls: z.array(z.string().url()).max(10).optional(),
-  enhancePrompt: z.boolean().optional(),
+  numImages: z.number().int().min(1).max(4).optional(),
+  resolution: z.enum(['1K', '2K', '4K']).optional(),
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

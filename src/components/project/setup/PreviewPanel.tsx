@@ -306,60 +306,6 @@ export default function PreviewPanel({
                 <h3 className="text-sm font-semibold text-white">Visual settings</h3>
               </div>
               <div className="mt-4 space-y-6 text-[13px]">
-                <section>
-                  <div className="mb-2 flex items-center justify-between text-sm font-medium">
-                    <span className="text-neutral-300">AI model</span>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex w-full items-center justify-between rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-left text-sm text-white transition hover:border-neutral-500 hover:bg-neutral-800"
-                      >
-                        <span>{getModelInfo(selectedModel)?.name || selectedModel}</span>
-                        <svg
-                          className="h-4 w-4 text-neutral-500"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M6 8l4 4 4-4"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      sideOffset={4}
-                      className="w-64 rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl"
-                    >
-                      <DropdownMenuLabel className="rounded-t-xl border-b border-neutral-700 bg-neutral-800 px-4 py-3 text-xs font-semibold text-neutral-300">
-                        Select AI model
-                      </DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={selectedModel}
-                        onValueChange={value => setSelectedModel(value)}
-                      >
-                        {getImageGenerationModels().map(model => (
-                          <DropdownMenuRadioItem
-                            key={model.id}
-                            value={model.id}
-                            className="px-4 py-3 text-sm text-white transition hover:bg-neutral-800"
-                          >
-                            <div className="flex flex-col gap-1">
-                              <span className="font-medium">{model.name}</span>
-                              <span className="text-xs text-neutral-400">{model.description}</span>
-                            </div>
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </section>
 
                 <section>
                   <div className="mb-2 flex items-center justify-between text-sm font-medium text-neutral-300">

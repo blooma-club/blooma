@@ -1,12 +1,20 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Trash2, Info, Upload } from 'lucide-react'
 import Image from 'next/image'
+import clsx from 'clsx'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
 import { RATIO_TO_CSS } from '@/lib/constants'
 
 type CardStatus = 'ready' | 'processing' | 'enhancing' | 'error' | string
+
+type HoverAction = {
+  id: string
+  label: string
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  icon?: React.FC<{ className?: string }>
+}
 
 interface StoryboardCardProps {
   title?: string // kept for compatibility but hidden visually
@@ -23,6 +31,8 @@ interface StoryboardCardProps {
   deleting?: boolean
   aspectRatio?: StoryboardAspectRatio
   onCardClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  cardWidth?: number
+  hoverActions?: HoverAction[]
 }
 
 const StoryboardCard: React.FC<StoryboardCardProps> = ({
@@ -40,16 +50,49 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   deleting = false,
   aspectRatio = '16:9',
   onCardClick,
+  cardWidth,
+  hoverActions,
 }) => {
   void description
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageContainerRef = useRef<HTMLDivElement | null>(null)
+  const [hasEnteredViewport, setHasEnteredViewport] = useState(() => typeof window === 'undefined')
   
   const objectFitClass = imageFit === 'cover' ? 'object-cover' : 'object-contain'
   const imageBoxStyle: React.CSSProperties = {
     aspectRatio: RATIO_TO_CSS[aspectRatio],
   }
+
+  useEffect(() => {
+    if (hasEnteredViewport) {
+      return
+    }
+    const target = imageContainerRef.current
+    if (!target || typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+      setHasEnteredViewport(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          setHasEnteredViewport(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px', threshold: 0.1 }
+    )
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasEnteredViewport])
+
+  const computedSizes =
+    typeof cardWidth === 'number' && Number.isFinite(cardWidth)
+      ? `(max-width: 768px) 100vw, ${Math.round(cardWidth)}px`
+      : '(max-width: 768px) 100vw, 480px'
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
@@ -170,43 +213,56 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
 
       {/* Image area */}
       <div
-        className="relative w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+        ref={imageContainerRef}
+        className={`relative w-full overflow-hidden ${
+          !imageUrl && status === 'ready' 
+            ? 'bg-neutral-200 dark:bg-neutral-900' 
+            : 'bg-neutral-100 dark:bg-neutral-900'
+        }`}
         style={imageBoxStyle}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {imageUrl ? (
+        {imageUrl && hasEnteredViewport ? (
           <Image
             src={imageUrl}
             alt={title || 'card image'}
             fill
             className={objectFitClass}
             draggable={false}
-            sizes="(max-width: 768px) 100vw, 50vw"
+            sizes={computedSizes}
             loading="lazy"
             quality={70}
           />
         ) : status !== 'ready' && status !== 'error' ? (
-          <div className="absolute inset-0 flex items-center justify-center select-none">
-            <div className="w-full h-full bg-[linear-gradient(110deg,#e5e7eb_8%,#d1d5db_18%,#e5e7eb_33%)] dark:bg-[linear-gradient(110deg,#374151_8%,#4b5563_18%,#374151_33%)] bg-[length:200%_100%] animate-[shimmer_1.4s_ease-in-out_infinite]" />
-            <style jsx>{`
-              @keyframes shimmer {
-                0% {
-                  background-position: 0% 0;
-                }
-                100% {
-                  background-position: -200% 0;
-                }
-              }
-            `}</style>
-            <div
-              className="absolute bottom-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded bg-white/20 text-white capitalize tracking-wide"
-              aria-live="polite"
-            >
-              {status}
-            </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center select-none gap-3 bg-neutral-100 dark:bg-neutral-900 z-20">
+             {/* Pulsing Overlay */}
+             <div className="absolute inset-0 bg-white/50 dark:bg-black/50 animate-pulse z-0" />
+             
+             {/* Loading Spinner & Text */}
+             <div className="z-10 flex flex-col items-center gap-3">
+               <div className="relative w-10 h-10">
+                  {/* Outer Ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-violet-500/20" />
+                  {/* Spinning Segment */}
+                  <div className="absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                  {/* Inner Dot */}
+                  <div className="absolute inset-0 m-auto w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+               </div>
+               
+               <div className="flex flex-col items-center gap-1">
+                 <span className="text-xs font-medium text-foreground animate-pulse capitalize">
+                   {status === 'processing' ? 'Generating...' : 
+                    status === 'enhancing' ? 'Enhancing...' : 
+                    status}
+                 </span>
+                 <span className="text-[10px] text-muted-foreground">
+                   This may take a moment
+                 </span>
+               </div>
+             </div>
           </div>
         ) : status === 'error' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-red-500 text-[11px] bg-neutral-200 dark:bg-neutral-800">
@@ -283,6 +339,35 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
             }}
           />
         )}
+
+        {hoverActions?.length ? (
+          <div className="pointer-events-none absolute inset-x-2 bottom-4 z-30 flex flex-wrap items-center justify-center gap-2 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2">
+            {hoverActions.map(action => {
+              const ActionIcon = action.icon
+              const isPrimary = action.id === 'select'
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation()
+                    action.onClick(event)
+                  }}
+                  className={clsx(
+                    "pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 shadow-sm backdrop-blur-md select-none",
+                    isPrimary
+                      ? "bg-white text-neutral-900 hover:bg-neutral-100 hover:scale-105 active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
+                      : "bg-black/60 text-white border border-white/10 hover:bg-black/70 hover:border-white/20 active:scale-95"
+                  )}
+                  aria-label={action.label}
+                >
+                  {ActionIcon ? <ActionIcon className={clsx("h-3.5 w-3.5", isPrimary ? "text-neutral-900" : "text-white/90")} /> : null}
+                  <span>{action.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
       </div>
 
       {/* Content removed (title/description hidden for image-only cards) */}

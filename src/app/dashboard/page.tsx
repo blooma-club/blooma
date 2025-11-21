@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
-import { Plus, Search, Grid, List, RefreshCw, AlertCircle } from 'lucide-react'
+import { Plus, Search, Grid, List } from 'lucide-react'
 import { useProjects } from '@/lib/api'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 

@@ -16,7 +16,10 @@ const buttonVariants = cva(
         outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline"
+        link: "text-primary underline-offset-4 hover:underline",
+        violet: "bg-violet-500 text-white shadow-lg shadow-violet-500/25 hover:bg-violet-600 hover:shadow-violet-500/40 hover:scale-105 transition-all duration-300",
+        "violet-light": "bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20 hover:bg-violet-500/15 hover:border-violet-500/30 shadow-sm hover:shadow-md backdrop-blur-sm transition-all duration-300",
+        glass: "bg-background/50 border border-border/40 hover:bg-violet-500/5 hover:border-violet-500/20 shadow-sm hover:shadow-md backdrop-blur-sm transition-all duration-300 text-foreground/90"
       },
       size: {
         default: "h-9 px-4 py-2",

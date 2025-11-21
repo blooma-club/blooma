@@ -71,38 +71,61 @@ export const ThemeToggle: React.FC = () => {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [mounted])
 
-  const toggleTheme = () => {
-    const newIsDark = !isDark
-    setIsDark(newIsDark)
-    applyTheme(newIsDark)
-    saveTheme(newIsDark)
+  const selectTheme = (nextIsDark: boolean) => {
+    setIsDark(nextIsDark)
+    applyTheme(nextIsDark)
+    saveTheme(nextIsDark)
   }
 
   // hydration 전에는 기본 아이콘 표시 (깜빡임 방지)
   if (!mounted) {
     return (
-      <button
-        className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-border/40 bg-background/80 backdrop-blur-sm text-foreground hover:bg-accent/50 hover:border-border transition-all"
-        aria-label="테마 전환"
-        disabled
-      >
-        <Moon className="h-4 w-4" />
-      </button>
+      <div className="inline-flex rounded-full border border-border bg-muted/40 p-0.5">
+        <button
+          type="button"
+          className="h-7 w-7 rounded-full text-muted-foreground cursor-not-allowed flex items-center justify-center"
+          disabled
+          aria-label="Switch to light mode"
+        >
+          <Sun className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          className="h-7 w-7 rounded-full text-muted-foreground cursor-not-allowed flex items-center justify-center"
+          disabled
+          aria-label="Switch to dark mode"
+        >
+          <Moon className="w-3.5 h-3.5" />
+        </button>
+      </div>
     )
   }
 
   return (
-    <button
-      onClick={toggleTheme}
-      className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-border/40 bg-background/80 backdrop-blur-sm text-foreground hover:bg-accent/50 hover:border-border transition-all"
-      aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
-    >
-      {isDark ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
-    </button>
+    <div className="inline-flex rounded-full border border-border bg-muted/40 p-0.5">
+      <button
+        type="button"
+        onClick={() => selectTheme(false)}
+        aria-label="Switch to light mode"
+        aria-pressed={!isDark}
+        className={`h-7 w-7 rounded-full transition flex items-center justify-center ${
+          !isDark ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        <Sun className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => selectTheme(true)}
+        aria-label="Switch to dark mode"
+        aria-pressed={isDark}
+        className={`h-7 w-7 rounded-full transition flex items-center justify-center ${
+          isDark ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        <Moon className="w-3.5 h-3.5" />
+      </button>
+    </div>
   )
 }
 

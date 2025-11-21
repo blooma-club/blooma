@@ -41,9 +41,8 @@ export function CharacterCreationPanel({
   const [imagePrompt, setImagePrompt] = useState<string>(CHARACTER_SYSTEM_PROMPT)
   const [creationError, setCreationError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [model, setModel] = useState<string>(() => {
-    return initialModelId || allowedModels[0]?.id || DEFAULT_MODEL
-  })
+  // 항상 nano-banana-pro/edit 사용
+  const model = 'fal-ai/nano-banana-pro/edit'
 
   // Character attribute states
   const [gender, setGender] = useState('')
@@ -457,31 +456,6 @@ export function CharacterCreationPanel({
 
           {mode === 'generate' && (
             <>
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
-                  AI Model
-                </label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-left text-sm text-white transition hover:border-neutral-500">
-                      {allowedModels.find(m => m.id === model)?.name ?? 'Select model'}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-64 rounded-lg border border-neutral-800 bg-neutral-900 py-1 text-white">
-                    <DropdownMenuRadioGroup value={model} onValueChange={setModel}>
-                      {allowedModels.map(m => (
-                        <DropdownMenuRadioItem
-                          key={m.id}
-                          value={m.id}
-                          className="cursor-pointer rounded px-3 py-2 text-sm text-white hover:bg-neutral-700"
-                        >
-                          {m.name}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
 
               <div className="flex flex-col gap-4 rounded-xl border border-neutral-800/60 bg-neutral-900/70 p-4">
                 <h4 className="text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">

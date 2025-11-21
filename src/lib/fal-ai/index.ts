@@ -27,69 +27,25 @@ function createPlaceholderImageResult(reason: string): FalAIGenerationResult {
 // 지원하는 Fal AI 모델들
 export const FAL_AI_MODELS: FalAIModel[] = [
   {
-    id: 'fal-ai/imagen4',
-    name: 'Imagen 4',
-    description: 'Google latest image generation model, highest quality and accuracy',
+    id: 'fal-ai/nano-banana-pro',
+    name: 'Nano Banana Pro',
+    description: 'Fal Nano Banana Pro text-to-image generation workflow',
     category: 'image-generation',
     maxResolution: '1024x1024',
     credits: 3,
     inputSchema: {
       prompt: 'string',
-      negative_prompt: 'string?',
-      width: 'number?',
-      height: 'number?',
-      num_inference_steps: 'number?',
-    },
-  },
-  {
-    id: 'fal-ai/imagen4-ultra',
-    name: 'Imagen 4 Ultra',
-    description: 'Google Imagen 4 ultra high quality version, maximum detail and accuracy',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    credits: 4,
-    inputSchema: {
-      prompt: 'string',
-      negative_prompt: 'string?',
-      width: 'number?',
-      height: 'number?',
-      num_inference_steps: 'number?',
-    },
-  },
-  {
-    id: 'fal-ai/flux-pro/v1.1-ultra',
-    name: 'Flux 1.1 Pro',
-    description: 'Flux 1.1 Pro high quality generation',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    credits: 4,
-    inputSchema: {
-      prompt: 'string',
+      num_images: 'number?',
+      output_format: 'string?',
+      resolution: 'string?',
       aspect_ratio: 'string?',
-      guidance_scale: 'number?',
-      num_images: 'number?',
-      output_format: 'string?',
     },
   },
   {
-    id: 'fal-ai/gemini-25-flash-image/edit',
-    name: 'Gemini 2.5 Flash Image',
-    description: 'Google Gemini 2.5 Flash Image for multi-image editing and generation',
-    category: 'inpainting',
-    maxResolution: '1024x1024',
-    credits: 3,
-    inputSchema: {
-      prompt: 'string',
-      image_urls: 'list<string>',
-      num_images: 'number?',
-      output_format: 'string?',
-    },
-  },
-  {
-    id: 'fal-ai/nano-banana/edit',
-    name: 'Nano Banana',
+    id: 'fal-ai/nano-banana-pro/edit',
+    name: 'Nano Banana Pro',
     description:
-      'Fal Nano Banana edit workflow optimized for product, clothing, and accessory compositing',
+      'Fal Nano Banana Pro edit workflow - advanced image editing with improved quality and precision',
     category: 'inpainting',
     maxResolution: '2048x2048',
     credits: 5,
@@ -99,88 +55,8 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       num_images: 'number?',
       output_format: 'string?',
       strength: 'number?',
-    },
-  },
-  {
-    id: 'fal-ai/bytedance/seedream/v4/edit',
-    name: 'Seedream 4.0',
-    description: 'ByteDance Seedream 4.0 Edit - unified image generation and editing model',
-    category: 'inpainting',
-    maxResolution: '2048x2048',
-    credits: 2,
-    inputSchema: {
-      prompt: 'string',
-      image_urls: 'list<string>',
-      image_size: 'string?',
-      num_images: 'number?',
-      max_images: 'number?',
-      seed: 'number?',
-      enable_safety_checker: 'boolean?',
-    },
-  },
-  {
-    id: 'fal-ai/gemini-25-flash-image',
-    name: 'Gemini 2.5 Flash Image',
-    description: 'Google Gemini 2.5 Flash Image for generation',
-    category: 'image-generation',
-    maxResolution: '1024x1024',
-    credits: 3,
-    inputSchema: {
-      prompt: 'string',
-      num_images: 'number?',
-      output_format: 'string?',
-    },
-  },
-  {
-    id: 'fal-ai/bytedance/seedream/v4/text-to-image',
-    name: 'Seedream 4.0',
-    description: 'ByteDance Seedream 4.0 - unified architecture for image generation and editing',
-    category: 'image-generation',
-    maxResolution: '4096x4096',
-    credits: 3,
-    inputSchema: {
-      prompt: 'string',
-      image_size: 'string | object?',
-      num_images: 'number?',
-      max_images: 'number?',
-      seed: 'number?',
-      sync_mode: 'boolean?',
-      enable_safety_checker: 'boolean?',
-    },
-  },
-  // Veo 3.1 Image to Video
-  {
-    id: 'fal-ai/veo3.1/image-to-video',
-    name: 'Veo 3.1 Image to Video',
-    description: 'Google Veo 3.1 image-to-video generation model.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    credits: 30,
-    inputSchema: {
-      image_url: 'string',
-      prompt: 'string',
-      aspect_ratio: 'string?',
-      duration: 'string?',
-      generate_audio: 'boolean?',
       resolution: 'string?',
-    },
-  },
-  // Veo 3.1 First Frame to End Frame
-  {
-    id: 'fal-ai/veo3.1/first-last-frame-to-video',
-    name: 'Veo 3.1 First-Last Frame to Video',
-    description: 'Google Veo 3.1 first and last frame guided video generation.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    credits: 40,
-    inputSchema: {
-      first_frame_url: 'string',
-      last_frame_url: 'string',
-      prompt: 'string',
-      duration: 'string?',
       aspect_ratio: 'string?',
-      resolution: 'string?',
-      generate_audio: 'boolean?',
     },
   },
   // Kling 2.1 Pro - Start Frame to End Frame
@@ -236,16 +112,14 @@ export const FAL_AI_MODELS: FalAIModel[] = [
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/gemini-25-flash-image'
+export const DEFAULT_MODEL = 'fal-ai/nano-banana-pro/edit'
 
 export const IMAGE_TO_VIDEO_MODEL_IDS = [
-  'fal-ai/veo3.1/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
 ]
 
 export const START_TO_END_FRAME_MODEL_IDS = [
-  'fal-ai/veo3.1/first-last-frame-to-video',
   'fal-ai/kling-video/v2.1/pro/image-to-video',
 ]
 
@@ -274,79 +148,34 @@ export function initializeFalAI(): boolean {
   }
 }
 
-// 모델별 프롬프트 생성
-export function generateModelSpecificPrompt(
-  basePrompt: string,
-  modelId: string,
-  style?: string,
-  aspectRatio?: string
-): string {
-  const model = FAL_AI_MODELS.find(m => m.id === modelId)
-  if (!model) {
-    console.warn(`Unknown model: ${modelId}, using default`)
-    return basePrompt
-  }
-
-  let enhancedPrompt = basePrompt
-
-  // 모델별 프롬프트 최적화
-  switch (modelId) {
-    case 'fal-ai/imagen4':
-      enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting`
-      break
-    case 'fal-ai/imagen4-ultra':
-      enhancedPrompt = `${basePrompt}, ultra detailed, 8K resolution, professional photography, HDR lighting, maximum quality`
-      break
-    case 'fal-ai/flux-pro/v1.1-ultra':
-      enhancedPrompt = `${basePrompt}, ultra detailed, photorealistic rendering, strong prompt adherence`
-      break
-    case 'fal-ai/gemini-25-flash-image/edit':
-      enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images`
-      break
-    case 'fal-ai/nano-banana/edit':
-      enhancedPrompt = `${basePrompt}, require precise blending of clothing or product references while keeping the original subject intact`
-      break
-    case 'fal-ai/gemini-25-flash-image':
-      enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Gemini 2.5 Flash optimized`
-      break
-    case 'fal-ai/bytedance/seedream/v4/text-to-image':
-      enhancedPrompt = `${basePrompt}, high quality, detailed, professional photography, Seedream 4.0 optimized, unified generation and editing`
-      break
-    case 'fal-ai/bytedance/seedream/v4/edit':
-      enhancedPrompt = `${basePrompt}, maintain composition and subject layout from reference images, Seedream 4.0 edit optimized`
-      break
-  }
-
-  // 스타일 추가
-  if (style) {
-    enhancedPrompt += `, ${style} style`
-  }
-
-  // 비율 추가
-  if (aspectRatio) {
-    enhancedPrompt += `, ${aspectRatio} aspect ratio`
-  }
-
-  return enhancedPrompt
-}
-
-function mapAspectRatioToImageSize(aspectRatio?: string): [number, number] {
-  if (!aspectRatio) return [1024, 1024] // default square
-
+// Helper to resolve aspect ratio to model-specific format
+function resolveAspectRatio(aspectRatio?: string): string {
+  if (!aspectRatio) return 'auto'
+  
   const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
   switch (normalized) {
     case '1:1':
-      return [1024, 1024]
-    case '3:4':
-      return [1024, 1365]
-    case '4:3':
-      return [1365, 1024]
+      return '1:1'
     case '16:9':
-      return [1536, 864]
+      return '16:9'
     case '9:16':
-      return [864, 1536]
+      return '9:16'
+    case '4:3':
+      return '4:3'
+    case '3:4':
+      return '3:4'
+    case '3:2':
+      return '3:2'
+    case '2:3':
+      return '2:3'
+    case '5:4':
+      return '5:4'
+    case '4:5':
+      return '4:5'
+    case '21:9':
+      return '21:9'
     default:
-      return [1024, 1024]
+      return 'auto'
   }
 }
 
@@ -354,47 +183,6 @@ function resolveOutputFormat(format?: string): 'jpeg' | 'png' {
   return format === 'png' ? 'png' : 'jpeg'
 }
 
-type SeedreamImageSize =
-  | ImageSize
-  | 'square_hd'
-  | 'square'
-  | 'portrait_4_3'
-  | 'portrait_16_9'
-  | 'landscape_4_3'
-  | 'landscape_16_9'
-  | 'auto'
-  | 'auto_2K'
-  | 'auto_4K'
-
-const clampSeedreamDimension = (value: number) => Math.min(Math.max(value, 1024), 4096)
-
-function resolveSeedreamImageSize(options: FalAIGenerationOptions): SeedreamImageSize {
-  if (options.aspectRatio) {
-    switch (options.aspectRatio) {
-      case '1:1':
-        return 'square_hd'
-      case '16:9':
-        return 'landscape_16_9'
-      case '9:16':
-        return 'portrait_16_9'
-      case '4:3':
-        return 'landscape_4_3'
-      case '3:4':
-        return 'portrait_4_3'
-      default:
-        return 'square_hd'
-    }
-  }
-
-  if (options.width && options.height) {
-    return {
-      width: clampSeedreamDimension(options.width),
-      height: clampSeedreamDimension(options.height),
-    }
-  }
-
-  return 'square_hd'
-}
 
 // 이미지 생성 함수 (통합)
 export async function generateImageWithModel(
@@ -408,7 +196,6 @@ export async function generateImageWithModel(
     imageUrls?: string[] // For multi-image models like Gemini
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
-    enhancePrompt?: boolean
   } = {}
 ): Promise<{
   success: boolean
@@ -432,38 +219,23 @@ export async function generateImageWithModel(
     )
   }
 
-  const { enhancePrompt = true, ...generationOptions } = options
+  const { ...generationOptions } = options
   const fallbackModels = [
     modelId,
-    'fal-ai/gemini-25-flash-image',
-    'fal-ai/flux-pro/v1.1-ultra',
-    'fal-ai/bytedance/seedream/v4/text-to-image',
+    'fal-ai/nano-banana-pro',
+    'fal-ai/nano-banana-pro/edit',
   ].filter((id, idx, arr) => arr.indexOf(id) === idx)
 
   let lastError: unknown = null
   let lastStatus: number | undefined
 
   for (const candidateModel of fallbackModels) {
-    const promptForModel = enhancePrompt
-      ? generateModelSpecificPrompt(
-          prompt,
-          candidateModel,
-          generationOptions.style,
-          generationOptions.aspectRatio
-        )
-      : prompt
-
     try {
       console.log(`[FAL] Generating image with model: ${candidateModel}`)
-      if (enhancePrompt) {
-        console.log(`[FAL] Enhanced prompt: ${promptForModel}`)
-      } else {
-        console.log('[FAL] Prompt enhancement disabled; using raw prompt.')
-      }
 
-      const result = await generateImageByModel(candidateModel, promptForModel, {
+      const result = await generateImageByModel(candidateModel, prompt, {
         ...generationOptions,
-        prompt: promptForModel,
+        prompt,
       })
 
       return {
@@ -587,119 +359,53 @@ async function generateImageByModel(
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
   switch (modelId) {
-    case 'fal-ai/imagen4':
-      return await generateWithImagen4(prompt, options)
+    case 'fal-ai/nano-banana-pro':
+      return await generateWithNanoBananaPro(prompt, options)
 
-    case 'fal-ai/imagen4-ultra':
-      return await generateWithImagen4Ultra(prompt, options)
+    case 'fal-ai/nano-banana-pro/edit':
+      return await generateWithNanoBananaProEdit(prompt, options)
 
-    case 'fal-ai/flux-pro/v1.1-ultra':
-      return await generateWithFluxProV11Ultra(prompt, options)
+    case 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
+    case 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video':
+      return await generateWithKlingImageToVideo(modelId, prompt, options)
 
-    case 'fal-ai/gemini-25-flash-image/edit':
-      return await generateWithGemini25FlashImageEdit(prompt, options)
-
-    case 'fal-ai/nano-banana/edit':
-      return await generateWithNanoBananaEdit(prompt, options)
-
-    case 'fal-ai/gemini-25-flash-image/text-to-image':
-      return await generateWithGemini25FlashImageTextToImage(prompt, options)
-
-    case 'fal-ai/bytedance/seedream/v4/text-to-image':
-      return await generateWithSeedreamV4(prompt, options)
-
-    case 'fal-ai/bytedance/seedream/v4/edit':
-      return await generateWithSeedreamV4Edit(prompt, options)
+    case 'fal-ai/kling-video/v2.1/pro/image-to-video':
+      return await generateWithKlingStartEndVideo(modelId, prompt, options)
 
     default:
       throw new Error(`Unsupported model: ${modelId}`)
   }
 }
 
-// Imagen 4 모델
-async function generateWithImagen4(
-  prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string> {
-  const aspectRatio = (options.aspectRatio || '1:1').replace(/\s+/g, '')
-  const submission = (await fal.subscribe('fal-ai/imagen4/preview', {
-    input: {
-      prompt,
-      // @ts-expect-error - Fal client types may not include all model-specific fields
-      aspect_ratio: aspectRatio,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-    },
-  })) as unknown as FalAISubmission
-
-  return extractImageUrl(submission, 'imagen4')
-}
-
-// Imagen 4 Ultra 모델
-async function generateWithImagen4Ultra(
-  prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string> {
-  const submission = (await fal.subscribe('fal-ai/imagen4/preview/ultra', {
-    input: {
-      prompt,
-      negative_prompt: options.negativePrompt || 'blurry, low quality, distorted',
-    },
-  })) as unknown as FalAISubmission
-
-  return extractImageUrl(submission, 'imagen4-ultra')
-}
-
-// Flux 1.1 Pro 모델
-async function generateWithFluxProV11Ultra(
+// Nano Banana Pro Text to Image 모델
+async function generateWithNanoBananaPro(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
-  const submission = (await fal.subscribe('fal-ai/flux-pro/v1.1-ultra', {
+  const aspectRatio = resolveAspectRatio(options.aspectRatio)
+  
+  const submission = (await fal.subscribe('fal-ai/nano-banana-pro', {
     input: {
       prompt,
-      aspect_ratio: (options.aspectRatio || '1:1') as string,
-      // @ts-expect-error - Fal client types may not include all model-specific fields
-      guidance_scale: options.guidanceScale || 3.5,
       num_images: options.numImages || 1,
       output_format: outputFormat,
-      safety_tolerance: (options.safetyTolerance || '2') as '1' | '2' | '3' | '4' | '5' | '6',
+      resolution: options.resolution || '1K',
+      aspect_ratio: aspectRatio,
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][flux-pro-v1.1-ultra]', update.status)
-      }
-    },
-  })) as unknown as FalAISubmission
-
-  return extractImageUrl(submission, 'flux-pro-v1.1-ultra')
-}
-
-// Gemini 2.5 Flash Image Edit 모델 (멀티 이미지 편집)
-async function generateWithGemini25FlashImageEdit(
-  prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string[]> {
-  const outputFormat = resolveOutputFormat(options.outputFormat)
-  const submission = (await fal.subscribe('fal-ai/gemini-25-flash-image/edit', {
-    input: {
-      prompt,
-      image_urls: options.imageUrls || [],
-      num_images: options.numImages || 1,
-      output_format: outputFormat,
-    },
-    onQueueUpdate(update: FalAISubmissionUpdate) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][gemini-25-flash-image-edit]', update.status)
+        console.log('[FAL][nano-banana-pro]', update.status)
       }
     },
   })) as FalAISubmission
 
-  return extractImageUrls(submission, 'gemini-25-flash-image-edit')
+  return extractImageUrl(submission, 'nano-banana-pro')
 }
 
-async function generateWithNanoBananaEdit(
+// Nano Banana Pro Edit 모델 (고급 이미지 편집)
+async function generateWithNanoBananaProEdit(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string> {
@@ -708,110 +414,142 @@ async function generateWithNanoBananaEdit(
   )
 
   if (referenceImages.length === 0) {
-    throw new Error('Nano Banana edit requires at least one reference image')
+    throw new Error('Nano Banana Pro edit requires at least one reference image')
   }
 
-  const submission = (await fal.subscribe('fal-ai/nano-banana/edit', {
+  const aspectRatio = resolveAspectRatio(options.aspectRatio)
+
+  const submission = (await fal.subscribe('fal-ai/nano-banana-pro/edit', {
     input: {
       prompt,
       image_urls: referenceImages,
       num_images: options.numImages || 1,
       output_format: resolveOutputFormat(options.outputFormat),
+      strength: options.strength,
+      resolution: options.resolution || '1K',
+      aspect_ratio: aspectRatio,
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][nano-banana-edit]', update.status)
+        console.log('[FAL][nano-banana-pro-edit]', update.status)
         update.logs?.forEach(log => {
           if (log?.message) {
-            console.log('[FAL][nano-banana-edit]', log.message)
+            console.log('[FAL][nano-banana-pro-edit]', log.message)
           }
         })
       }
     },
   })) as FalAISubmission
 
-  return extractImageUrl(submission, 'nano-banana-edit')
+  return extractImageUrl(submission, 'nano-banana-pro-edit')
 }
 
-// Gemini 2.5 Flash Image Text to Image 모델 (텍스트에서 이미지 생성)
-async function generateWithGemini25FlashImageTextToImage(
+// Kling Image to Video 모델 (v2.5)
+async function generateWithKlingImageToVideo(
+  modelId: string,
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string> {
-  const outputFormat = resolveOutputFormat(options.outputFormat)
-  const submission = (await fal.subscribe('fal-ai/gemini-25-flash-image', {
+  const imageUrl = options.imageUrl || options.imageUrls?.[0]
+  if (!imageUrl) {
+    throw new Error('Kling Image-to-Video requires an input image')
+  }
+
+  const submission = (await fal.subscribe(modelId, {
     input: {
       prompt,
-      num_images: options.numImages || 1,
-      output_format: outputFormat,
+      image_url: imageUrl,
+      duration: options.duration || '5',
+      negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
+      cfg_scale: options.guidanceScale || 0.5,
     },
+    logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][gemini-25-flash-image-text-to-image]', update.status)
+        console.log(`[FAL][${modelId}]`, update.status)
       }
     },
   })) as FalAISubmission
 
-  return extractImageUrl(submission, 'gemini-25-flash-image-text-to-image')
+  return extractVideoUrl(submission, modelId)
 }
 
-// Seedream 4.0 Text to Image 모델
-async function generateWithSeedreamV4(
+// Kling Start/End Frame Video 모델 (v2.1)
+async function generateWithKlingStartEndVideo(
+  modelId: string,
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string> {
-  // 비율을 Seedream 4.0 형식으로 변환
-  const imageSize = resolveSeedreamImageSize(options)
+  const startImageUrl = options.imageUrl
+  const endImageUrl = options.imageUrls?.[0] // imageUrls[0]을 end frame으로 사용
 
-  const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/text-to-image', {
-    input: {
-      prompt,
-      image_size: imageSize,
-      num_images: options.numImages || 1,
-      max_images: options.maxImages || 1,
-      seed: options.seed,
-      sync_mode: options.syncMode || false,
-      enable_safety_checker: options.enableSafetyChecker !== false,
-    },
+  if (!startImageUrl) {
+    throw new Error('Kling Start/End Video requires a start image')
+  }
+
+  const input: any = {
+    prompt: prompt || undefined, // v2.1 might treat empty prompt as optional
+    image_url: startImageUrl,
+    duration: options.duration || '5',
+    aspect_ratio: options.aspectRatio || '16:9',
+    negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
+    cfg_scale: options.guidanceScale || 0.5,
+  }
+
+  if (endImageUrl) {
+    input.tail_image_url = endImageUrl
+  }
+
+  const submission = (await fal.subscribe(modelId, {
+    input,
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][seedream-v4]', update.status)
+        console.log(`[FAL][${modelId}]`, update.status)
       }
     },
-  })) as unknown as FalAISubmission
+  })) as FalAISubmission
 
-  return extractImageUrl(submission, 'seedream-v4')
+  return extractVideoUrl(submission, modelId)
 }
 
-// Seedream 4.0 Edit 모델
-async function generateWithSeedreamV4Edit(
-  prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string> {
-  // 비율을 Seedream 4.0 형식으로 변환
-  const imageSize = resolveSeedreamImageSize(options)
+// 비디오 URL 추출 헬퍼
+function extractVideoUrl(submission: FalAISubmission, modelName: string): string {
+  const elapsed = Date.now()
+  
+  let videoUrl: string | undefined = 
+    (submission as any)?.video?.url || 
+    (submission?.output as any)?.video?.url ||
+    (submission?.data as any)?.video?.url
 
-  const submission = (await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
-    input: {
-      prompt,
-      image_urls: options.imageUrls || [],
-      image_size: imageSize,
-      num_images: options.numImages || 1,
-      max_images: options.maxImages || 1,
-      seed: options.seed,
-      enable_safety_checker: options.enableSafetyChecker !== false,
-    },
-    logs: true,
-    onQueueUpdate(update: FalAISubmissionUpdate) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][seedream-v4-edit]', update.status)
-      }
-    },
-  })) as unknown as FalAISubmission
+  if (!videoUrl && submission && typeof submission === 'object') {
+     // Deep scan fallback
+     try {
+        const stack: unknown[] = [submission]
+        while (stack.length) {
+          const current = stack.pop()
+          if (!current || typeof current !== 'object') continue
+          
+          const currentObj = current as any
+          if (currentObj.video && typeof currentObj.video.url === 'string') {
+            videoUrl = currentObj.video.url
+            break
+          }
+          Object.values(currentObj).forEach(v => stack.push(v))
+        }
+     } catch (e) {
+       console.warn('Video URL deep scan failed', e)
+     }
+  }
 
-  return extractImageUrl(submission, 'seedream-v4-edit')
+  if (!videoUrl) {
+    console.error(`[FAL][${modelName}][empty-video]`, submission)
+    throw new Error(`No video generated from ${modelName}`)
+  }
+
+  console.log(`[FAL][${modelName}][video-ready]`, { elapsedMs: elapsed, url: videoUrl })
+  return videoUrl
 }
 
 // 이미지 URL 추출 (모든 모델 공통)
@@ -992,31 +730,18 @@ export function getImageGenerationModels(): FalAIModel[] {
 
 // 이미지-투-이미지 지원 모델 식별
 export function isImageToImageModel(modelId: string): boolean {
-  switch (modelId) {
-    case 'fal-ai/gemini-25-flash-image/edit':
-      return true
-    case 'fal-ai/bytedance/seedream/v4/edit':
-      return true
-    default:
-      return false
-  }
+  return modelId === 'fal-ai/nano-banana-pro/edit'
 }
 
 // 텍스트-투-이미지 전용/가능 모델 식별
 export function isTextToImageModel(modelId: string): boolean {
-  switch (modelId) {
-    case 'fal-ai/imagen4':
-    case 'fal-ai/imagen4-ultra':
-    case 'fal-ai/flux-pro/v1.1-ultra':
-    case 'fal-ai/gemini-25-flash-image':
-    case 'fal-ai/bytedance/seedream/v4/text-to-image':
-      return true
-    default:
-      return false
-  }
+  return (
+    modelId === 'fal-ai/nano-banana-pro' ||
+    modelId === 'fal-ai/nano-banana-pro/edit'
+  )
 }
 
-// PromptDock에서 사용할 모델 목록 (generate는 t2i만, edit는 i2i만)
+// PromptDock에서 사용할 모델 목록 (nano-banana-pro/edit만 사용)
 // 비디오 모드는 getVideoModelsForSelection(count)를 사용해야 함 (선택 개수에 따라 다른 모델 반환)
 export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIModel[] {
   if (mode === 'video') {
@@ -1030,11 +755,12 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
     )
   }
 
+  // generate 모드: nano-banana-pro (text-to-image)
+  // edit 모드: nano-banana-pro/edit (image-to-image)
   if (mode === 'edit') {
-    return FAL_AI_MODELS.filter(m => isImageToImageModel(m.id))
+    return FAL_AI_MODELS.filter(m => m.id === 'fal-ai/nano-banana-pro/edit')
   }
-  // generate 모드: 텍스트-투-이미지 모델만 노출
-  return FAL_AI_MODELS.filter(m => isTextToImageModel(m.id))
+  return FAL_AI_MODELS.filter(m => m.id === 'fal-ai/nano-banana-pro' || m.id === 'fal-ai/nano-banana-pro/edit')
 }
 
 // 비디오 선택 개수에 따른 모델 목록 반환

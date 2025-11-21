@@ -4,8 +4,8 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
 import ThemeToggle from '@/components/ui/theme-toggle'
-import AccountDropdown from '@/components/ui/AccountDropdown'
 import { useThemePreference } from '@/hooks/useThemePreference'
+import ProfileMenu from '@/components/layout/ProfileMenu'
 
 export default function SiteNavbarSignedIn() {
   const router = useRouter()
@@ -38,7 +38,7 @@ export default function SiteNavbarSignedIn() {
             <CreditsIndicator />
           </div>
           <ThemeToggle />
-          <AccountDropdown />
+          <ProfileMenu />
         </div>
       </div>
     </header>

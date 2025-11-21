@@ -1,17 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getImageGenerationModels } from '@/lib/fal-ai'
+import { getModelInfo } from '@/lib/fal-ai'
 import { CharacterCreationPanel } from './character-wizard/CharacterCreationPanel'
 import { CharacterList } from './character-wizard/CharacterList'
 import { CharacterEditDialog } from './character-wizard/CharacterEditDialog'
 import type { Character } from './character-wizard/types'
 
 const ALLOWED_CHARACTER_MODEL_IDS = [
-  'fal-ai/imagen4',
-  'fal-ai/imagen4-ultra',
-  'fal-ai/gemini-25-flash-image',
-  'fal-ai/bytedance/seedream/v4/text-to-image',
+  'fal-ai/nano-banana-pro/edit',
 ] as const
 
 type Props = {
@@ -35,13 +32,12 @@ export default function CharacterWizard({ onChange, initial, projectId, userId }
     onChangeRef.current(characters)
   }, [characters])
 
+  // nano-banana-pro/edit만 사용
   const allowedCharacterModels = useMemo(
-    () =>
-      getImageGenerationModels().filter(model =>
-        ALLOWED_CHARACTER_MODEL_IDS.includes(
-          model.id as (typeof ALLOWED_CHARACTER_MODEL_IDS)[number]
-        )
-      ),
+    () => {
+      const model = getModelInfo('fal-ai/nano-banana-pro/edit')
+      return model ? [model] : []
+    },
     []
   )
 

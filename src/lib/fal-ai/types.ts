@@ -112,7 +112,8 @@ export interface FalAIGenerationOptions {
   numInferenceSteps?: number
   safetyTolerance?: string | '1' | '2' | '3' | '4' | '5' | '6'
   strength?: number
-  enhancePrompt?: boolean
+  resolution?: '1K' | '2K' | '4K'
+  duration?: '5' | '10'
   // Seedream specific options
   maxImages?: number
   seed?: number

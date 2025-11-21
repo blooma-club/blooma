@@ -11,7 +11,7 @@ import { THEME_STORAGE_KEY } from '@/lib/theme';
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 const inter = Inter({
-  variable: "--font-hanken-sans",
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });

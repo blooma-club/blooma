@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import React, { useCallback, useMemo, useState } from 'react'
+import { CheckCircle2, Circle, Play, Plus, Square, Video, XCircle } from 'lucide-react'
 import {
   DndContext,
   DragOverlay,
@@ -44,7 +44,7 @@ interface FrameGridProps {
   onBackgroundClick?: () => void
   mode?: 'generate' | 'edit' | 'video'
   selectedFrameIds?: string[]
-  onCardSelect?: (id: string, e: React.MouseEvent) => void
+  onCardSelect?: (id: string, options?: { multi?: boolean; toggle?: boolean; role?: 'start' | 'end' }) => void
 }
 
 const SideInsertButton = ({
@@ -68,10 +68,18 @@ const SideInsertButton = ({
       onClick={onClick}
       onMouseDown={stopPropagation}
       onTouchStart={stopPropagation}
-      className={`absolute top-1/2 -translate-y-1/2 ${positionClass} z-30 flex h-9 w-9 items-center justify-center rounded-full border border-dashed transition-all duration-200 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500 dark:focus-visible:outline-neutral-400 shadow-lg backdrop-blur-sm border-neutral-200/80 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 hover:border-neutral-900 dark:hover:border-white`}
+      className={clsx(
+        'absolute top-1/2 -translate-y-1/2 z-30 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200',
+        positionClass,
+        'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto',
+        'bg-background border border-border shadow-sm text-muted-foreground',
+        'hover:scale-110 hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-md',
+        'active:scale-95',
+        'focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      )}
       aria-label={label}
     >
-      <Plus className="h-4 w-4" />
+      <Plus className="h-4 w-4" strokeWidth={2.5} />
     </button>
   )
 }
@@ -112,6 +120,79 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
+  )
+
+  const handleOpenFrame = useCallback(
+    (frameIndex: number) => {
+      onFrameOpen(frameIndex)
+    },
+    [onFrameOpen]
+  )
+
+  const handleEditFrame = useCallback(
+    (frameId: string) => {
+      onFrameEdit(frameId)
+    },
+    [onFrameEdit]
+  )
+
+  const handleDeleteFrame = useCallback(
+    (frameId: string) => {
+      onFrameDelete(frameId)
+    },
+    [onFrameDelete]
+  )
+
+  const handleInsertFrame = useCallback(
+    (insertIndex?: number, duplicateFrameId?: string) => {
+      onAddFrame(insertIndex, duplicateFrameId)
+    },
+    [onAddFrame]
+  )
+
+  const handleImageUploadForFrame = useCallback(
+    (frameId: string, file: File) => {
+      if (!onImageUpload) {
+        return Promise.resolve()
+      }
+      return onImageUpload(frameId, file)
+    },
+    [onImageUpload]
+  )
+
+  const handleCardSelectInternal = useCallback(
+    (frameId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+      onCardSelect?.(frameId, { multi: event.shiftKey })
+    },
+    [onCardSelect]
+  )
+
+  const handleQuickSelect = useCallback(
+    (frameId: string) => {
+      onCardSelect?.(frameId, { multi: false, toggle: true })
+    },
+    [onCardSelect]
+  )
+
+  const handleQuickVideoSelect = useCallback(
+    (frameId: string) => {
+      onCardSelect?.(frameId, { multi: true, toggle: true })
+    },
+    [onCardSelect]
+  )
+
+  const handleSetAsStart = useCallback(
+    (frameId: string) => {
+      onCardSelect?.(frameId, { multi: true, role: 'start' })
+    },
+    [onCardSelect]
+  )
+
+  const handleSetAsEnd = useCallback(
+    (frameId: string) => {
+      onCardSelect?.(frameId, { multi: true, role: 'end' })
+    },
+    [onCardSelect]
   )
 
   const activeFrame = useMemo(
@@ -212,6 +293,80 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                 typeof frame.cardWidth === 'number' && Number.isFinite(frame.cardWidth)
                   ? clampCardWidth(frame.cardWidth)
                   : normalizedCardWidth
+              const isVideoMode = mode === 'video'
+              const isSelected =
+                isVideoMode && Array.isArray(selectedFrameIds)
+                  ? selectedFrameIds.includes(frame.id)
+                  : selectedFrameId === frame.id
+              
+              // 비디오 모드에서 start/end 역할 확인
+              const videoRole = (() => {
+                if (!isVideoMode || !Array.isArray(selectedFrameIds)) return null
+                const index = selectedFrameIds.indexOf(frame.id)
+                if (index === 0) return 'start'
+                if (index === 1) return 'end'
+                return null
+              })()
+              
+              const hoverActions = (() => {
+                if (mode === 'video') {
+                  const actions = []
+                  
+                  if (videoRole === 'start') {
+                    // Start로 선택된 경우
+                    actions.push({
+                      id: 'remove-start',
+                      label: 'Remove start',
+                      icon: XCircle,
+                      onClick: () => handleQuickVideoSelect(frame.id),
+                    })
+                    // End가 없으면 end로 변경 가능
+                    if (selectedFrameIds?.length === 1) {
+                      actions.push({
+                        id: 'change-to-end',
+                        label: 'Set as end',
+                        icon: Square,
+                        onClick: () => handleSetAsEnd(frame.id),
+                      })
+                    }
+                  } else if (videoRole === 'end') {
+                    // End로 선택된 경우
+                    actions.push({
+                      id: 'remove-end',
+                      label: 'Remove end',
+                      icon: XCircle,
+                      onClick: () => handleQuickVideoSelect(frame.id),
+                    })
+                  } else {
+                    // 선택되지 않은 경우
+                    actions.push({
+                      id: 'set-start',
+                      label: 'Set as start',
+                      icon: Play,
+                      onClick: () => handleSetAsStart(frame.id),
+                    })
+                    actions.push({
+                      id: 'set-end',
+                      label: 'Set as end',
+                      icon: Square,
+                      onClick: () => handleSetAsEnd(frame.id),
+                    })
+                  }
+                  
+                  return actions
+                }
+                if (mode === 'generate' || mode === 'edit') {
+                  return [
+                    {
+                      id: 'select',
+                      label: isSelected ? 'Deselect' : 'Select',
+                      icon: isSelected ? CheckCircle2 : Circle,
+                      onClick: () => handleQuickSelect(frame.id),
+                    },
+                  ]
+                }
+                return []
+              })()
 
               return (
                 <SortableFrameCard
@@ -221,25 +376,19 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                   deleting={deletingFrameId === frame.id}
                   aspectRatio={aspectRatio}
                   cardWidth={frameWidth}
-                  onOpen={() => onFrameOpen(index)}
-                  onEdit={() => onFrameEdit(frame.id)}
-                  onDelete={() => onFrameDelete(frame.id)}
-                  onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
-                  onAddBefore={() => onAddFrame(index, frame.id)}
-                  onAddAfter={() => onAddFrame(index + 1, frame.id)}
+                  onOpen={handleOpenFrame}
+                  onEdit={handleEditFrame}
+                  onDelete={handleDeleteFrame}
+                  onImageUpload={onImageUpload ? handleImageUploadForFrame : undefined}
+                  onInsert={handleInsertFrame}
+                  hoverActions={hoverActions}
                   highlight={
                     activeId === frame.id ||
                     (mode === 'video'
                       ? Array.isArray(selectedFrameIds) && selectedFrameIds.includes(frame.id)
                       : selectedFrameId === frame.id)
                   }
-                  onCardClick={e => {
-                    if (onCardSelect) {
-                      e.stopPropagation()
-                      onCardSelect(frame.id, e)
-                      return
-                    }
-                  }}
+                  onCardSelect={onCardSelect ? handleCardSelectInternal : undefined}
                 />
               )
             })}
@@ -293,6 +442,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
               status={activeFrame.status}
               imageFit="contain"
               aspectRatio={aspectRatio}
+              cardWidth={activeCardWidth}
             />
           </div>
         ) : null}
@@ -309,34 +459,80 @@ type SortableFrameCardProps = {
   deleting: boolean
   aspectRatio: StoryboardAspectRatio
   cardWidth: number
-  onOpen: () => void
-  onEdit: () => void
-  onDelete: () => void
-  onImageUpload?: (file: File) => Promise<void>
-  onAddBefore: () => void
-  onAddAfter: () => void
   highlight: boolean
-  onCardClick?: (e: React.MouseEvent) => void
+  onOpen: (frameIndex: number) => void
+  onEdit: (frameId: string) => void
+  onDelete: (frameId: string) => void
+  onInsert: (insertIndex?: number, duplicateFrameId?: string) => void
+  onImageUpload?: (frameId: string, file: File) => Promise<void>
+  onCardSelect?: (frameId: string, event: React.MouseEvent<HTMLButtonElement>) => void
+  hoverActions?: Array<{
+    id: string
+    label: string
+    icon?: React.FC<{ className?: string }>
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  }>
 }
 
-const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
+const SortableFrameCardComponent: React.FC<SortableFrameCardProps> = ({
   frame,
   index,
   deleting,
   aspectRatio,
   cardWidth,
+  highlight,
   onOpen,
   onEdit,
   onDelete,
+  onInsert,
   onImageUpload,
-  onAddBefore,
-  onAddAfter,
-  highlight,
-  onCardClick,
+  onCardSelect,
+  hoverActions,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: frame.id,
   })
+
+  const handleOpenCard = useCallback(() => {
+    onOpen(index)
+  }, [index, onOpen])
+
+  const handleEditCard = useCallback(() => {
+    onEdit(frame.id)
+  }, [frame.id, onEdit])
+
+  const handleDeleteCard = useCallback(() => {
+    onDelete(frame.id)
+  }, [frame.id, onDelete])
+
+  const handleAddBefore = useCallback(() => {
+    onInsert(index, frame.id)
+  }, [frame.id, index, onInsert])
+
+  const handleAddAfter = useCallback(() => {
+    onInsert(index + 1, frame.id)
+  }, [frame.id, index, onInsert])
+
+  const handleImageUpload = useCallback(
+    (file: File) => {
+      if (!onImageUpload) {
+        return Promise.resolve()
+      }
+      return onImageUpload(frame.id, file)
+    },
+    [frame.id, onImageUpload]
+  )
+
+  const handleCardClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (!onCardSelect) {
+        return
+      }
+      event.stopPropagation()
+      onCardSelect(frame.id, event)
+    },
+    [frame.id, onCardSelect]
+  )
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -363,7 +559,7 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         <SideInsertButton
           position="left"
           label="Add scene at the beginning"
-          onClick={onAddBefore}
+          onClick={handleAddBefore}
         />
       )}
 
@@ -373,19 +569,23 @@ const SortableFrameCard: React.FC<SortableFrameCardProps> = ({
         status={frame.status}
         imageFit="contain"
         deleting={deleting}
-        onOpen={onOpen}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onImageUpload={onImageUpload}
-        onCardClick={onCardClick}
+        onOpen={handleOpenCard}
+        onEdit={handleEditCard}
+        onDelete={handleDeleteCard}
+        onImageUpload={onImageUpload ? handleImageUpload : undefined}
+        onCardClick={onCardSelect ? handleCardClick : undefined}
         aspectRatio={aspectRatio}
+        cardWidth={cardWidth}
+        hoverActions={hoverActions}
       />
 
       <SideInsertButton
         position="right"
         label={`Add scene after scene ${index + 1}`}
-        onClick={onAddAfter}
+        onClick={handleAddAfter}
       />
     </div>
   )
 }
+
+const SortableFrameCard = React.memo(SortableFrameCardComponent)

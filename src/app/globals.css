@@ -1,3 +1,5 @@
+/* stylelint-disable */
+/* Tailwind CSS v4 문법 사용 - @plugin, @variant, @utility, @theme, @apply는 Tailwind v4의 표준 문법입니다 */
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
@@ -63,6 +65,9 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --max-width-8xl: 90rem;
+  --max-width-9xl: 100rem;
 }
 
 /* Base layer and CSS variables for theming (from shadcn/ui) */
@@ -124,20 +129,20 @@
 
   * {
     border-color: hsl(var(--border));
-    font-family: var(--font-hanken-sans), sans-serif;
+    font-family: var(--font-inter), sans-serif;
   }
 
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
     font-feature-settings: "rlig" 1, "calt" 1;
-    font-family: var(--font-hanken-sans), sans-serif;
+    font-family: var(--font-inter), sans-serif;
   }
   html {
-    font-family: var(--font-hanken-sans), sans-serif;
+    font-family: var(--font-inter), sans-serif;
   }
   .font-sans {
-    font-family: var(--font-hanken-sans), sans-serif;
+    font-family: var(--font-inter), sans-serif;
   }
   }
   .font-geist-sans {
