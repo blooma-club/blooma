@@ -84,7 +84,7 @@ export default function Home() {
         description: 'Please sign in to generate storyboard images.',
       })
       // Open sign in modal and redirect back to home (or dashboard after login)
-      // Since we can't easily persist the prompt across redirect without URL params or local storage,
+      // Since we can&apos;t easily persist the prompt across redirect without URL params or local storage,
       // for now we just ask them to login.
       // Ideally: Redirect to dashboard or save prompt to localStorage.
       openSignIn({

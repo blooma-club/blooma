@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ensureCharacterStyle } from './utils'
 import type { Character } from './types'
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 
 const editTabs = [
   {
@@ -85,6 +86,7 @@ type Props = {
 }
 
 export function CharacterEditForm({ character, onSave, onCancel, projectId, userId }: Props) {
+  const { handleCreditError } = useHandleCreditError()
   const initialAttachments: ProductAttachment[] =
     character.productAttachments?.map((attachment, index) => ({
       id: `existing-${index}-${attachment.name}`,
@@ -96,8 +98,8 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
   const [editTab, setEditTab] = useState<EditTabId>('product')
   const [editedCharacter, setEditedCharacter] = useState<Character>({
     ...character,
-    editPrompt: '',
-    originalImageUrl: character.imageUrl,
+    edit_prompt: '',
+    image_url: character.image_url,
     productAttachments: character.productAttachments ?? [],
   })
   const [generating, setGenerating] = useState(false)
@@ -124,7 +126,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
   const handlePromptChange = (value: string) => {
     setEditedCharacter(prev => ({
       ...prev,
-      editPrompt: value,
+      edit_prompt: value,
     }))
   }
 
@@ -184,12 +186,12 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
   }
 
   const handleRegenerateWithPrompt = async () => {
-    if (!editedCharacter.editPrompt?.trim()) {
+    if (!editedCharacter.edit_prompt?.trim()) {
       setError('Please enter a prompt to edit the character')
       return
     }
 
-    const baseImageUrl = editedCharacter.imageUrl ?? character.imageUrl
+    const baseImageUrl = editedCharacter.image_url ?? character.image_url
     if (!baseImageUrl) {
       setError('Character image is required to apply edits')
       return
@@ -198,7 +200,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
     setGenerating(true)
     setError(null)
     try {
-      const styledPrompt = ensureCharacterStyle(editedCharacter.editPrompt.trim())
+      const styledPrompt = ensureCharacterStyle((editedCharacter.edit_prompt ?? '').trim())
       const fullPrompt = `${styledPrompt}, highly detailed, ${selectedTab.promptHint}`
       const attachmentFiles =
         editTab === 'product'
@@ -235,12 +237,30 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
         body: JSON.stringify(requestBody),
       })
       const data = await res.json()
-      if (!res.ok || !data?.imageUrl) throw new Error(data?.error || 'Image generation failed')
+
+      // Check if the response indicates insufficient credits
+      if (!res.ok) {
+        // Try to handle credit errors - if it returns true, a popup was shown
+        const creditErrorHandled = handleCreditError(data)
+
+        if (creditErrorHandled) {
+          // We've handled the error with the popup, so we should return early
+          // But we still need to stop the loading state
+          setGenerating(false)
+          return // Popup was shown, no need to show additional error
+        }
+
+        // Handle other errors
+        throw new Error(data?.error?.message || data?.error || 'Image generation failed')
+      }
+
+      if (!data?.imageUrl)
+        throw new Error(data?.error?.message || data?.error || 'Image generation failed')
 
       let finalImageUrl = data.imageUrl as string
       let imageKey: string | undefined
       let imageSize: number | undefined
-      const previousImageUrl = editedCharacter.imageUrl
+      const previousImageUrl = editedCharacter.image_url
 
       try {
         console.log(
@@ -254,7 +274,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
             imageUrl: data.imageUrl,
             projectId: projectId,
             characterName: character.name,
-            editPrompt: editedCharacter.editPrompt,
+            editPrompt: editedCharacter.edit_prompt,
             userId: userId,
             isUpdate: true,
           }),
@@ -287,15 +307,27 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
 
       const updatedCharacter: Character = {
         ...editedCharacter,
-        imageUrl: finalImageUrl,
-        editPrompt: styledPrompt,
-        ...(imageKey && { imageKey }),
-        ...(imageSize && { imageSize }),
+        image_url: finalImageUrl,
+        edit_prompt: styledPrompt,
+        ...(imageKey ? { imageKey, image_key: imageKey } : {}),
+        ...(imageSize !== undefined ? { imageSize, image_size: imageSize } : {}),
+        updated_at: new Date().toISOString(),
       }
 
       setEditedCharacter(updatedCharacter)
       onSave(updatedCharacter)
     } catch (e: unknown) {
+      // Try to handle credit errors - if it returns true, a popup was shown
+      const creditErrorHandled = handleCreditError(e)
+
+      if (creditErrorHandled) {
+        // We've handled the error with the popup, so we should return early
+        // But we still need to stop the loading state
+        setGenerating(false)
+        return // Popup was shown, no need to show additional error
+      }
+
+      // Handle other errors
       setError(e instanceof Error ? e.message : 'Image generation failed')
     } finally {
       setGenerating(false)
@@ -304,7 +336,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
 
   const handleSelectHistoryImage = (url: string) => {
     if (!url) return
-    const currentImageUrl = editedCharacter.imageUrl
+    const currentImageUrl = editedCharacter.image_url
     setImageHistory(prev => {
       const normalized = prev.filter(entry => entry !== url)
       if (currentImageUrl && currentImageUrl !== url) {
@@ -351,9 +383,9 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         <div className="space-y-4">
           <div className="aspect-[3/4] w-full max-w-sm overflow-hidden rounded-lg bg-neutral-800">
-            {editedCharacter.imageUrl ? (
+            {editedCharacter.image_url ? (
               <Image
-                src={editedCharacter.imageUrl}
+                src={editedCharacter.image_url}
                 alt={`Current character: ${editedCharacter.name}`}
                 width={300}
                 height={400}
@@ -442,7 +474,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
           <div>
             <label className="block text-sm font-medium text-neutral-300">{promptLabel}</label>
             <textarea
-              value={editedCharacter.editPrompt || ''}
+              value={editedCharacter.edit_prompt || ''}
               onChange={e => handlePromptChange(e.target.value)}
               placeholder={selectedTab.promptPlaceholder}
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 p-3 text-white placeholder-neutral-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
@@ -459,7 +491,7 @@ export function CharacterEditForm({ character, onSave, onCancel, projectId, user
         <div className="flex flex-1 min-w-[220px] gap-2">
           <Button
             onClick={handleRegenerateWithPrompt}
-            disabled={generating || !editedCharacter.editPrompt?.trim()}
+            disabled={generating || !editedCharacter.edit_prompt?.trim()}
             className="flex-1 min-w-[220px]"
           >
             {generating ? 'Applying edit...' : `Apply ${selectedTab.title} edit`}

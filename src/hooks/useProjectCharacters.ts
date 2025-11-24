@@ -5,6 +5,7 @@ import type { Character } from '@/types'
 
 type UseProjectCharactersOptions = {
   enabled?: boolean
+  projectScoped?: boolean
 }
 
 type UseProjectCharactersResult = {
@@ -25,7 +26,7 @@ const EMPTY_CHARACTERS: Character[] = []
 export const useProjectCharacters = (
   projectId: string | null | undefined,
   userId: string | null | undefined,
-  { enabled = true }: UseProjectCharactersOptions = {}
+  { enabled = true, projectScoped = true }: UseProjectCharactersOptions = {}
 ): UseProjectCharactersResult => {
   const [characters, setCharacters] = useState<Character[]>(EMPTY_CHARACTERS)
   const [isLoading, setIsLoading] = useState(false)
@@ -33,7 +34,8 @@ export const useProjectCharacters = (
 
   const loadCharacters = useCallback(
     async (abortSignal?: AbortSignal) => {
-      if (!enabled || !projectId || !userId) {
+      const requireProjectId = projectScoped !== false
+      if (!enabled || !userId || (requireProjectId && !projectId)) {
         setCharacters(EMPTY_CHARACTERS)
         setIsLoading(false)
         setError(null)
@@ -44,13 +46,14 @@ export const useProjectCharacters = (
       setError(null)
 
       try {
-        const response = await fetch(
-          `/api/characters?project_id=${encodeURIComponent(projectId)}`,
-          {
-            credentials: 'include',
-            signal: abortSignal,
-          }
-        )
+        const endpoint =
+          projectScoped !== false && projectId
+            ? `/api/characters?project_id=${encodeURIComponent(projectId)}`
+            : '/api/characters'
+        const response = await fetch(endpoint, {
+          credentials: 'include',
+          signal: abortSignal,
+        })
 
         if (!response.ok) {
           throw new Error(`Failed to load characters: ${response.status}`)
@@ -77,7 +80,7 @@ export const useProjectCharacters = (
         }
       }
     },
-    [enabled, projectId, userId]
+    [enabled, projectId, projectScoped, userId]
   )
 
   useEffect(() => {

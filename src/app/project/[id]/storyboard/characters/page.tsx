@@ -27,14 +27,10 @@ type ApiCharacter = {
 const mapApiCharacter = (character: ApiCharacter): CharacterWizardCharacter => ({
   id: character.id,
   name: character.name,
-  editPrompt: character.edit_prompt ?? undefined,
-  imageKey: character.image_key ?? undefined,
-  imageSize: typeof character.image_size === 'number' ? character.image_size : undefined,
-  imageUrl: character.image_url ?? undefined,
-  originalImageKey: character.original_image_key ?? undefined,
-  originalImageSize:
-    typeof character.original_image_size === 'number' ? character.original_image_size : undefined,
-  originalImageUrl: character.original_image_url ?? undefined,
+  edit_prompt: character.edit_prompt ?? undefined,
+  image_key: character.image_key ?? undefined,
+  image_size: typeof character.image_size === 'number' ? character.image_size : undefined,
+  image_url: character.image_url ?? undefined,
 })
 
 export default function ProjectCharactersPage() {
@@ -165,7 +161,7 @@ export default function ProjectCharactersPage() {
               </button>
             </div>
           </div>
-          
+
           {/* 우측: 통합 설정 헤더 그룹 */}
           <div className="flex-shrink-0 z-10">
             <div className="h-[48px] rounded-lg border border-neutral-200/80 dark:border-neutral-700/50 shadow-lg backdrop-blur-sm bg-white/95 dark:bg-neutral-900/95 flex items-center gap-2 px-2">

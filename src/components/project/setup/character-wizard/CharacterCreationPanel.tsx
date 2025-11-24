@@ -15,6 +15,7 @@ import { DEFAULT_MODEL } from '@/lib/fal-ai'
 import { CHARACTER_SYSTEM_PROMPT, GENERATE_DESCRIPTION_PLACEHOLDER } from './constants'
 import { ensureCharacterStyle } from './utils'
 import type { Character } from './types'
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 
 type Props = {
   mode: 'generate' | 'upload'
@@ -151,6 +152,8 @@ export function CharacterCreationPanel({
     [boundedPreviewIndex, uploadFiles.length]
   )
 
+  const { handleCreditError } = useHandleCreditError()
+
   const handleCreateCharacter = useCallback(async () => {
     if (!creationName.trim()) {
       setCreationError('Model name is required')
@@ -202,7 +205,18 @@ export function CharacterCreationPanel({
           }),
         })
         const data = await res.json()
-        if (!res.ok || !data?.imageUrl) throw new Error(data?.error || 'Image generation failed')
+
+        // Check if the response indicates insufficient credits
+        if (!res.ok) {
+          // Try to handle credit errors - if it returns true, a popup was shown
+          if (handleCreditError(data)) {
+            return // Popup was shown, no need to show additional error
+          }
+
+          throw new Error(data?.error || 'Image generation failed')
+        }
+
+        if (!data?.imageUrl) throw new Error(data?.error || 'Image generation failed')
 
         try {
           const uploadRes = await fetch('/api/characters/upload-image', {
@@ -259,14 +273,19 @@ export function CharacterCreationPanel({
       const entry: Character = {
         id: characterId,
         name: creationName.trim(),
-        imageUrl: finalImageUrl,
-        ...(imageKey && { imageKey }),
-        ...(imageSize && { imageSize }),
+        image_url: finalImageUrl,
+        ...(imageKey && { image_key: imageKey }),
+        ...(imageSize && { image_size: imageSize }),
       }
 
       onCharacterCreated(entry)
       resetForm()
     } catch (e: unknown) {
+      // Try to handle credit errors - if it returns true, a popup was shown
+      if (handleCreditError(e)) {
+        return // Popup was shown, no need to show additional error
+      }
+
       setCreationError(e instanceof Error ? e.message : 'Failed to create model')
     } finally {
       setIsSaving(false)
@@ -387,6 +406,22 @@ export function CharacterCreationPanel({
               </div>
             ) : null}
           </div>
+        </div>
+
+        <div className="flex w-full flex-col gap-4 lg:w-3/5">
+          <div>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              Model name
+            </label>
+            <input
+              type="text"
+              value={creationName}
+              onChange={e => setCreationName(e.target.value)}
+              placeholder="Enter model name"
+              ref={nameInputRef}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
+            />
+          </div>
 
           {mode === 'upload' && (
             <div className="flex flex-1 flex-col gap-4">
@@ -437,22 +472,6 @@ export function CharacterCreationPanel({
               />
             </div>
           )}
-        </div>
-
-        <div className="flex w-full flex-col gap-4 lg:w-3/5">
-          <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
-              Model name
-            </label>
-            <input
-              type="text"
-              value={creationName}
-              onChange={e => setCreationName(e.target.value)}
-              placeholder="Enter model name"
-              ref={nameInputRef}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none"
-            />
-          </div>
 
           {mode === 'generate' && (
             <>

@@ -11,6 +11,8 @@ import type {
 } from './types'
 import { isFalAIModel } from './types'
 
+export type { FalAIModel } from './types'
+
 const FALLBACK_PLACEHOLDER_IMAGE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAAAAgAB9HFkPgAAAABJRU5ErkJggg=='
 
@@ -26,13 +28,14 @@ function createPlaceholderImageResult(reason: string): FalAIGenerationResult {
 
 // 지원하는 Fal AI 모델들
 export const FAL_AI_MODELS: FalAIModel[] = [
+  // Nano Banana Pro Series
   {
     id: 'fal-ai/nano-banana-pro',
     name: 'Nano Banana Pro',
     description: 'Fal Nano Banana Pro text-to-image generation workflow',
     category: 'image-generation',
-    maxResolution: '1024x1024',
-    credits: 3,
+    maxResolution: '4K',
+    credits: 50,
     inputSchema: {
       prompt: 'string',
       num_images: 'number?',
@@ -43,12 +46,12 @@ export const FAL_AI_MODELS: FalAIModel[] = [
   },
   {
     id: 'fal-ai/nano-banana-pro/edit',
-    name: 'Nano Banana Pro',
+    name: 'Nano Banana Pro Edit',
     description:
       'Fal Nano Banana Pro edit workflow - advanced image editing with improved quality and precision',
     category: 'inpainting',
-    maxResolution: '2048x2048',
-    credits: 5,
+    maxResolution: '4K',
+    credits: 50,
     inputSchema: {
       prompt: 'string',
       image_urls: 'list<string>',
@@ -59,14 +62,75 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       aspect_ratio: 'string?',
     },
   },
-  // Kling 2.1 Pro - Start Frame to End Frame
+  
+  // Nano Banana Series (Standard)
   {
-    id: 'fal-ai/kling-video/v2.1/pro/image-to-video',
-    name: 'Kling Video v2.1 Pro',
-    description: 'Kling Video v2.1 Pro start/end frame guided video generation.',
+    id: 'fal-ai/nano-banana',
+    name: 'Nano Banana',
+    description: 'Fast and efficient text-to-image generation',
+    category: 'image-generation',
+    maxResolution: '1K',
+    credits: 15,
+    inputSchema: {
+      prompt: 'string',
+      num_images: 'number?',
+      output_format: 'string?',
+      aspect_ratio: 'string?',
+    },
+  },
+  {
+    id: 'fal-ai/nano-banana/edit',
+    name: 'Nano Banana Edit',
+    description: 'Efficient image editing workflow',
+    category: 'inpainting',
+    maxResolution: '1K',
+    credits: 15,
+    inputSchema: {
+      prompt: 'string',
+      image_urls: 'list<string>',
+      num_images: 'number?',
+      output_format: 'string?',
+      aspect_ratio: 'string?',
+    },
+  },
+
+  // ByteDance Seedream v4 Series
+  {
+    id: 'fal-ai/bytedance/seedream/v4/text-to-image',
+    name: 'Seedream v4',
+    description: 'ByteDance Seedream v4 Text to Image',
+    category: 'image-generation',
+    maxResolution: '4K',
+    credits: 10,
+    inputSchema: {
+      prompt: 'string',
+      num_images: 'number?',
+      image_size: 'string?', // supports enum: auto_2K, auto_4K
+    },
+  },
+  {
+    id: 'fal-ai/bytedance/seedream/v4/edit',
+    name: 'Seedream v4 Edit',
+    description: 'ByteDance Seedream v4 Image Edit',
+    category: 'inpainting',
+    maxResolution: '4K',
+    credits: 10,
+    inputSchema: {
+      prompt: 'string',
+      image_urls: 'list<string>',
+      num_images: 'number?',
+      image_size: 'string?', // supports enum: auto_2K, auto_4K
+    },
+  },
+
+  // Kling 2.5 Turbo Pro - Image to Video
+  {
+    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+    name: 'Kling v2.5 Turbo Pro',
+    description: 'Kling Video v2.5 Turbo Pro image-to-video generation model.',
     category: 'video-generation',
-    maxResolution: '1920x1080',
-    credits: 40,
+    maxResolution: '1080p',
+    credits: 120,
     inputSchema: {
       image_url: 'string',
       tail_image_url: 'string?',
@@ -77,30 +141,14 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       cfg_scale: 'number?',
     },
   },
-  // Kling 2.5 Turbo Pro - Image to Video
-  {
-    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-    name: 'Kling Video v2.5 Turbo Pro',
-    description: 'Kling Video v2.5 Turbo Pro image-to-video generation model.',
-    category: 'video-generation',
-    maxResolution: '1920x1080',
-    credits: 50,
-    inputSchema: {
-      image_url: 'string',
-      prompt: 'string',
-      duration: 'string?',
-      negative_prompt: 'string?',
-      cfg_scale: 'number?',
-    },
-  },
   // Kling 2.5 Turbo Standard - Image to Video
   {
     id: 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
-    name: 'Kling Video v2.5 Turbo Standard',
+    name: 'Kling v2.5 Turbo Standard',
     description: 'Kling Video v2.5 Turbo Standard image-to-video generation model.',
     category: 'video-generation',
-    maxResolution: '1920x1080',
-    credits: 40,
+    maxResolution: '720p',
+    credits: 70,
     inputSchema: {
       image_url: 'string',
       prompt: 'string',
@@ -120,7 +168,7 @@ export const IMAGE_TO_VIDEO_MODEL_IDS = [
 ]
 
 export const START_TO_END_FRAME_MODEL_IDS = [
-  'fal-ai/kling-video/v2.1/pro/image-to-video',
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
 ]
 
 // Fal AI 클라이언트 초기화
@@ -196,6 +244,7 @@ export async function generateImageWithModel(
     imageUrls?: string[] // For multi-image models like Gemini
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
+    resolution?: '1K' | '2K' | '4K'
   } = {}
 ): Promise<{
   success: boolean
@@ -222,8 +271,8 @@ export async function generateImageWithModel(
   const { ...generationOptions } = options
   const fallbackModels = [
     modelId,
-    'fal-ai/nano-banana-pro',
-    'fal-ai/nano-banana-pro/edit',
+    // Add appropriate fallback chain if main model fails
+    modelId.includes('edit') ? 'fal-ai/nano-banana-pro/edit' : 'fal-ai/nano-banana-pro',
   ].filter((id, idx, arr) => arr.indexOf(id) === idx)
 
   let lastError: unknown = null
@@ -358,68 +407,134 @@ async function generateImageByModel(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
+  // Use Nano Banana Pro logic for text-to-image models
+  if (modelId === 'fal-ai/nano-banana-pro' || 
+      modelId === 'fal-ai/nano-banana' || 
+      modelId === 'fal-ai/bytedance/seedream/v4/text-to-image') {
+    return await generateWithNanoBananaPro(prompt, options, modelId)
+  }
+
+  // Use Nano Banana Pro Edit logic for image-to-image edit models
+  if (modelId === 'fal-ai/nano-banana-pro/edit' || 
+      modelId === 'fal-ai/nano-banana/edit' ||
+      modelId === 'fal-ai/bytedance/seedream/v4/edit') {
+    return await generateWithNanoBananaProEdit(prompt, options, modelId)
+  }
+
   switch (modelId) {
-    case 'fal-ai/nano-banana-pro':
-      return await generateWithNanoBananaPro(prompt, options)
-
-    case 'fal-ai/nano-banana-pro/edit':
-      return await generateWithNanoBananaProEdit(prompt, options)
-
-    case 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
     case 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video':
       return await generateWithKlingImageToVideo(modelId, prompt, options)
 
-    case 'fal-ai/kling-video/v2.1/pro/image-to-video':
-      return await generateWithKlingStartEndVideo(modelId, prompt, options)
+    case 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
+      if (options.imageUrls && options.imageUrls.length > 0) {
+        // 2장이 선택되었으면 Start-End 모드로 실행
+        return await generateWithKlingStartEndVideo(modelId, prompt, options)
+      }
+      // 1장이면 일반 I2V로 실행
+      return await generateWithKlingImageToVideo(modelId, prompt, options)
 
     default:
       throw new Error(`Unsupported model: ${modelId}`)
   }
 }
 
-// Nano Banana Pro Text to Image 모델
+// Helper for Seedream resolution
+function resolveSeedreamImageSize(resolution?: string): string {
+  if (resolution === '4K') return 'auto_4K'
+  if (resolution === '2K') return 'auto_2K'
+  return 'auto' // default for 1K or unspecified
+}
+
+// Nano Banana Pro Text to Image 모델 (Shared logic)
 async function generateWithNanoBananaPro(
   prompt: string,
-  options: FalAIGenerationOptions
+  options: FalAIGenerationOptions,
+  modelId: string = 'fal-ai/nano-banana-pro'
 ): Promise<string> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
   
-  const submission = (await fal.subscribe('fal-ai/nano-banana-pro', {
+  // Seedream logic
+  if (modelId.includes('seedream')) {
+    const imageSize = resolveSeedreamImageSize(options.resolution)
+    const submission = (await fal.subscribe(modelId, {
+      input: {
+        prompt,
+        num_images: options.numImages || 1,
+        image_size: imageSize,
+        enable_safety_checker: true,
+        sync_mode: true,
+      },
+      logs: true,
+      onQueueUpdate(update: FalAISubmissionUpdate) {
+        if (update?.status === 'IN_PROGRESS') {
+          console.log(`[FAL][${modelId}]`, update.status)
+        }
+      },
+    })) as FalAISubmission
+    return extractImageUrl(submission, modelId)
+  }
+
+  const submission = (await fal.subscribe(modelId, {
     input: {
       prompt,
       num_images: options.numImages || 1,
       output_format: outputFormat,
-      resolution: options.resolution || '1K',
+      // Only include resolution for Pro models if needed, but safe to include if API ignores it
+      // Nano Banana Standard doesn't explicitly list resolution in schema but usually harmless
+      resolution: options.resolution || '1K', 
       aspect_ratio: aspectRatio,
     },
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][nano-banana-pro]', update.status)
+        console.log(`[FAL][${modelId}]`, update.status)
       }
     },
   })) as FalAISubmission
 
-  return extractImageUrl(submission, 'nano-banana-pro')
+  return extractImageUrl(submission, modelId)
 }
 
-// Nano Banana Pro Edit 모델 (고급 이미지 편집)
+// Nano Banana Pro Edit 모델 (고급 이미지 편집) (Shared logic)
 async function generateWithNanoBananaProEdit(
   prompt: string,
-  options: FalAIGenerationOptions
+  options: FalAIGenerationOptions,
+  modelId: string = 'fal-ai/nano-banana-pro/edit'
 ): Promise<string> {
   const referenceImages = [options.imageUrl, ...(options.imageUrls || [])].filter(
     (value): value is string => Boolean(value && value.trim())
   )
 
   if (referenceImages.length === 0) {
-    throw new Error('Nano Banana Pro edit requires at least one reference image')
+    throw new Error(`${modelId} requires at least one reference image`)
+  }
+
+  // Seedream Edit logic
+  if (modelId.includes('seedream')) {
+    const imageSize = resolveSeedreamImageSize(options.resolution)
+    const submission = (await fal.subscribe(modelId, {
+      input: {
+        prompt,
+        image_urls: referenceImages,
+        num_images: options.numImages || 1,
+        image_size: imageSize,
+        enable_safety_checker: true,
+        sync_mode: true,
+      },
+      logs: true,
+      onQueueUpdate(update: FalAISubmissionUpdate) {
+        if (update?.status === 'IN_PROGRESS') {
+          console.log(`[FAL][${modelId}]`, update.status)
+        }
+      },
+    })) as FalAISubmission
+    return extractImageUrl(submission, modelId)
   }
 
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
 
-  const submission = (await fal.subscribe('fal-ai/nano-banana-pro/edit', {
+  const submission = (await fal.subscribe(modelId, {
     input: {
       prompt,
       image_urls: referenceImages,
@@ -432,17 +547,17 @@ async function generateWithNanoBananaProEdit(
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
-        console.log('[FAL][nano-banana-pro-edit]', update.status)
+        console.log(`[FAL][${modelId}]`, update.status)
         update.logs?.forEach(log => {
           if (log?.message) {
-            console.log('[FAL][nano-banana-pro-edit]', log.message)
+            console.log(`[FAL][${modelId}]`, log.message)
           }
         })
       }
     },
   })) as FalAISubmission
 
-  return extractImageUrl(submission, 'nano-banana-pro-edit')
+  return extractImageUrl(submission, modelId)
 }
 
 // Kling Image to Video 모델 (v2.5)
@@ -492,7 +607,7 @@ async function generateWithKlingStartEndVideo(
     prompt: prompt || undefined, // v2.1 might treat empty prompt as optional
     image_url: startImageUrl,
     duration: options.duration || '5',
-    aspect_ratio: options.aspectRatio || '16:9',
+    // v2.5 Turbo Pro doesn't support aspect_ratio param explicitly in common schema but we keep it minimal
     negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
     cfg_scale: options.guidanceScale || 0.5,
   }
@@ -730,14 +845,18 @@ export function getImageGenerationModels(): FalAIModel[] {
 
 // 이미지-투-이미지 지원 모델 식별
 export function isImageToImageModel(modelId: string): boolean {
-  return modelId === 'fal-ai/nano-banana-pro/edit'
+  return modelId.includes('/edit')
 }
 
 // 텍스트-투-이미지 전용/가능 모델 식별
 export function isTextToImageModel(modelId: string): boolean {
   return (
     modelId === 'fal-ai/nano-banana-pro' ||
-    modelId === 'fal-ai/nano-banana-pro/edit'
+    modelId === 'fal-ai/nano-banana' ||
+    modelId === 'fal-ai/bytedance/seedream/v4/text-to-image' ||
+    modelId.includes('/edit') // Edit models can often do T2I if no image provided, though usually require image. 
+    // Actually, `generateWithNanoBananaProEdit` throws if no image. 
+    // So T2I specific check should be more strict if we use it for filtering T2I only lists.
   )
 }
 
@@ -755,12 +874,17 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
     )
   }
 
-  // generate 모드: nano-banana-pro (text-to-image)
-  // edit 모드: nano-banana-pro/edit (image-to-image)
-  if (mode === 'edit') {
-    return FAL_AI_MODELS.filter(m => m.id === 'fal-ai/nano-banana-pro/edit')
+  // generate 모드: text-to-image capable models
+  if (mode === 'generate') {
+    return FAL_AI_MODELS.filter(m => m.category === 'image-generation')
   }
-  return FAL_AI_MODELS.filter(m => m.id === 'fal-ai/nano-banana-pro' || m.id === 'fal-ai/nano-banana-pro/edit')
+
+  // edit 모드: inpainting/edit models
+  if (mode === 'edit') {
+    return FAL_AI_MODELS.filter(m => m.category === 'inpainting')
+  }
+  
+  return []
 }
 
 // 비디오 선택 개수에 따른 모델 목록 반환
@@ -784,15 +908,3 @@ export function calculateModelCredits(modelId: string): number {
 
   return model.credits
 }
-
-// 타입 re-export
-export type {
-  FalAIModel,
-  FalAIInputSchema,
-  FalAISubmission,
-  FalAIGenerationOptions,
-  FalAIGenerationResult,
-  FalAISubmissionUpdate,
-  FalAIImageResult,
-}
-export { isFalAIModel }

@@ -2,6 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
+import { useAuth } from '@clerk/nextjs'
 import { Plus, Edit3, X, ImagePlus, Video, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,9 +12,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+
+import { useHandleCreditError } from '@/hooks/useHandleCreditError'
 import { useToast } from '@/components/ui/toast'
 import type { StoryboardAspectRatio } from '@/types/storyboard'
-import { DEFAULT_MODEL, getModelsForMode, isImageToImageModel, getVideoModelsForSelection } from '@/lib/fal-ai'
+import { getModelsForMode, getVideoModelsForSelection } from '@/lib/fal-ai'
 import CameraLibrary, { type CameraPreset } from '@/components/storyboard/libraries/CameraLibrary'
 import ModelLibraryDropdown, { type ModelLibraryAsset } from '@/components/storyboard/libraries/ModelLibraryDropdown'
 import BackgroundLibraryDropdown, {
@@ -28,13 +31,6 @@ const mergePromptWithPreset = (current: string, addition: string) => {
   if (!trimmedCurrent) return trimmedAddition
   if (trimmedCurrent.includes(trimmedAddition)) return trimmedCurrent
   return `${trimmedCurrent}\n${trimmedAddition}`.trim()
-}
-
-const removePresetFromPrompt = (current: string, removal: string) => {
-  const trimmedRemoval = removal.trim()
-  if (!trimmedRemoval) return current
-  const next = current.replace(trimmedRemoval, '').replace(/\n{2,}/g, '\n').trim()
-  return next
 }
 
 type ReferenceImage = {
@@ -78,7 +74,6 @@ type PromptDockProps = {
 
 export const PromptDock: React.FC<PromptDockProps> = props => {
   const {
-    projectId,
     aspectRatio = '16:9',
     onCreateFrame,
     selectedShotNumber,
@@ -96,6 +91,9 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const isControlled = typeof mode !== 'undefined'
   const currentMode = isControlled ? (mode as 'generate' | 'edit' | 'video') : internalMode
 
+  // useProjectCharacters removed as ModelLibraryDropdown handles fetching
+
+  const { handleCreditError } = useHandleCreditError()
   const { push: showToast } = useToast()
 
   const [prompt, setPrompt] = React.useState('')
@@ -103,7 +101,6 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  // Start/End 수동 선택 로직 제거됨 (Grid 멀티선택 사용)
 
   React.useEffect(() => {
     if (isControlled && mode) {
@@ -142,6 +139,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const [resolution, setResolution] = React.useState<'1K' | '2K' | '4K'>('1K')
   const [duration, setDuration] = React.useState<'5' | '10'>('5')
   const [imagePreview, setImagePreview] = React.useState<string[] | null>(null)
+  const [selectedModelId, setSelectedModelId] = React.useState<string | null>(null)
 
   // 드롭다운 열림 상태 관리
   const [cameraDropdownOpen, setCameraDropdownOpen] = React.useState(false)
@@ -151,7 +149,9 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   // Model/Background 선택 시 참조 이미지 배열에 추가
   React.useEffect(() => {
     setReferenceImages(prev => {
-      let updated = prev.filter(img => img.type !== 'model' && img.type !== 'background')
+      const updated = prev.filter(
+        img => img.type !== 'model' && img.type !== 'background'
+      )
       
       if (selectedModelAsset) {
         updated.push({
@@ -291,13 +291,14 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   const usingImageToImage =
     currentMode !== 'video' && (currentMode === 'edit' || referenceImages.length > 0)
 
-  // 비디오 모드 보조 상태 제거됨
-
   const models = React.useMemo(() => {
     if (currentMode === 'video') {
-      const count = Array.isArray(videoSelection) && videoSelection.length > 0
-        ? videoSelection.length
-        : (selectedFrameId ? 1 : 0)
+      const count =
+        Array.isArray(videoSelection) && videoSelection.length > 0
+          ? videoSelection.length
+          : selectedFrameId
+            ? 1
+            : 0
       return getVideoModelsForSelection(count)
     }
     if (usingImageToImage) {
@@ -306,13 +307,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     return getModelsForMode('generate')
   }, [currentMode, usingImageToImage, videoSelection, selectedFrameId])
 
-  // Start/End 수동 선택 핸들러 제거됨
-
   // 모델 자동 선택 로직
-  // 1. 비디오 모드: 비디오 모델 사용 (외부 로직에서 처리되거나 models 배열 첫 번째 사용)
-  // 2. 편집 모드 또는 참조 이미지가 있는 경우: fal-ai/nano-banana-pro/edit (Image-to-Image)
-  // 3. 생성 모드이고 참조 이미지가 없는 경우: fal-ai/nano-banana-pro (Text-to-Image)
   const modelId = React.useMemo(() => {
+    if (selectedModelId) return selectedModelId
+
     if (currentMode === 'video') {
       // 비디오 모델은 getVideoModelsForSelection 등으로 처리되지만, fallback으로 유지
       return 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video' 
@@ -323,12 +321,11 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     }
     
     return 'fal-ai/nano-banana-pro'
-  }, [currentMode, referenceImages.length, selectedFrameId])
+  }, [currentMode, referenceImages.length, selectedFrameId, selectedModelId])
 
   const selectedModel = models.find(m => m.id === modelId) ?? models[0]
 
-  // Start/End Chip UI 관련 클래스 제거됨
-
+  // Image Selection for Upload
   const handlePromptImageSelect = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files
@@ -368,7 +365,6 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
               const merged = [...prev, ...results].slice(0, 3)
               return merged
             })
-            // 모델은 상태에 따라 자동으로 전환되므로 별도 처리 불필요
           }
         }
         reader.onerror = () => {
@@ -387,7 +383,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
       event.target.value = ''
     },
-    [modelId, referenceImages.length, showToast]
+    [referenceImages.length, showToast]
   )
 
   const handleSubmit = async () => {
@@ -442,6 +438,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
           ? videoSelection[0]
           : (selectedFrameId ? { id: selectedFrameId, imageUrl: referenceImageUrl ?? null } : undefined)
         const end = (Array.isArray(videoSelection) && videoSelection.length > 1) ? videoSelection[1] : undefined
+
         await onGenerateVideo({
           modelId: selectedModel.id,
           prompt: finalVideoPrompt.length > 0 ? finalVideoPrompt : undefined,
@@ -451,6 +448,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
           endImageUrl: count >= 2 ? end?.imageUrl ?? null : null,
           duration,
         } as any)
+        
         // 비디오 생성 성공 후 프롬프트 초기화
         setPrompt('')
       } catch (e) {
@@ -478,16 +476,6 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
     setSubmitting(true)
     setError(null)
-
-    // 디버깅을 위한 로그 추가
-    console.log('[PromptDock] Submitting with:', {
-      prompt: trimmed,
-      modelId,
-      aspectRatio,
-      currentMode,
-      referenceImageUrl,
-      attachedImages: usingImageToImage && referenceImages.length > 0 ? `${referenceImages.length} inline` : null,
-    })
 
     try {
       // 카메라 프리셋 프롬프트를 백그라운드로 병합 (사용자 입력창에는 표시하지 않음)
@@ -518,16 +506,16 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
       })
       const json = await res.json().catch(() => ({}))
       
-      // API 응답 형식: { success: true, data: { imageUrl: ... } }
-      const imageUrl = json?.data?.imageUrl || json?.imageUrl
-      const responseImageUrls = json?.data?.imageUrls || json?.imageUrls
-      const allImages = Array.isArray(responseImageUrls)
-        ? responseImageUrls.filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
-        : []
-      
-      if (!res.ok || !json?.success || (!imageUrl && allImages.length === 0)) {
-        let errorMsg = json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
+      // Check if the response indicates insufficient credits
+      if (!res.ok) {
+        // Try to handle credit errors - if it returns true, a popup was shown
+        if (handleCreditError(json)) {
+          return // Popup was shown, no need to show additional error
+        }
 
+        let errorMsg =
+          json?.error || json?.data?.error || `Failed to generate image (HTTP ${res.status})`
+          
         if (res.status === 404) {
           const modelName = selectedModel?.name || modelId
           errorMsg = `Model "${modelName}" not found. Please try a different model.`
@@ -541,12 +529,29 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
 
         throw new Error(errorMsg)
       }
+      
+      // API 응답 형식: { success: true, data: { imageUrl: ... } }
+      const imageUrl = json?.data?.imageUrl || json?.imageUrl
+      const responseImageUrls = json?.data?.imageUrls || json?.imageUrls
+      const allImages = Array.isArray(responseImageUrls)
+        ? responseImageUrls.filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
+        : []
+      
+      if (!json?.success || (!imageUrl && allImages.length === 0)) {
+        throw new Error(json?.error || json?.data?.error || 'Failed to generate image')
+      }
+      
       if (allImages.length > 1) {
         setImagePreview(allImages)
       } else {
         await handleApplyGeneratedImage(imageUrl as string)
       }
     } catch (e) {
+      // Try to handle credit errors - if it returns true, a popup was shown
+      if (handleCreditError(e)) {
+        return // Popup was shown, no need to show additional error
+      }
+
       const msg = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다'
       setError(msg)
 
@@ -567,13 +572,50 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
   }
 
   const isVideoMode = currentMode === 'video'
-  const videoCount = Array.isArray(videoSelection) && videoSelection.length > 0
-    ? videoSelection.length
-    : (isVideoMode && selectedFrameId ? 1 : 0)
+  const videoCount =
+    Array.isArray(videoSelection) && videoSelection.length > 0
+      ? videoSelection.length
+      : isVideoMode && selectedFrameId
+        ? 1
+        : 0
+
+  // Check if selected video frames have images
+  const hasValidVideoFrames = React.useMemo(() => {
+    if (!isVideoMode) return true
+    
+    // Check external video selection
+    if (Array.isArray(videoSelection) && videoSelection.length > 0) {
+      // If any selected frame doesn't have an imageUrl, it's invalid
+      return videoSelection.every(frame => Boolean(frame.imageUrl))
+    }
+    
+    // Check single selected frame
+    if (selectedFrameId) {
+      // If we only have an ID but don't know if it has an image here, 
+      // we might need to rely on the parent or verify differently.
+      // However, videoSelection seems to be the main source of truth for video frames in StoryboardPage.
+      // Let's check how videoSelection is populated. It includes imageUrl.
+      // So if videoSelection is empty but selectedFrameId is set, it might be a transition state.
+      // But typically videoSelection should be populated if video mode is active and frames are selected.
+      
+      // Fallback: If we just have selectedFrameId (e.g. initial click), we might not have the image URL here easily 
+      // without passing it. PromptDock receives `videoSelection` which has `imageUrl`.
+      return true // Optimistic default if using single ID, but usually videoSelection is used.
+    }
+    
+    return false
+  }, [isVideoMode, videoSelection, selectedFrameId])
+
   const buttonDisabled =
     submitting ||
     (isVideoMode
-      ? (videoCount === 1 ? !selectedModel : videoCount === 2 ? !selectedModel : true)
+      ? videoCount === 0 || !hasValidVideoFrames
+        ? true
+        : videoCount === 1
+          ? !selectedModel
+          : videoCount === 2
+            ? !selectedModel
+            : true
       : !prompt.trim())
 
   return (
@@ -631,10 +673,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 </TabsList>
               </Tabs>
 
-              {/* 배지 */}
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+            {/* 배지 */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {currentMode === 'video' ? (
-                (Array.isArray(videoSelection) && videoSelection.length > 0) ? (
+                Array.isArray(videoSelection) && videoSelection.length > 0 ? (
                   <span
                     className={clsx(
                       "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap select-none border transition-all duration-300",
@@ -650,7 +692,10 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                     {videoCount === 1 ? (
                       <>Video {videoSelection[0]?.shotNumber ?? ''}</>
                     ) : (
-                      <>Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End {videoSelection[1]?.shotNumber ?? ''}</>
+                      <>
+                        Start {videoSelection[0]?.shotNumber ?? ''} -&gt; End{' '}
+                        {videoSelection[1]?.shotNumber ?? ''}
+                      </>
                     )}
                     {onClearSelectedShot && (
                       <button
@@ -711,118 +756,49 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   </span>
                 )
               )}
-              </div>
             </div>
+          </div>
 
-            {/* 오른쪽: 이미지 개수 + 해상도 + Duration */}
+            {/* 오른쪽: AI 모델 선택 */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* 해상도 선택 (이미지 모드) */}
-              {currentMode !== 'video' && (
-                <DropdownMenu>
+               <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/50 hover:bg-accent/50 border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm"
-                      title="Resolution"
+                      className="h-9 w-auto px-3 justify-between gap-2 rounded-xl bg-background/50 hover:bg-accent/50 border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm min-w-[140px]"
+                      title="Select AI Model"
                     >
-                      <span className="text-xs font-medium text-foreground/90">{resolution}</span>
+                      <span className="text-xs font-medium text-foreground/90 truncate max-w-[120px]">
+                        {selectedModel?.name || 'Select Model'}
+                      </span>
+                      <Check className="h-3 w-3 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                    className="z-[95] w-[200px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
                     sideOffset={8}
+                    align="end"
                   >
                     <div className="px-2 py-1.5 mb-1 border-b border-border/30">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Res</span>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">AI Model</span>
                     </div>
-                    {(['1K', '2K', '4K'] as const).map(res => (
+                    {models.map(model => (
                       <DropdownMenuItem
-                        key={res}
-                        onClick={() => setResolution(res)}
+                        key={model.id}
+                        onClick={() => setSelectedModelId(model.id)}
                         className={clsx(
                           'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
-                          resolution === res
+                          modelId === model.id
                             ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
                             : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
                         )}
                       >
-                        {res}
-                        {resolution === res && <Check className="h-3 w-3 ml-2" />}
+                        <span className="truncate">{model.name}</span>
+                        {modelId === model.id && <Check className="h-3 w-3 ml-2 flex-shrink-0" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
-
-              {/* Duration 선택 (비디오 모드) */}
-              {currentMode === 'video' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/50 hover:bg-accent/50 border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm"
-                      title="Video Duration"
-                    >
-                      <span className="text-xs font-medium text-foreground/90">{duration}s</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
-                    sideOffset={8}
-                  >
-                    <div className="px-2 py-1.5 mb-1 border-b border-border/30">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Time</span>
-                    </div>
-                    {(['5', '10'] as const).map(sec => (
-                      <DropdownMenuItem
-                        key={sec}
-                        onClick={() => setDuration(sec)}
-                        className={clsx(
-                          'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
-                          duration === sec
-                            ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
-                            : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {sec}s
-                        {duration === sec && <Check className="h-3 w-3 ml-2" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-
-              {currentMode !== 'video' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="glass"
-                      className="h-9 px-3 text-xs font-semibold tracking-wide rounded-xl"
-                      aria-label={`Generate ×${imageCount}`}
-                    >
-                      ×{imageCount}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="z-[95] w-24 p-1.5 rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl shadow-2xl">
-                    {[1, 2, 3, 4].map(count => (
-                      <DropdownMenuItem
-                        key={count}
-                        onClick={() => setImageCount(count)}
-                        className={clsx(
-                          "flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5",
-                          imageCount === count
-                            ? "bg-violet-500/10 text-violet-600 dark:text-violet-300"
-                            : "hover:bg-violet-500/5 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        ×{count}
-                        {imageCount === count && <Check className="h-3 w-3" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </div>
           </div>
 
@@ -931,6 +907,112 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 onOpenChange={handleBackgroundDropdownChange}
               />
 
+              <div className="ml-auto flex items-center gap-2">
+                {/* 해상도/Duration 선택 */}
+                {currentMode === 'video' ? (
+                   <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/30 hover:bg-accent/50 border border-border/20 shadow-sm hover:shadow-md transition-all duration-300"
+                        title="Video Duration"
+                      >
+                        <span className="text-xs font-medium text-foreground/90">{duration}s</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                      sideOffset={8}
+                    >
+                      <div className="px-2 py-1.5 mb-1 border-b border-border/30">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Time</span>
+                      </div>
+                      {(['5', '10'] as const).map(sec => (
+                        <DropdownMenuItem
+                          key={sec}
+                          onClick={() => setDuration(sec)}
+                          className={clsx(
+                            'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
+                            duration === sec
+                              ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                              : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {sec}s
+                          {duration === sec && <Check className="h-3 w-3 ml-2" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/30 hover:bg-accent/50 border border-border/20 shadow-sm hover:shadow-md transition-all duration-300"
+                        title="Resolution"
+                      >
+                        <span className="text-xs font-medium text-foreground/90">{resolution}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                      sideOffset={8}
+                    >
+                      <div className="px-2 py-1.5 mb-1 border-b border-border/30">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Res</span>
+                      </div>
+                      {(['1K', '2K', '4K'] as const).map(res => (
+                        <DropdownMenuItem
+                          key={res}
+                          onClick={() => setResolution(res)}
+                          className={clsx(
+                            'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
+                            resolution === res
+                              ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                              : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {res}
+                          {resolution === res && <Check className="h-3 w-3 ml-2" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="glass"
+                        className="h-9 px-3 text-xs font-semibold tracking-wide rounded-xl bg-background/30 border-border/20"
+                        aria-label={`Generate ×${imageCount}`}
+                      >
+                        ×{imageCount}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[95] w-24 p-1.5 rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl shadow-2xl">
+                      {[1, 2, 3, 4].map(count => (
+                        <DropdownMenuItem
+                          key={count}
+                          onClick={() => setImageCount(count)}
+                          className={clsx(
+                            "flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5",
+                            imageCount === count
+                              ? "bg-violet-500/10 text-violet-600 dark:text-violet-300"
+                              : "hover:bg-violet-500/5 text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          ×{count}
+                          {imageCount === count && <Check className="h-3 w-3" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  </>
+                )}
+
               {/* 제출 버튼 */}
               <Button
                 type="button"
@@ -938,7 +1020,7 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                 disabled={buttonDisabled}
                 variant="violet"
                 className={clsx(
-                  "h-9 w-9 rounded-lg p-0 flex items-center justify-center ml-auto relative overflow-hidden",
+                  "h-9 w-9 rounded-lg p-0 flex items-center justify-center relative overflow-hidden",
                   buttonDisabled && "bg-muted text-muted-foreground shadow-none hover:bg-muted hover:shadow-none hover:scale-100 opacity-50 cursor-not-allowed"
                 )}
                 aria-label={
@@ -964,13 +1046,14 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
               </Button>
             </div>
           </div>
+        </div>
 
-          {/* 에러 메시지 */}
-          {error && (
-            <div className="rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 animate-in fade-in ring-1 ring-destructive/20">
-              <p className="text-xs text-destructive font-medium">{error}</p>
-            </div>
-          )}
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 animate-in fade-in ring-1 ring-destructive/20">
+            <p className="text-xs text-destructive font-medium">{error}</p>
+          </div>
+        )}
       </div>
       {imagePreview && (
         <ImagePreviewModal

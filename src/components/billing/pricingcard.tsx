@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import type { LucideIcon } from 'lucide-react'
+import { Star, Zap, Crown, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -25,6 +27,32 @@ export type PlanOption = {
   tagline: string
   ctaLabel?: string
   features: string[]
+}
+
+type PlanVisualMeta = {
+  icon: LucideIcon
+  badge: string
+}
+
+function getPlanVisualMeta(planId: PlanId): PlanVisualMeta {
+  switch (planId) {
+    case 'blooma-1000':
+      return {
+        icon: Star,
+        badge: 'For solo creators',
+      }
+    case 'blooma-3000':
+      return {
+        icon: Zap,
+        badge: 'For growing teams',
+      }
+    case 'blooma-5000':
+    default:
+      return {
+        icon: Crown,
+        badge: 'For studios & production',
+      }
+  }
 }
 
 type HobbyPlanCardProps = {
@@ -61,6 +89,8 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { user, isLoaded } = useUser()
+  const visualMeta = getPlanVisualMeta(plan.id)
+  const VisualIcon = visualMeta.icon
 
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -152,7 +182,15 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
       className={`relative flex flex-col gap-8 rounded-[28px] border border-border/60 bg-card/95 p-8 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)] transition hover:shadow-[0_22px_48px_-20px_rgba(15,23,42,0.45)] ${className ?? ''}`}
     >
       <CardHeader className="space-y-3 p-0">
-        <CardTitle className="text-2xl font-semibold text-foreground">{plan.label}</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-2xl font-semibold text-foreground">
+            {plan.label}
+          </CardTitle>
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            <VisualIcon className="h-3.5 w-3.5 text-violet-500" />
+            <span className="truncate max-w-[140px]">{visualMeta.badge}</span>
+          </div>
+        </div>
         <CardDescription className="text-base text-muted-foreground">
           {plan.tagline}
         </CardDescription>
@@ -176,7 +214,7 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
         <ul className="space-y-2 text-sm text-foreground">
           {plan.features.map(feature => (
             <li key={feature} className="flex items-start gap-3">
-              <span className="mt-[2px] text-base leading-none text-foreground">✓</span>
+              <CheckCircle2 className="mt-[2px] h-4 w-4 text-violet-500" />
               <span>{feature}</span>
             </li>
           ))}

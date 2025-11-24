@@ -19,7 +19,7 @@ export type CameraPreset = {
   prompt: string
 }
 
-const CAMERA_PRESETS: CameraPreset[] = [
+export const CAMERA_PRESETS: CameraPreset[] = [
   {
     id: 'bird-eye',
     title: 'Bird-eye',
@@ -70,6 +70,43 @@ const CAMERA_PRESETS: CameraPreset[] = [
   },
 ]
 
+const CUSTOM_CAMERA_PRESETS_STORAGE_KEY = 'blooma.customCameraPresets'
+
+export const loadCustomCameraPresets = (): CameraPreset[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_CAMERA_PRESETS_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((value): value is CameraPreset => {
+      if (!value || typeof value !== 'object') return false
+      const preset = value as Partial<CameraPreset>
+      return (
+        typeof preset.id === 'string' &&
+        typeof preset.title === 'string' &&
+        typeof preset.lens === 'string' &&
+        typeof preset.movement === 'string' &&
+        typeof preset.prompt === 'string'
+      )
+    })
+  } catch {
+    return []
+  }
+}
+
+export const saveCustomCameraPresets = (presets: CameraPreset[]): void => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      CUSTOM_CAMERA_PRESETS_STORAGE_KEY,
+      JSON.stringify(presets)
+    )
+  } catch {
+    // Silent failure – storage access may be blocked
+  }
+}
+
 type CameraLibraryProps = {
   selectedPreset: CameraPreset | null
   onSelect: (preset: CameraPreset) => void
@@ -85,7 +122,9 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
   open,
   onOpenChange,
 }) => {
-  const [customPresets, setCustomPresets] = React.useState<CameraPreset[]>([])
+  const [customPresets, setCustomPresets] = React.useState<CameraPreset[]>(() =>
+    loadCustomCameraPresets()
+  )
 
   const presets = React.useMemo(() => [...CAMERA_PRESETS, ...customPresets], [customPresets])
 
@@ -103,21 +142,25 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
     if (!title) return
     const lens = window.prompt('Lens / focal length', '35mm prime') || '35mm prime'
     const movement =
-      window.prompt('Movement / camera note', 'handheld | shallow focus') || 'handheld | shallow focus'
+      window.prompt('Movement / camera note', 'handheld | shallow focus') ||
+      'handheld | shallow focus'
     const prompt =
       window.prompt('Prompt description', 'Describe the framing, mood, and lighting in detail.') ||
       'Custom camera prompt'
 
-    setCustomPresets(prev => [
-      ...prev,
-      {
-        id: `custom-camera-${Date.now()}`,
-        title,
-        lens,
-        movement,
-        prompt,
-      },
-    ])
+    const newPreset: CameraPreset = {
+      id: `custom-camera-${Date.now()}`,
+      title,
+      lens,
+      movement,
+      prompt,
+    }
+
+    setCustomPresets(previous => {
+      const updated = [...previous, newPreset]
+      saveCustomCameraPresets(updated)
+      return updated
+    })
   }
 
   return (

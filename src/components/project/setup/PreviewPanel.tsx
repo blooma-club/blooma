@@ -160,7 +160,7 @@ export default function PreviewPanel({
         characterId: character.id,
         characterName: character.name,
         characterHandle: createHandleFromName(character.name),
-        characterImageUrl: character.imageUrl,
+        characterImageUrl: character.image_url,
         modelId: selectedModel,
         modelLabel: selectedModelInfo?.name ?? selectedModel,
       })
@@ -526,8 +526,8 @@ const CharacterCardShell = React.forwardRef<HTMLDivElement, CharacterCardShellPr
       {...rest}
     >
       <div className="relative w-full pb-[150%]">
-        {character.imageUrl ? (
-          <Image src={character.imageUrl} alt={character.name} fill className="object-cover" />
+        {character.image_url ? (
+          <Image src={character.image_url} alt={character.name} fill className="object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
             No image

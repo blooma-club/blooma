@@ -275,6 +275,32 @@ async function createD1User(
   return created
 }
 
+export async function addCreditsToUser(userId: string, amount: number): Promise<void> {
+  if (amount <= 0) {
+    return
+  }
+
+  const metadata = await getUsersTableMetadata()
+  if (!metadata.columns.has('credits')) {
+    return
+  }
+
+  const assignments: string[] = ['credits = COALESCE(credits, 0) + ?']
+  const values: unknown[] = [amount]
+
+  if (metadata.columns.has('updated_at')) {
+    assignments.push('updated_at = ?')
+    values.push(new Date().toISOString())
+  }
+
+  values.push(userId)
+
+  await queryD1(
+    `UPDATE users SET ${assignments.join(', ')} WHERE ${metadata.idColumn} = ?`,
+    values,
+  )
+}
+
 function buildUserSelectColumns(metadata: UsersTableMetadata): string {
   const selectColumns: string[] = [`${metadata.idColumn} as id`]
   const columns = metadata.columns

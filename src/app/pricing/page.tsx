@@ -1,17 +1,18 @@
-import HobbyPlanCard, { type PlanOption } from '@/components/billing/pricingcard'
+import HobbyPlanCard, { type PlanOption, type PlanId } from '@/components/billing/pricingcard'
 import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 import SiteFooter from '@/components/layout/footer'
+import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
 
 const PRICING_PLANS: PlanOption[] = [
   {
     id: 'blooma-1000',
-    label: 'Blooma — 1,000 Credits',
-    price: '$8',
+    label: 'Starter',
+    price: '$19',
     priceNote: 'Billed monthly',
-    tagline: 'Starter plan to explore Blooma with confidence.',
-    ctaLabel: 'Purchase credits',
+    tagline: 'Perfect for individuals exploring Blooma regularly.',
+    ctaLabel: 'Choose Starter',
     features: [
-      '1,000 credits deposited every month',
+      '2,200 credits deposited every month',
       'Best-in-class image and storyboard renders',
       'Commercial usage coverage included',
       'Cancel or switch plans anytime',
@@ -19,13 +20,13 @@ const PRICING_PLANS: PlanOption[] = [
   },
   {
     id: 'blooma-3000',
-    label: 'Blooma — 3,000 Credits',
-    price: '$20',
+    label: 'Pro',
+    price: '$49',
     priceNote: 'Billed monthly',
-    tagline: 'Great for growing teams and active side projects.',
-    ctaLabel: 'Purchase credits',
+    tagline: 'Built for power users and small teams.',
+    ctaLabel: 'Choose Pro',
     features: [
-      '3,000 credits deposited every month',
+      '6,000 credits deposited every month',
       'High-priority rendering in peak hours',
       'Advanced collaboration tools',
       'Commercial usage coverage included',
@@ -33,19 +34,64 @@ const PRICING_PLANS: PlanOption[] = [
   },
   {
     id: 'blooma-5000',
-    label: 'Blooma — 5,000 Credits',
-    price: '$50',
+    label: 'Studio',
+    price: '$99',
     priceNote: 'Billed monthly',
-    tagline: 'High-usage plan for production workloads.',
-    ctaLabel: 'Purchase credits',
+    tagline: 'For studios and production teams with heavy usage.',
+    ctaLabel: 'Choose Studio',
     features: [
-      '5,000 credits deposited every month',
+      '13,000 credits deposited every month',
       'Enterprise-grade support response times',
       'Fine-grained user management',
       'Commercial usage coverage included',
     ],
   },
 ]
+
+type UsageRange = {
+  min: number
+  max: number
+}
+
+const IMAGE_MIN_COST = 50 // Nano Banana Pro (highest cost per image)
+const IMAGE_MAX_COST = 10 // Seedream (lowest cost per image)
+const VIDEO_MIN_COST = 120 // Kling Pro
+const VIDEO_MAX_COST = 70 // Kling Standard
+
+const IMAGE_USAGE_BY_PLAN: Record<PlanId, UsageRange> = {
+  'blooma-1000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / IMAGE_MAX_COST),
+  },
+  'blooma-3000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / IMAGE_MAX_COST),
+  },
+  'blooma-5000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / IMAGE_MAX_COST),
+  },
+}
+
+const VIDEO_USAGE_BY_PLAN: Record<PlanId, UsageRange> = {
+  'blooma-1000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / VIDEO_MAX_COST),
+  },
+  'blooma-3000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / VIDEO_MAX_COST),
+  },
+  'blooma-5000': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / VIDEO_MAX_COST),
+  },
+}
+
+function formatRange(range: UsageRange): string {
+  const formatter = new Intl.NumberFormat('en-US')
+  return `${formatter.format(range.min)}–${formatter.format(range.max)}`
+}
 
 export default function PricingPage() {
   return (
@@ -60,14 +106,56 @@ export default function PricingPage() {
             Start with Blooma for your storyboarding
           </p>
         </div>
-        <div className="mt-12 grid w-full max-w-6xl grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {PRICING_PLANS.map(plan => (
-            <HobbyPlanCard
-              key={plan.id}
-              className="w-full border-border/60 shadow-xl shadow-primary/10"
-              plan={plan}
-            />
-          ))}
+        <div className="mt-12 w-full max-w-6xl space-y-12">
+          <div className="grid w-full grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {PRICING_PLANS.map(plan => (
+              <HobbyPlanCard
+                key={plan.id}
+                className="w-full border-border/60 shadow-xl shadow-primary/10"
+                plan={plan}
+              />
+            ))}
+          </div>
+
+          <section className="w-full rounded-3xl border border-border/50 bg-card/80 px-6 py-6 sm:px-8 sm:py-8 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-6">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                  What can you generate with each plan?
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-muted-foreground max-w-2xl">
+                  Ranges below assume you&apos;re using our lightest models (like Seedream) up to the most
+                  premium options (like Nano Banana Pro) for images, and Kling models for video.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {PRICING_PLANS.map(plan => {
+                const imageRange = IMAGE_USAGE_BY_PLAN[plan.id as PlanId]
+                const videoRange = VIDEO_USAGE_BY_PLAN[plan.id as PlanId]
+
+                return (
+                  <div
+                    key={plan.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-background/70 px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{plan.label}</p>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>
+                        <span className="font-medium text-foreground">Image generations: </span>
+                        {formatRange(imageRange)} per month (approx.)
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Video clips: </span>
+                        {formatRange(videoRange)} per month (approx.)
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
         </div>
       </main>
       <SiteFooter />

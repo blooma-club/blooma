@@ -1,8 +1,12 @@
+'use client'
+
 import Image from 'next/image'
-{
-  /* Footer - Linear Style */
-}
-export default function siteFooter() {
+import { useThemePreference } from '@/hooks/useThemePreference'
+
+export default function SiteFooter() {
+  const theme = useThemePreference()
+  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+
   return (
     <footer className="relative border-t border-border/50 dark:border-white/5 py-12 px-4">
       <div className="max-w-6xl mx-auto">
@@ -11,11 +15,11 @@ export default function siteFooter() {
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2">
               <Image
-                src="/blooma_logo.svg"
+                src={logoSrc}
                 alt="Blooma"
                 width={24}
                 height={24}
-                className="w-6 h-6"
+                className="w-8 h-8 object-contain"
               />
               <span className="text-sm font-medium text-foreground">Blooma</span>
             </div>

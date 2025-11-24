@@ -10,7 +10,7 @@ import ProfileMenu from '@/components/layout/ProfileMenu'
 export default function SiteNavbarSignedIn() {
   const router = useRouter()
   const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.png' : '/blooma_logo_black.png'
+  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
 
   return (
     <header className="w-full border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">

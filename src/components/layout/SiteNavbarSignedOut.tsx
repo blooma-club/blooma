@@ -10,7 +10,7 @@ import ProfileMenu from '@/components/layout/ProfileMenu'
 export default function SiteNavbarSignedOut() {
   const { user } = useUser()
   const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.png' : '/blooma_logo_black.png'
+  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-black/10 dark:border-white/5 bg-background/80">

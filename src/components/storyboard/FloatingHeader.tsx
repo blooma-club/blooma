@@ -37,7 +37,7 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
 }) => {
   const { userId } = useAuth()
   const router = useRouter()
-  
+
   // 프로젝트 제목 편집 관련 상태
   const [projectTitle, setProjectTitle] = React.useState<string>('')
   const [isEditing, setIsEditing] = React.useState(false)
@@ -138,8 +138,9 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
 
         {/* 프로젝트 제목 편집 */}
-        {projectId && projectTitle && (
-          isEditing ? (
+        {projectId &&
+          projectTitle &&
+          (isEditing ? (
             <div className="flex items-center gap-2 min-w-0">
               <input
                 type="text"
@@ -183,10 +184,8 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
                 <Edit3 className="w-3.5 h-3.5" />
               </button>
             </div>
-          )
-        )}
+          ))}
       </div>
-
       {/* 우측: 진행 정보 배지 */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {typeof index === 'number' && typeof total === 'number' && total > 0 && (

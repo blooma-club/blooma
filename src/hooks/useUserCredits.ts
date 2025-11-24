@@ -34,14 +34,10 @@ const EMPTY_DATA: NonNullable<CreditsResponse['data']> = {
 
 export function useUserCredits() {
   const { userId } = useAuth()
-  const { data, error, isLoading, mutate } = useSWR(
-    userId ? '/api/user/credits' : null,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    }
-  )
+  const { data, error, isLoading, mutate } = useSWR(userId ? '/api/user/credits' : null, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  })
 
   const credits = data?.data ?? EMPTY_DATA
 

@@ -8,7 +8,6 @@ import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { type Project, type ProjectInput } from '@/types'
 import { Plus, Search, Grid, List } from 'lucide-react'
 import { useProjects } from '@/lib/api'
-import SiteNavbarSignedIn from '@/components/layout/SiteNavbarSignedIn'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -116,16 +115,12 @@ export default function DashboardPage() {
         <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,hsl(var(--foreground)/0.10)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground)/0.10)_1px,transparent_1px)] [background-size:24px_24px]" />
       </div>
 
-      {/* 상단 내비게이션 */}
-      <SiteNavbarSignedIn />
-
-      {/* 메인 */}
       <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* 헤더 섹션 */}
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Projects</h1>
+              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Projects</h1>
               <p className="text-sm text-muted-foreground">
                 Create, manage, and explore your storyboard projects.
               </p>

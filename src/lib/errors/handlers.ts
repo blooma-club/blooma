@@ -7,6 +7,7 @@ import { ApiError, StandardApiResponse, ErrorCodes } from './api'
 import { D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
 import { D1ProjectsTableError, ProjectNotFoundError } from '@/lib/db/projects'
 import { ZodError } from 'zod'
+import { InsufficientCreditsError } from '@/lib/credits-utils'
 
 /**
  * 에러 핸들러 옵션
@@ -114,6 +115,15 @@ export function createErrorHandler(
       })
       if (context) {
         console.error(`[${context}] Validation error:`, zodIssues)
+      }
+      return createErrorResponse(apiError, { context, requestId, ...options })
+    }
+
+    // InsufficientCreditsError 처리
+    if (error instanceof InsufficientCreditsError) {
+      const apiError = new ApiError(402, 'Not enough credits', 'INSUFFICIENT_CREDITS')
+      if (context) {
+        console.error(`[${context}] Insufficient credits error`)
       }
       return createErrorResponse(apiError, { context, requestId, ...options })
     }

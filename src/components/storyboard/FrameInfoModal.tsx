@@ -304,12 +304,19 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                         historyImages.map((url, idx) => {
                           const isPreviewing = previewImageUrl === url
                           return (
-                            <button
+                            <div
                               key={`${url}-${idx}`}
-                              type="button"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setPreviewImageUrl(url)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  setPreviewImageUrl(url)
+                                }
+                              }}
                               className={clsx(
-                                "group relative aspect-video overflow-hidden rounded-lg border transition-all duration-300",
+                                "group relative aspect-video overflow-hidden rounded-lg border transition-all duration-300 cursor-pointer",
                                 isPreviewing 
                                   ? "border-violet-500 ring-2 ring-violet-500/20 z-10" 
                                   : "border-border/50 hover:border-violet-500/50 hover:shadow-md opacity-70 hover:opacity-100"
@@ -345,7 +352,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                   <Download className="w-3 h-3" strokeWidth={2} />
                                 </Button>
                               </div>
-                            </button>
+                            </div>
                           )
                         })
                       ) : (

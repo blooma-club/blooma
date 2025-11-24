@@ -86,14 +86,7 @@ export async function POST(request: NextRequest) {
       throw ApiError.badRequest(`Unsupported model: ${validated.modelId}`)
     }
     const creditCost = getCreditCostForModel(validated.modelId, 'VIDEO')
-    try {
-      await consumeCredits(userId, creditCost)
-    } catch (e) {
-      if (e instanceof InsufficientCreditsError) {
-        throw ApiError.forbidden('Insufficient credits')
-      }
-      throw e
-    }
+    await consumeCredits(userId, creditCost)
 
     let videoResult: Awaited<ReturnType<typeof generateVideoFromImage>>
     try {
