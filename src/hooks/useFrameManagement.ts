@@ -284,6 +284,7 @@ export const useFrameManagement = (
     startImageUrl?: string | null
     endImageUrl?: string | null
     prompt?: string
+    duration?: '5' | '10'
   }
 
   const handleGenerateVideo = useCallback(
@@ -334,6 +335,7 @@ export const useFrameManagement = (
             endFrameId: options?.endFrameId,
             prompt: requestPrompt,
             modelId: options?.modelId,
+            duration: options?.duration, // 10초는 5초 대비 2배 크레딧
           }),
         })
 

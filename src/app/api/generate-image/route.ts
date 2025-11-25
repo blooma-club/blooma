@@ -67,10 +67,13 @@ export async function POST(request: NextRequest) {
     console.log(`[API] Generating image with model: ${effectiveModelId}`)
 
     // 모델 크레딧 기반 선차감 (실패/플레이스홀더 시 환불)
+    // 4K 해상도 선택 시 Nano Banana Pro 모델은 2배 크레딧
     const fallbackCategory = modelInfo.category === 'inpainting'
       ? 'IMAGE_EDIT'
       : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
-    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory)
+    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
+      resolution: validated.resolution,
+    })
     await consumeCredits(userId, creditCost)
 
     const result = await generateImageWithModel(validated.prompt, effectiveModelId, {

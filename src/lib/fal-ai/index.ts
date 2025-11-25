@@ -438,11 +438,106 @@ async function generateImageByModel(
   }
 }
 
-// Helper for Seedream resolution
-function resolveSeedreamImageSize(resolution?: string): string {
+// Seedream image_size 타입 정의
+type SeedreamImageSize =
+  | 'square_hd'
+  | 'square'
+  | 'portrait_4_3'
+  | 'portrait_16_9'
+  | 'landscape_4_3'
+  | 'landscape_16_9'
+  | 'auto'
+  | 'auto_2K'
+  | 'auto_4K'
+  | { width: number; height: number }
+
+/**
+ * Blooma의 StoryboardAspectRatio를 Seedream v4의 image_size로 변환
+ * Text-to-Image 모델 전용 (Edit 모델은 레퍼런스 이미지 비율을 따르므로 auto 사용)
+ * 
+ * Seedream image_size 옵션:
+ * - Enum: landscape_16_9, portrait_16_9 등 (기본 해상도, 약 1K~2K)
+ * - auto_2K, auto_4K: 자동 비율 + 고해상도
+ * - 커스텀 { width, height }: 정확한 크기 지정 (1024~4096 범위)
+ * 
+ * 2K/4K 요청 시 커스텀 크기를 사용해야 정확한 해상도가 적용됩니다.
+ * 
+ * @param aspectRatio - Blooma 비율 (예: '16:9', '3:2')
+ * @param resolution - 해상도 설정 ('1K', '2K', '4K')
+ */
+function resolveSeedreamImageSizeForT2I(
+  aspectRatio?: string,
+  resolution?: '1K' | '2K' | '4K' | string
+): SeedreamImageSize {
+  // 비율이 없으면 auto 계열로 폴백
+  if (!aspectRatio) {
+    if (resolution === '4K') return 'auto_4K'
+    if (resolution === '2K') return 'auto_2K'
+    return 'auto'
+  }
+
+  const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
+
+  // 해상도별 기본 크기 (Seedream은 1024~4096 지원)
+  // 1K: ~1024px 기준, 2K: ~2048px 기준, 4K: ~4096px 기준
+  const getBaseSize = () => {
+    if (resolution === '4K') return 4096
+    if (resolution === '2K') return 2048
+    return 1024
+  }
+  const base = getBaseSize()
+
+  // 비율별 크기 계산 (긴 쪽을 base로 설정)
+  switch (normalized) {
+    case '16:9': {
+      // 16:9 = 1.78:1, 긴 쪽(width)을 base로
+      const width = base
+      const height = Math.round(base * 9 / 16)
+      return { width, height }
+    }
+    case '9:16': {
+      // 9:16 = 0.56:1, 긴 쪽(height)을 base로
+      const height = base
+      const width = Math.round(base * 9 / 16)
+      return { width, height }
+    }
+    case '4:3': {
+      const width = base
+      const height = Math.round(base * 3 / 4)
+      return { width, height }
+    }
+    case '3:4': {
+      const height = base
+      const width = Math.round(base * 3 / 4)
+      return { width, height }
+    }
+    case '1:1': {
+      return { width: base, height: base }
+    }
+    case '3:2': {
+      const width = base
+      const height = Math.round(base * 2 / 3)
+      return { width, height }
+    }
+    case '2:3': {
+      const height = base
+      const width = Math.round(base * 2 / 3)
+      return { width, height }
+    }
+
+    default:
+      // 알 수 없는 비율은 auto 계열로 폴백
+      if (resolution === '4K') return 'auto_4K'
+      if (resolution === '2K') return 'auto_2K'
+      return 'auto'
+  }
+}
+
+// Helper for Seedream Edit resolution (레퍼런스 이미지 비율을 따르므로 auto 계열만 사용)
+function resolveSeedreamImageSizeForEdit(resolution?: string): string {
   if (resolution === '4K') return 'auto_4K'
   if (resolution === '2K') return 'auto_2K'
-  return 'auto' // default for 1K or unspecified
+  return 'auto'
 }
 
 // Nano Banana Pro Text to Image 모델 (Shared logic)
@@ -450,17 +545,20 @@ async function generateWithNanoBananaPro(
   prompt: string,
   options: FalAIGenerationOptions,
   modelId: string = 'fal-ai/nano-banana-pro'
-): Promise<string> {
+): Promise<string | string[]> {
   const outputFormat = resolveOutputFormat(options.outputFormat)
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
+  const numImages = options.numImages || 1
   
-  // Seedream logic
+  // Seedream Text-to-Image logic (비율 자동 매핑)
   if (modelId.includes('seedream')) {
-    const imageSize = resolveSeedreamImageSize(options.resolution)
+    const imageSize = resolveSeedreamImageSizeForT2I(options.aspectRatio, options.resolution)
+    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages)
     const submission = (await fal.subscribe(modelId, {
       input: {
         prompt,
-        num_images: options.numImages || 1,
+        num_images: numImages,
+        max_images: numImages, // Seedream은 max_images도 설정해야 여러 장 생성 가능
         image_size: imageSize,
         enable_safety_checker: true,
         sync_mode: true,
@@ -472,19 +570,28 @@ async function generateWithNanoBananaPro(
         }
       },
     })) as FalAISubmission
+    
+    // 여러 이미지 요청 시 배열로 반환
+    if (numImages > 1) {
+      return extractImageUrls(submission, modelId)
+    }
     return extractImageUrl(submission, modelId)
   }
 
+  // Nano Banana Pro는 resolution 지원, Standard는 미지원
+  const isPro = modelId.includes('-pro')
+  const inputPayload: Record<string, unknown> = {
+    prompt,
+    num_images: numImages,
+    output_format: outputFormat,
+    aspect_ratio: aspectRatio,
+  }
+  if (isPro) {
+    inputPayload.resolution = options.resolution || '1K'
+  }
+
   const submission = (await fal.subscribe(modelId, {
-    input: {
-      prompt,
-      num_images: options.numImages || 1,
-      output_format: outputFormat,
-      // Only include resolution for Pro models if needed, but safe to include if API ignores it
-      // Nano Banana Standard doesn't explicitly list resolution in schema but usually harmless
-      resolution: options.resolution || '1K', 
-      aspect_ratio: aspectRatio,
-    },
+    input: inputPayload,
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
@@ -493,6 +600,10 @@ async function generateWithNanoBananaPro(
     },
   })) as FalAISubmission
 
+  // 여러 이미지 요청 시 배열로 반환
+  if (numImages > 1) {
+    return extractImageUrls(submission, modelId)
+  }
   return extractImageUrl(submission, modelId)
 }
 
@@ -501,7 +612,7 @@ async function generateWithNanoBananaProEdit(
   prompt: string,
   options: FalAIGenerationOptions,
   modelId: string = 'fal-ai/nano-banana-pro/edit'
-): Promise<string> {
+): Promise<string | string[]> {
   const referenceImages = [options.imageUrl, ...(options.imageUrls || [])].filter(
     (value): value is string => Boolean(value && value.trim())
   )
@@ -510,14 +621,18 @@ async function generateWithNanoBananaProEdit(
     throw new Error(`${modelId} requires at least one reference image`)
   }
 
-  // Seedream Edit logic
+  const numImages = options.numImages || 1
+
+  // Seedream Edit logic (레퍼런스 이미지 비율을 따르므로 auto 계열 사용)
   if (modelId.includes('seedream')) {
-    const imageSize = resolveSeedreamImageSize(options.resolution)
+    const imageSize = resolveSeedreamImageSizeForEdit(options.resolution)
+    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages)
     const submission = (await fal.subscribe(modelId, {
       input: {
         prompt,
         image_urls: referenceImages,
-        num_images: options.numImages || 1,
+        num_images: numImages,
+        max_images: numImages, // Seedream은 max_images도 설정해야 여러 장 생성 가능
         image_size: imageSize,
         enable_safety_checker: true,
         sync_mode: true,
@@ -529,21 +644,34 @@ async function generateWithNanoBananaProEdit(
         }
       },
     })) as FalAISubmission
+    
+    // 여러 이미지 요청 시 배열로 반환
+    if (numImages > 1) {
+      return extractImageUrls(submission, modelId)
+    }
     return extractImageUrl(submission, modelId)
   }
 
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
 
+  // Nano Banana Pro Edit는 resolution 지원, Standard Edit는 미지원
+  const isPro = modelId.includes('-pro')
+  const inputPayload: Record<string, unknown> = {
+    prompt,
+    image_urls: referenceImages,
+    num_images: numImages,
+    output_format: resolveOutputFormat(options.outputFormat),
+    aspect_ratio: aspectRatio,
+  }
+  if (options.strength !== undefined) {
+    inputPayload.strength = options.strength
+  }
+  if (isPro) {
+    inputPayload.resolution = options.resolution || '1K'
+  }
+
   const submission = (await fal.subscribe(modelId, {
-    input: {
-      prompt,
-      image_urls: referenceImages,
-      num_images: options.numImages || 1,
-      output_format: resolveOutputFormat(options.outputFormat),
-      strength: options.strength,
-      resolution: options.resolution || '1K',
-      aspect_ratio: aspectRatio,
-    },
+    input: inputPayload,
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
@@ -557,6 +685,10 @@ async function generateWithNanoBananaProEdit(
     },
   })) as FalAISubmission
 
+  // 여러 이미지 요청 시 배열로 반환
+  if (numImages > 1) {
+    return extractImageUrls(submission, modelId)
+  }
   return extractImageUrl(submission, modelId)
 }
 
@@ -667,6 +799,12 @@ function extractVideoUrl(submission: FalAISubmission, modelName: string): string
   return videoUrl
 }
 
+// URL이 유효한지 확인 (https:// 또는 data: URI)
+function isValidImageUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false
+  return /^https?:\/\//.test(url) || url.startsWith('data:')
+}
+
 // 이미지 URL 추출 (모든 모델 공통)
 function extractImageUrl(submission: FalAISubmission, modelName: string): string {
   const elapsed = Date.now()
@@ -676,13 +814,18 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
     ? (submission.data as FalAIImageResult[])
     : undefined
 
-  let imageUrl: string | undefined =
-    submission?.images?.[0]?.url ||
-    submission?.output?.[0]?.url ||
-    submission?.image?.url ||
-    dataArray?.[0]?.url ||
-    submission?.result?.[0]?.url ||
-    submission?.artifacts?.[0]?.url
+  // 후보 URL들 수집
+  const candidates = [
+    submission?.images?.[0]?.url,
+    submission?.output?.[0]?.url,
+    submission?.image?.url,
+    dataArray?.[0]?.url,
+    submission?.result?.[0]?.url,
+    submission?.artifacts?.[0]?.url,
+  ]
+
+  // 유효한 URL 찾기 (https:// 또는 data: URI)
+  let imageUrl: string | undefined = candidates.find(isValidImageUrl)
 
   // 깊은 스캔으로 URL 찾기
   if (!imageUrl && submission && typeof submission === 'object') {
@@ -701,11 +844,7 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
         }
 
         const currentObj = current as Record<string, unknown>
-        if (
-          !imageUrl &&
-          typeof currentObj.url === 'string' &&
-          /^https?:\/\//.test(currentObj.url)
-        ) {
+        if (!imageUrl && isValidImageUrl(currentObj.url)) {
           imageUrl = currentObj.url
           break
         }
@@ -719,7 +858,7 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
     }
   }
 
-  // Base64 처리
+  // Base64 처리 (b64 또는 base64 필드)
   if (!imageUrl) {
     const base64 =
       submission?.output?.[0]?.b64 ||
@@ -742,7 +881,7 @@ function extractImageUrl(submission: FalAISubmission, modelName: string): string
     throw new Error(`No image generated from ${modelName}`)
   }
 
-  console.log(`[FAL][${modelName}][image-ready]`, { elapsedMs: elapsed, url: imageUrl })
+  console.log(`[FAL][${modelName}][image-ready]`, { elapsedMs: elapsed, urlType: imageUrl.startsWith('data:') ? 'base64' : 'url' })
   return imageUrl
 }
 
@@ -797,12 +936,17 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
   for (const img of images) {
     let url: string | undefined
 
-    // URL 찾기
-    if (typeof img.url === 'string' && /^https?:\/\//.test(img.url)) {
-      url = img.url
+    // URL 찾기 (https:// 또는 data: URI)
+    if (typeof img.url === 'string') {
+      if (/^https?:\/\//.test(img.url)) {
+        url = img.url
+      } else if (img.url.startsWith('data:')) {
+        // Seedream 등 일부 모델은 url 필드에 Base64 데이터 URI를 반환
+        url = img.url
+      }
     }
 
-    // Base64 처리
+    // Base64 처리 (b64 또는 base64 필드)
     if (!url) {
       const base64 = img.b64 || img.base64
       if (typeof base64 === 'string' && base64.length > 50) {

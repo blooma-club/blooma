@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { X, Clock, Layout, Type, Music, Image as ImageIcon, Hash, Video, MessageSquare, User, Download } from 'lucide-react'
+import { X, Clock, Layout, Type, Music, Image as ImageIcon, Hash, Video, MessageSquare, User, Download, Trash2 } from 'lucide-react'
 import type { StoryboardFrame, StoryboardAspectRatio } from '@/types/storyboard'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,8 @@ export interface FrameInfoModalProps {
   onClose: () => void
   onSaved?: (updated: StoryboardFrame) => void
   aspectRatio?: StoryboardAspectRatio
+  /** 히스토리에서 이미지 URL 삭제 콜백 */
+  onDeleteHistoryImage?: (imageUrl: string) => Promise<void>
 }
 
 // Read-only Property Row Component
@@ -41,14 +43,40 @@ const PropertyRow = ({
   </div>
 )
 
-const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectRatio = '16:9' }) => {
+const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectRatio = '16:9', onDeleteHistoryImage }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details')
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(frame.imageUrl || null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [deletingImageUrl, setDeletingImageUrl] = useState<string | null>(null)
 
   useEffect(() => {
     setPreviewImageUrl(frame.imageUrl || null)
   }, [frame.imageUrl])
+
+  // 히스토리 이미지 삭제 핸들러
+  const handleDeleteHistoryImage = async (imageUrl: string) => {
+    if (!onDeleteHistoryImage || deletingImageUrl) return
+    
+    // 현재 메인 이미지는 삭제 불가
+    if (imageUrl === frame.imageUrl) {
+      console.warn('Cannot delete the current main image')
+      return
+    }
+
+    try {
+      setDeletingImageUrl(imageUrl)
+      await onDeleteHistoryImage(imageUrl)
+      
+      // 삭제한 이미지가 프리뷰 중이었으면 메인 이미지로 전환
+      if (previewImageUrl === imageUrl) {
+        setPreviewImageUrl(frame.imageUrl || null)
+      }
+    } catch (error) {
+      console.error('Failed to delete history image:', error)
+    } finally {
+      setDeletingImageUrl(null)
+    }
+  }
 
   // Download original image function using server-side proxy to bypass CORS completely
   const handleDownloadImage = async (imageUrl: string) => {
@@ -172,14 +200,31 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                       height: 'auto'
                     }}
                   >
-                    <Image
-                      src={previewImageUrl}
-                      alt="Scene preview"
-                      fill
-                      className="object-contain bg-zinc-100 dark:bg-zinc-900"
-                      priority
-                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
-                    />
+                    {previewImageUrl.startsWith('data:image/') || previewImageUrl.startsWith('blob:') ? (
+                      <img
+                        src={previewImageUrl}
+                        alt="Scene preview"
+                        className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-900"
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                        onError={(e) => {
+                          console.error('Failed to load image:', previewImageUrl)
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <Image
+                        src={previewImageUrl}
+                        alt="Scene preview"
+                        fill
+                        className="object-contain bg-zinc-100 dark:bg-zinc-900"
+                        priority
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
+                        onError={() => {
+                          console.error('Failed to load image:', previewImageUrl)
+                        }}
+                      />
+                    )}
                   </div>
                   {/* Download button */}
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
@@ -322,22 +367,40 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                   : "border-border/50 hover:border-violet-500/50 hover:shadow-md opacity-70 hover:opacity-100"
                               )}
                             >
-                              <Image
-                                src={url}
-                                alt={`History ${idx + 1}`}
-                                fill
-                                className={clsx(
-                                  "object-cover transition-transform duration-500",
-                                  !isPreviewing && "group-hover:scale-105 grayscale group-hover:grayscale-0"
-                                )}
-                              />
+                              {url.startsWith('data:image/') || url.startsWith('blob:') ? (
+                                <img
+                                  src={url}
+                                  alt={`History ${idx + 1}`}
+                                  className={clsx(
+                                    "w-full h-full object-cover transition-transform duration-500",
+                                    !isPreviewing && "group-hover:scale-105 grayscale group-hover:grayscale-0"
+                                  )}
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                  }}
+                                />
+                              ) : (
+                                <Image
+                                  src={url}
+                                  alt={`History ${idx + 1}`}
+                                  fill
+                                  className={clsx(
+                                    "object-cover transition-transform duration-500",
+                                    !isPreviewing && "group-hover:scale-105 grayscale group-hover:grayscale-0"
+                                  )}
+                                  onError={() => {
+                                    console.error('Failed to load history image:', url)
+                                  }}
+                                />
+                              )}
                               {isPreviewing && (
                                 <div className="absolute inset-0 bg-violet-500/10 backdrop-blur-[1px] flex items-center justify-center">
                                    <span className="bg-violet-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">Preview</span>
                                 </div>
                               )}
-                              {/* History image download button */}
-                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+                              {/* History image action buttons */}
+                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 flex gap-1">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -351,6 +414,26 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                 >
                                   <Download className="w-3 h-3" strokeWidth={2} />
                                 </Button>
+                                {/* 삭제 버튼: 현재 메인 이미지가 아닌 경우에만 표시 */}
+                                {onDeleteHistoryImage && url !== frame.imageUrl && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteHistoryImage(url)
+                                    }}
+                                    disabled={deletingImageUrl === url}
+                                    className="h-6 w-6 p-0 bg-red-500/90 backdrop-blur-sm border border-red-600/50 shadow-sm hover:bg-red-600 hover:shadow transition-all text-white"
+                                    title="Delete from history"
+                                  >
+                                    {deletingImageUrl === url ? (
+                                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-3 h-3" strokeWidth={2} />
+                                    )}
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           )

@@ -124,6 +124,7 @@ export const videoGenerationSchema = z.object({
   endFrameId: z.string().uuid().optional(),
   prompt: z.string().max(5000).optional(),
   modelId: z.string().min(1),
+  duration: z.enum(['5', '10']).optional(), // 비디오 길이 (5초 기본, 10초는 2배 크레딧)
 })
 
 export type VideoGenerationValidated = z.infer<typeof videoGenerationSchema>

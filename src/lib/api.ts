@@ -467,6 +467,7 @@ export const useCards = (projectId: string) => {
   const updateCards = async (cardsToUpdate: Partial<Card>[]) => {
     if (!projectId || !cardsToUpdate.length) return
 
+    // Optimistic update: 먼저 로컬 상태 업데이트
     mergeFullCards(projectId, cardsToUpdate)
     mutateCards(prev => {
       const base = Array.isArray(prev?.data) ? prev.data : []
@@ -479,13 +480,21 @@ export const useCards = (projectId: string) => {
     }, false)
 
     try {
-      await fetch('/api/cards', {
+      const response = await fetch('/api/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cards: cardsToUpdate }),
         credentials: 'include',
       })
+
+      if (!response.ok) {
+        throw new Error('Failed to update cards')
+      }
+
+      // 서버 업데이트 성공 후 재검증하여 최신 데이터 가져오기
+      await mutateCards()
     } catch {
+      // 실패 시 재검증하여 서버 상태와 동기화
       await mutateCards()
       throw new Error('업데이트 실패')
     }

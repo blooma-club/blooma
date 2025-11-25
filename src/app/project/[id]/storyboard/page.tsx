@@ -56,7 +56,8 @@ export default function StoryboardPage() {
 
   const [index, setIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null)
+  // editingFrameId만 저장하고, 실제 데이터는 derived.frames에서 가져옴
+  const [editingFrameId, setEditingFrameId] = useState<string | null>(null)
   const [ratio, setRatioState] = useState<StoryboardAspectRatio>(DEFAULT_RATIO)
   const [showWidthControls, setShowWidthControls] = useState(false)
   const [promptDockMode, setPromptDockMode] = useState<'generate' | 'edit' | 'video'>('generate')
@@ -201,7 +202,15 @@ export default function StoryboardPage() {
         patch.image_type = options.metadata.type
       }
 
+      console.log('[updateCardImages] Updating card with patch:', {
+        cardId,
+        imageUrl: imageUrl.substring(0, 100),
+        image_urls: patch.image_urls?.length || 0,
+      })
+
       await patchCards([patch])
+      
+      console.log('[updateCardImages] Card patch completed for:', cardId)
     },
     [patchCards, queryCards]
   )
@@ -237,6 +246,13 @@ export default function StoryboardPage() {
           throw new Error('No image URL returned from server')
         }
 
+        console.log('[ImageUpload] Uploaded image URL:', {
+          frameId,
+          uploadedUrl: uploadedUrl.substring(0, 100),
+          hasPublicUrl: !!result.publicUrl,
+          hasSignedUrl: !!result.signedUrl,
+        })
+
         await updateCardImages(frameId, uploadedUrl, {
           metadata: {
             key: result.key || undefined,
@@ -244,6 +260,8 @@ export default function StoryboardPage() {
             type: result.type || undefined,
           },
         })
+
+        console.log('[ImageUpload] Card images updated, frameId:', frameId)
 
         setError(null)
       } catch (error) {
@@ -472,6 +490,12 @@ export default function StoryboardPage() {
   const selectedFrame = useMemo(
     () => (index >= 0 ? derived.frames[index] : null),
     [index, derived.frames]
+  )
+
+  // editingFrame: derived.frames에서 항상 최신 데이터를 가져옴
+  const editingFrame = useMemo(
+    () => (editingFrameId ? derived.frames.find(f => f.id === editingFrameId) ?? null : null),
+    [editingFrameId, derived.frames]
   )
 
   // 비디오 모드에서 선택된 카드들의 상세 정보 매핑
@@ -847,8 +871,7 @@ export default function StoryboardPage() {
                       setIndex(frameIndex)
                     }}
                     onFrameEdit={frameId => {
-                      const frameData = derived.frames.find(f => f.id === frameId)
-                      if (frameData) setEditingFrame(frameData)
+                      setEditingFrameId(frameId)
                     }}
                     onFrameDelete={handleFrameDeleteLocal}
                     onAddFrame={handleFrameAddLocal}
@@ -884,8 +907,7 @@ export default function StoryboardPage() {
                       setIndex(frameIndex)
                     }}
                     onFrameEditMetadata={frameId => {
-                      const frameData = derived.frames.find(f => f.id === frameId)
-                      if (frameData) setEditingFrame(frameData)
+                      setEditingFrameId(frameId)
                     }}
                     onFrameDelete={handleFrameDeleteLocal}
                     onAddFrame={handleFrameAddLocal}
@@ -906,10 +928,29 @@ export default function StoryboardPage() {
             frame={editingFrame}
             projectId={projectId}
             aspectRatio={ratio}
-            onClose={() => setEditingFrame(null)}
+            onClose={() => setEditingFrameId(null)}
             onSaved={() => {
               // SWR에 의해 자동 반영되므로 모달만 닫음
-              setEditingFrame(null)
+              setEditingFrameId(null)
+            }}
+            onDeleteHistoryImage={async (imageUrl: string) => {
+              if (!editingFrameId) return
+              
+              // 현재 카드 찾기
+              const currentCard = queryCards.find((card: Card) => card.id === editingFrameId)
+              if (!currentCard) return
+              
+              // image_urls에서 해당 URL 제거
+              const currentUrls = Array.isArray(currentCard.image_urls) 
+                ? currentCard.image_urls.filter((url: string) => typeof url === 'string')
+                : []
+              const updatedUrls = currentUrls.filter((url: string) => url !== imageUrl)
+              
+              // 카드 업데이트
+              await patchCards([{
+                id: editingFrameId,
+                image_urls: updatedUrls,
+              }])
             }}
           />
         )}
@@ -941,6 +982,7 @@ export default function StoryboardPage() {
             endFrameId,
             startImageUrl,
             endImageUrl,
+            duration,
           }) => {
             if (!startFrameId) {
               setError('Select a start frame before generating a video.')
@@ -954,6 +996,7 @@ export default function StoryboardPage() {
                 startImageUrl,
                 endImageUrl,
                 prompt: videoPromptOverride,
+                duration,
               })
             } catch (error) {
               setError(error instanceof Error ? error.message : 'Failed to generate video')

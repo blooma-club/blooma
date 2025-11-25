@@ -226,16 +226,35 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
         onDrop={handleDrop}
       >
         {imageUrl && hasEnteredViewport ? (
-          <Image
-            src={imageUrl}
-            alt={title || 'card image'}
-            fill
-            className={objectFitClass}
-            draggable={false}
-            sizes={computedSizes}
-            loading="lazy"
-            quality={70}
-          />
+          // Base64나 Blob URL은 native img 태그 사용, 그 외는 Next.js Image 사용
+          imageUrl.startsWith('data:image/') || imageUrl.startsWith('blob:') ? (
+            <img
+              src={imageUrl}
+              alt={title || 'card image'}
+              className={clsx('w-full h-full', objectFitClass)}
+              draggable={false}
+              style={{ objectFit: imageFit }}
+              onError={(e) => {
+                console.error('Failed to load image:', imageUrl)
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+              }}
+            />
+          ) : (
+            <Image
+              src={imageUrl}
+              alt={title || 'card image'}
+              fill
+              className={objectFitClass}
+              draggable={false}
+              sizes={computedSizes}
+              loading="lazy"
+              quality={70}
+              onError={() => {
+                console.error('Failed to load image:', imageUrl)
+              }}
+            />
+          )
         ) : status !== 'ready' && status !== 'error' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center select-none gap-3 bg-neutral-100 dark:bg-neutral-900 z-20">
              {/* Pulsing Overlay */}

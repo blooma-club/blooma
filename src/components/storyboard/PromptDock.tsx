@@ -3,7 +3,7 @@
 import React from 'react'
 import clsx from 'clsx'
 import { useAuth } from '@clerk/nextjs'
-import { Plus, Edit3, X, ImagePlus, Video, Check } from 'lucide-react'
+import { Plus, Edit3, X, ImagePlus, Video, Check, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -47,6 +47,7 @@ type VideoGenerationRequest = {
   endFrameId?: string
   startImageUrl?: string | null
   endImageUrl?: string | null
+  duration?: '5' | '10'
 }
 
 type PromptDockProps = {
@@ -241,7 +242,21 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
     setReferenceImages(prev => {
       const withoutFrame = prev.filter(img => img.type !== 'frame')
 
+      // Only add frame reference if we have a valid image URL
       if (currentMode !== 'edit' || !referenceImageUrl || !selectedFrameId) {
+        return withoutFrame
+      }
+
+      // Validate that referenceImageUrl is a valid URL or Base64 data URI
+      const isValidImageUrl = 
+        typeof referenceImageUrl === 'string' &&
+        referenceImageUrl.trim().length > 0 &&
+        (referenceImageUrl.startsWith('http://') ||
+         referenceImageUrl.startsWith('https://') ||
+         referenceImageUrl.startsWith('data:image/') ||
+         referenceImageUrl.startsWith('blob:'))
+
+      if (!isValidImageUrl) {
         return withoutFrame
       }
 
@@ -807,36 +822,59 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
             {/* 상단: 참조 이미지 미리보기 (업로드/모델/배경 통합, 최대 3장) */}
             {currentMode !== 'video' && referenceImages.length > 0 && (
               <div className="flex items-center gap-2.5 px-1 pt-1">
-                {referenceImages.map(img => (
-                  <div key={img.id} className="relative group overflow-hidden rounded-xl border border-border/20 bg-muted/20 shadow-sm hover:scale-105 transition-transform duration-300">
-                    <img
-                      src={img.url}
-                      alt={img.label || `Reference ${img.type}`}
-                      className="h-14 w-14 md:h-16 md:w-16 object-cover"
-                    />
-                    {img.label && (
-                      <span className="absolute left-0 top-0 rounded-br-lg bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-white">
-                        {img.type === 'model'
-                          ? 'Model'
-                          : img.type === 'background'
-                          ? 'BG'
-                          : img.type === 'frame'
-                          ? 'Frame'
-                          : 'Ref'}
-                      </span>
-                    )}
-                    {img.type !== 'frame' && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveReferenceImage(img.id)}
-                        className="absolute top-0.5 right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white/90 hover:bg-black/70 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                        aria-label={`Remove ${img.type} reference`}
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {referenceImages.map(img => {
+                  // Validate image URL before rendering
+                  const isValidUrl = 
+                    img.url &&
+                    typeof img.url === 'string' &&
+                    img.url.trim().length > 0 &&
+                    (img.url.startsWith('http://') ||
+                     img.url.startsWith('https://') ||
+                     img.url.startsWith('data:image/') ||
+                     img.url.startsWith('blob:'))
+
+                  return (
+                    <div key={img.id} className="relative group overflow-hidden rounded-xl border border-border/20 bg-muted/20 shadow-sm hover:scale-105 transition-transform duration-300">
+                      {isValidUrl ? (
+                        <img
+                          src={img.url}
+                          alt={img.label || `Reference ${img.type}`}
+                          className="h-14 w-14 md:h-16 md:w-16 object-cover"
+                          onError={(e) => {
+                            // Hide broken image
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <div className="h-14 w-14 md:h-16 md:w-16 flex items-center justify-center bg-muted/30 text-muted-foreground text-xs">
+                          <ImageIcon className="w-6 h-6" />
+                        </div>
+                      )}
+                      {img.label && (
+                        <span className="absolute left-0 top-0 rounded-br-lg bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-white">
+                          {img.type === 'model'
+                            ? 'Model'
+                            : img.type === 'background'
+                            ? 'BG'
+                            : img.type === 'frame'
+                            ? 'Frame'
+                            : 'Ref'}
+                        </span>
+                      )}
+                      {img.type !== 'frame' && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReferenceImage(img.id)}
+                          className="absolute top-0.5 right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white/90 hover:bg-black/70 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                          aria-label={`Remove ${img.type} reference`}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -946,40 +984,43 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
                   </DropdownMenu>
                 ) : (
                   <>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/30 hover:bg-accent/50 border border-border/20 shadow-sm hover:shadow-md transition-all duration-300"
-                        title="Resolution"
-                      >
-                        <span className="text-xs font-medium text-foreground/90">{resolution}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
-                      sideOffset={8}
-                    >
-                      <div className="px-2 py-1.5 mb-1 border-b border-border/30">
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Res</span>
-                      </div>
-                      {(['1K', '2K', '4K'] as const).map(res => (
-                        <DropdownMenuItem
-                          key={res}
-                          onClick={() => setResolution(res)}
-                          className={clsx(
-                            'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
-                            resolution === res
-                              ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
-                              : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
-                          )}
+                  {/* Resolution 선택: Nano Banana Pro 또는 Seedream 모델만 지원 */}
+                  {(modelId.includes('-pro') || modelId.includes('seedream')) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-9 w-auto px-2.5 justify-center rounded-xl bg-background/30 hover:bg-accent/50 border border-border/20 shadow-sm hover:shadow-md transition-all duration-300"
+                          title="Resolution"
                         >
-                          {res}
-                          {resolution === res && <Check className="h-3 w-3 ml-2" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <span className="text-xs font-medium text-foreground/90">{resolution}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="z-[95] w-auto min-w-[80px] rounded-xl border border-border/40 bg-background/80 backdrop-blur-xl p-1.5 text-popover-foreground shadow-2xl"
+                        sideOffset={8}
+                      >
+                        <div className="px-2 py-1.5 mb-1 border-b border-border/30">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Res</span>
+                        </div>
+                        {(['1K', '2K', '4K'] as const).map(res => (
+                          <DropdownMenuItem
+                            key={res}
+                            onClick={() => setResolution(res)}
+                            className={clsx(
+                              'rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer transition-colors mb-0.5 justify-between',
+                              resolution === res
+                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                                : 'hover:bg-violet-500/5 text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {res}
+                            {resolution === res && <Check className="h-3 w-3 ml-2" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

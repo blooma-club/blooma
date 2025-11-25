@@ -81,11 +81,14 @@ export async function POST(request: NextRequest) {
     const resolvedEndImageUrl = normalizedEndImageUrl ?? verifiedEndCard?.image_url ?? null
 
     // 선차감 (실패 시 환불) - 모델 크레딧 기반
+    // 10초 비디오 선택 시 2배 크레딧 (5초 기준)
     const modelInfo = getModelInfo(validated.modelId)
     if (!modelInfo) {
       throw ApiError.badRequest(`Unsupported model: ${validated.modelId}`)
     }
-    const creditCost = getCreditCostForModel(validated.modelId, 'VIDEO')
+    const creditCost = getCreditCostForModel(validated.modelId, 'VIDEO', {
+      duration: validated.duration,
+    })
     await consumeCredits(userId, creditCost)
 
     let videoResult: Awaited<ReturnType<typeof generateVideoFromImage>>
