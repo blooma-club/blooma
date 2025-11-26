@@ -301,6 +301,36 @@ export async function addCreditsToUser(userId: string, amount: number): Promise<
   )
 }
 
+/**
+ * 사용자의 구독 플랜을 업데이트합니다.
+ * @param userId Clerk user ID (external_id)
+ * @param planId 구독 플랜 ID ('Starter', 'Pro', 'Studio', 또는 null로 취소/해지)
+ */
+export async function updateUserSubscriptionTier(
+  userId: string,
+  planId: string | null,
+): Promise<void> {
+  const metadata = await getUsersTableMetadata()
+  if (!metadata.columns.has('subscription_tier')) {
+    return
+  }
+
+  const assignments: string[] = ['subscription_tier = ?']
+  const values: unknown[] = [planId ?? null] // null은 구독 없음을 의미
+
+  if (metadata.columns.has('updated_at')) {
+    assignments.push('updated_at = ?')
+    values.push(new Date().toISOString())
+  }
+
+  values.push(userId)
+
+  await queryD1(
+    `UPDATE users SET ${assignments.join(', ')} WHERE ${metadata.idColumn} = ?`,
+    values,
+  )
+}
+
 function buildUserSelectColumns(metadata: UsersTableMetadata): string {
   const selectColumns: string[] = [`${metadata.idColumn} as id`]
   const columns = metadata.columns

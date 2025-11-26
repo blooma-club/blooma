@@ -2,7 +2,7 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { Check, Camera, Trash2 } from 'lucide-react'
+import { Check, Camera, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -65,7 +65,8 @@ export const CAMERA_PRESETS: CameraPreset[] = [
 
 const CUSTOM_CAMERA_PRESETS_STORAGE_KEY = 'blooma.customCameraPresets.v2'
 
-export const loadCustomCameraPresets = (): CameraPreset[] => {
+// localStorage 폴백 함수들 (API 실패 시 사용)
+export const loadCustomCameraPresetsFromStorage = (): CameraPreset[] => {
   if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(CUSTOM_CAMERA_PRESETS_STORAGE_KEY)
@@ -82,7 +83,7 @@ export const loadCustomCameraPresets = (): CameraPreset[] => {
   }
 }
 
-export const saveCustomCameraPresets = (presets: CameraPreset[]): void => {
+export const saveCustomCameraPresetsToStorage = (presets: CameraPreset[]): void => {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(CUSTOM_CAMERA_PRESETS_STORAGE_KEY, JSON.stringify(presets))
@@ -91,10 +92,60 @@ export const saveCustomCameraPresets = (presets: CameraPreset[]): void => {
   }
 }
 
+// API 함수들
+export const fetchCustomCameraPresets = async (): Promise<CameraPreset[]> => {
+  try {
+    const res = await fetch('/api/camera-presets')
+    if (!res.ok) throw new Error('Failed to fetch')
+    const json = await res.json()
+    const presets = json?.data?.presets || []
+    // DB에서 가져온 데이터를 localStorage에도 동기화
+    saveCustomCameraPresetsToStorage(presets)
+    return presets
+  } catch {
+    // API 실패 시 localStorage 폴백
+    return loadCustomCameraPresetsFromStorage()
+  }
+}
+
+export const createCustomCameraPreset = async (preset: Omit<CameraPreset, 'isBuiltIn'>): Promise<CameraPreset | null> => {
+  try {
+    const res = await fetch('/api/camera-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preset),
+    })
+    if (!res.ok) throw new Error('Failed to create')
+    const json = await res.json()
+    return json?.data?.preset || null
+  } catch {
+    // API 실패 시 localStorage에 저장
+    const current = loadCustomCameraPresetsFromStorage()
+    const newPreset = { ...preset, isBuiltIn: false }
+    saveCustomCameraPresetsToStorage([...current, newPreset])
+    return newPreset
+  }
+}
+
+export const deleteCustomCameraPresetApi = async (presetId: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`/api/camera-presets?id=${encodeURIComponent(presetId)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('Failed to delete')
+    return true
+  } catch {
+    return false
+  }
+}
+
+// 레거시 호환성을 위한 함수들
+export const loadCustomCameraPresets = loadCustomCameraPresetsFromStorage
+export const saveCustomCameraPresets = saveCustomCameraPresetsToStorage
 export const deleteCustomCameraPreset = (presetId: string): CameraPreset[] => {
-  const current = loadCustomCameraPresets()
+  const current = loadCustomCameraPresetsFromStorage()
   const updated = current.filter(p => p.id !== presetId)
-  saveCustomCameraPresets(updated)
+  saveCustomCameraPresetsToStorage(updated)
   return updated
 }
 
@@ -113,7 +164,23 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
   open,
   onOpenChange,
 }) => {
-  const [customPresets, setCustomPresets] = React.useState<CameraPreset[]>(() => loadCustomCameraPresets())
+  const [customPresets, setCustomPresets] = React.useState<CameraPreset[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+
+  // 초기 로드 시 API에서 가져오기
+  React.useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    fetchCustomCameraPresets()
+      .then(presets => {
+        if (mounted) setCustomPresets(presets)
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => { mounted = false }
+  }, [])
 
   const allPresets = React.useMemo(() => [...CAMERA_PRESETS, ...customPresets], [customPresets])
 
@@ -126,7 +193,7 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
     [onSelect, onOpenChange]
   )
 
-  const handleAddPreset = () => {
+  const handleAddPreset = async () => {
     const title = window.prompt('Preset name', 'My camera angle')
     if (!title?.trim()) return
 
@@ -143,21 +210,31 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
       isBuiltIn: false,
     }
 
-    setCustomPresets(previous => {
-      const updated = [...previous, newPreset]
-      saveCustomCameraPresets(updated)
-      return updated
-    })
+    setSaving(true)
+    try {
+      const created = await createCustomCameraPreset(newPreset)
+      if (created) {
+        setCustomPresets(previous => [...previous, created])
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDeletePreset = (presetId: string, event: React.MouseEvent) => {
+  const handleDeletePreset = async (presetId: string, event: React.MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
     
     if (!window.confirm('Delete this preset?')) return
     
-    const updated = deleteCustomCameraPreset(presetId)
-    setCustomPresets(updated)
+    // 먼저 UI에서 제거
+    setCustomPresets(previous => previous.filter(p => p.id !== presetId))
+    
+    // API 호출 (실패해도 localStorage 폴백)
+    await deleteCustomCameraPresetApi(presetId)
+    
+    // localStorage에서도 삭제
+    deleteCustomCameraPreset(presetId)
     
     // Clear selection if deleted preset was selected
     if (selectedPreset?.id === presetId) {
@@ -199,13 +276,20 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
           <h4 className="text-xs font-medium text-muted-foreground">Camera Presets</h4>
           <button
             onClick={handleAddPreset}
-            className="text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+            disabled={saving}
+            className="text-xs text-primary hover:text-primary/80 transition-colors font-medium disabled:opacity-50 flex items-center gap-1"
           >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
             + Add
           </button>
         </div>
 
         <div className="flex flex-col max-h-[320px] overflow-y-auto p-1.5">
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
           {allPresets.map(preset => {
             const isSelected = selectedPreset?.id === preset.id
             const isCustom = !preset.isBuiltIn

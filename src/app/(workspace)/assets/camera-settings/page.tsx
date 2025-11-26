@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, Plus, Trash2, Camera, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { CameraPreset } from '@/components/storyboard/libraries/CameraLibrary'
 import {
   CAMERA_PRESETS,
-  loadCustomCameraPresets,
-  saveCustomCameraPresets,
+  fetchCustomCameraPresets,
+  createCustomCameraPreset,
+  deleteCustomCameraPresetApi,
   deleteCustomCameraPreset,
 } from '@/components/storyboard/libraries/CameraLibrary'
 import { cn } from '@/lib/utils'
@@ -24,10 +25,25 @@ const createEmptyFormState = (): PresetFormState => ({
 })
 
 export default function CameraSettingsPage() {
-  const [customPresets, setCustomPresets] = useState<CameraPreset[]>(() => loadCustomCameraPresets())
+  const [customPresets, setCustomPresets] = useState<CameraPreset[]>([])
   const [formState, setFormState] = useState<PresetFormState>(createEmptyFormState)
   const [creating, setCreating] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [showTooltip, setShowTooltip] = useState(false)
+
+  // 초기 로드 시 API에서 가져오기
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    fetchCustomCameraPresets()
+      .then(presets => {
+        if (mounted) setCustomPresets(presets)
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => { mounted = false }
+  }, [])
 
   const allPresets = [...CAMERA_PRESETS, ...customPresets]
 
@@ -39,7 +55,7 @@ export default function CameraSettingsPage() {
       }))
     }
 
-  const handleSavePreset = () => {
+  const handleSavePreset = async () => {
     const trimmedTitle = formState.title.trim()
     const trimmedPrompt = formState.prompt.trim()
 
@@ -56,19 +72,25 @@ export default function CameraSettingsPage() {
         isBuiltIn: false,
       }
 
-      const updatedCustom = [newPreset, ...customPresets]
-      saveCustomCameraPresets(updatedCustom)
-      setCustomPresets(updatedCustom)
-      setFormState(createEmptyFormState())
+      const created = await createCustomCameraPreset(newPreset)
+      if (created) {
+        setCustomPresets(previous => [created, ...previous])
+        setFormState(createEmptyFormState())
+      }
     } finally {
       setCreating(false)
     }
   }
 
-  const handleDeletePreset = (presetId: string) => {
+  const handleDeletePreset = async (presetId: string) => {
     if (!window.confirm('Delete this preset?')) return
-    const updated = deleteCustomCameraPreset(presetId)
-    setCustomPresets(updated)
+    
+    // 먼저 UI에서 제거
+    setCustomPresets(previous => previous.filter(p => p.id !== presetId))
+    
+    // API 호출 + localStorage 삭제
+    await deleteCustomCameraPresetApi(presetId)
+    deleteCustomCameraPreset(presetId)
   }
 
   return (
@@ -175,8 +197,17 @@ export default function CameraSettingsPage() {
 
         {/* All Presets */}
         <section>
-          <h2 className="text-sm font-semibold text-foreground mb-3">All presets ({allPresets.length})</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-3">
+            All presets ({allPresets.length})
+            {loading && <Loader2 className="inline-block w-3 h-3 ml-2 animate-spin text-muted-foreground" />}
+          </h2>
           <div className="grid gap-2">
+            {loading && customPresets.length === 0 && (
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                Loading presets...
+              </div>
+            )}
             {allPresets.map(preset => {
               const isCustom = !preset.isBuiltIn
 

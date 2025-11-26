@@ -119,6 +119,8 @@ export interface FalAIGenerationOptions {
   seed?: number
   syncMode?: boolean
   enableSafetyChecker?: boolean
+  // Generate mode flag - Edit 모델 사용 시에도 Custom 해상도 계산 적용
+  isGenerateMode?: boolean
 }
 
 /**

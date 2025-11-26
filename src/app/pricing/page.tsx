@@ -5,7 +5,7 @@ import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
 
 const PRICING_PLANS: PlanOption[] = [
   {
-    id: 'blooma-1000',
+    id: 'Starter',
     label: 'Starter',
     price: '$19',
     priceNote: 'Billed monthly',
@@ -19,7 +19,7 @@ const PRICING_PLANS: PlanOption[] = [
     ],
   },
   {
-    id: 'blooma-3000',
+    id: 'Pro',
     label: 'Pro',
     price: '$49',
     priceNote: 'Billed monthly',
@@ -33,7 +33,7 @@ const PRICING_PLANS: PlanOption[] = [
     ],
   },
   {
-    id: 'blooma-5000',
+    id: 'Studio',
     label: 'Studio',
     price: '$99',
     priceNote: 'Billed monthly',
@@ -59,32 +59,32 @@ const VIDEO_MIN_COST = 120 // Kling Pro
 const VIDEO_MAX_COST = 70 // Kling Standard
 
 const IMAGE_USAGE_BY_PLAN: Record<PlanId, UsageRange> = {
-  'blooma-1000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / IMAGE_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / IMAGE_MAX_COST),
+  'Starter': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Starter'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Starter'] / IMAGE_MAX_COST),
   },
-  'blooma-3000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / IMAGE_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / IMAGE_MAX_COST),
+  'Pro': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Pro'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Pro'] / IMAGE_MAX_COST),
   },
-  'blooma-5000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / IMAGE_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / IMAGE_MAX_COST),
+  'Studio': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Studio'] / IMAGE_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Studio'] / IMAGE_MAX_COST),
   },
 }
 
 const VIDEO_USAGE_BY_PLAN: Record<PlanId, UsageRange> = {
-  'blooma-1000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / VIDEO_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-1000'] / VIDEO_MAX_COST),
+  'Starter': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Starter'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Starter'] / VIDEO_MAX_COST),
   },
-  'blooma-3000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / VIDEO_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-3000'] / VIDEO_MAX_COST),
+  'Pro': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Pro'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Pro'] / VIDEO_MAX_COST),
   },
-  'blooma-5000': {
-    min: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / VIDEO_MIN_COST),
-    max: Math.floor(PLAN_CREDIT_TOPUPS['blooma-5000'] / VIDEO_MAX_COST),
+  'Studio': {
+    min: Math.floor(PLAN_CREDIT_TOPUPS['Studio'] / VIDEO_MIN_COST),
+    max: Math.floor(PLAN_CREDIT_TOPUPS['Studio'] / VIDEO_MAX_COST),
   },
 }
 

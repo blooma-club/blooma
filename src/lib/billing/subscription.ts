@@ -6,7 +6,8 @@ import { getUserById, type D1UserRecord } from '@/lib/db/users'
 function isActiveTier(tier: D1UserRecord['subscription_tier']): boolean {
   if (!tier) return false
   const normalized = tier.toLowerCase()
-  return normalized !== 'free' && normalized !== 'basic'
+  // 실제 플랜: 'Starter', 'Pro', 'Studio'만 활성 구독으로 간주
+  return normalized === 'starter' || normalized === 'pro' || normalized === 'studio'
 }
 
 function extractMetadataFlag(metadata: Record<string, unknown> | undefined | null): boolean {

@@ -15,9 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { handleSubscription } from '@/lib/server/product'
 
-export type PlanId = 'blooma-1000' | 'blooma-3000' | 'blooma-5000'
+export type PlanId = 'Starter' | 'Pro' | 'Studio'
 
 export type PlanOption = {
   id: PlanId
@@ -36,17 +35,17 @@ type PlanVisualMeta = {
 
 function getPlanVisualMeta(planId: PlanId): PlanVisualMeta {
   switch (planId) {
-    case 'blooma-1000':
+    case 'Starter':
       return {
         icon: Star,
         badge: 'For solo creators',
       }
-    case 'blooma-3000':
+    case 'Pro':
       return {
         icon: Zap,
         badge: 'For growing teams',
       }
-    case 'blooma-5000':
+    case 'Studio':
     default:
       return {
         icon: Crown,
@@ -148,12 +147,33 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
       setActionError(null)
 
       try {
-        await handleSubscription(planId)
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ plan: planId }),
+        })
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          const errorMessage =
+            (payload && typeof payload.error === 'string' && payload.error) ||
+            `Checkout failed with status ${response.status}`
+          throw new Error(errorMessage)
+        }
+
+        const data = await response.json()
+        if (data.url && typeof data.url === 'string') {
+          window.location.href = data.url
+        } else {
+          throw new Error('Invalid checkout URL received from server')
+        }
       } catch (subscribeError) {
         const message =
           subscribeError instanceof Error ? subscribeError.message : 'Unknown error occurred.'
         setActionError(message)
-      } finally {
         setActiveCheckoutPlan(null)
       }
     },

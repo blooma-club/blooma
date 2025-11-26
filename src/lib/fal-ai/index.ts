@@ -245,6 +245,7 @@ export async function generateImageWithModel(
     numImages?: number
     outputFormat?: 'jpeg' | 'png'
     resolution?: '1K' | '2K' | '4K'
+    isGenerateMode?: boolean // Generate mode에서 Edit 모델 사용 시 Custom 해상도 적용
   } = {}
 ): Promise<{
   success: boolean
@@ -533,11 +534,30 @@ function resolveSeedreamImageSizeForT2I(
   }
 }
 
-// Helper for Seedream Edit resolution (레퍼런스 이미지 비율을 따르므로 auto 계열만 사용)
-function resolveSeedreamImageSizeForEdit(resolution?: string): string {
-  if (resolution === '4K') return 'auto_4K'
-  if (resolution === '2K') return 'auto_2K'
-  return 'auto'
+/**
+ * Seedream Edit 모델용 image_size 해상도 결정
+ * 
+ * @param aspectRatio - 비율 (예: '16:9', '3:2')
+ * @param resolution - 해상도 설정 ('1K', '2K', '4K')
+ * @param isGenerateMode - Generate mode 여부 (true면 Custom 픽셀 계산, false면 auto 사용)
+ * 
+ * Generate mode에서 Edit 모델 사용 시: Custom 픽셀 계산 (T2I와 동일)
+ * Edit mode에서 Edit 모델 사용 시: auto 계열 사용 (레퍼런스 이미지 비율 따름)
+ */
+function resolveSeedreamImageSizeForEdit(
+  aspectRatio?: string,
+  resolution?: string,
+  isGenerateMode?: boolean
+): SeedreamImageSize {
+  // Edit mode에서는 레퍼런스 이미지 비율을 따르므로 auto 계열 사용
+  if (!isGenerateMode) {
+    if (resolution === '4K') return 'auto_4K'
+    if (resolution === '2K') return 'auto_2K'
+    return 'auto'
+  }
+
+  // Generate mode에서 Edit 모델 사용 시: T2I와 동일하게 Custom 픽셀 계산
+  return resolveSeedreamImageSizeForT2I(aspectRatio, resolution as '1K' | '2K' | '4K' | string)
 }
 
 // Nano Banana Pro Text to Image 모델 (Shared logic)
@@ -623,10 +643,11 @@ async function generateWithNanoBananaProEdit(
 
   const numImages = options.numImages || 1
 
-  // Seedream Edit logic (레퍼런스 이미지 비율을 따르므로 auto 계열 사용)
+  // Seedream Edit logic
+  // Generate mode에서는 Custom 픽셀 계산, Edit mode에서는 auto 계열 사용
   if (modelId.includes('seedream')) {
-    const imageSize = resolveSeedreamImageSizeForEdit(options.resolution)
-    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages)
+    const imageSize = resolveSeedreamImageSizeForEdit(options.aspectRatio, options.resolution, options.isGenerateMode)
+    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages, 'isGenerateMode:', options.isGenerateMode)
     const submission = (await fal.subscribe(modelId, {
       input: {
         prompt,

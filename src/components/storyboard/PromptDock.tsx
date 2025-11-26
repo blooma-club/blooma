@@ -504,6 +504,8 @@ export const PromptDock: React.FC<PromptDockProps> = props => {
         aspectRatio,
         numImages: imageCount,
         resolution,
+        // Generate mode에서 Edit 모델 사용 시에도 Custom 해상도 계산 적용
+        isGenerateMode: currentMode === 'generate',
       }
 
       if (referenceImages.length > 0) {

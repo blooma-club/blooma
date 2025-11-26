@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       imageUrls: inputImageUrls.length > 0 ? inputImageUrls : undefined,
       numImages: validated.numImages ?? 1,
       resolution: validated.resolution,
+      isGenerateMode: validated.isGenerateMode,
     })
 
     if (!result.success) {

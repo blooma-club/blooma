@@ -99,7 +99,7 @@ export default function CreditsIndicator({ className }: CreditsIndicatorProps) {
             {/* Actions */}
             <div className="pt-2">
               <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none">
-                <Link href="/customerportal" target="_blank">
+                <Link href="/customerportal">
                   Manage Subscription
                 </Link>
               </Button>

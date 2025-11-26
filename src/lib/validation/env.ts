@@ -53,22 +53,18 @@ type Env = z.infer<typeof envSchema>
  * @throws {Error} 환경 변수가 유효하지 않은 경우
  */
 export function validateEnv(): Env {
-  try {
-    return envSchema.parse(process.env)
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const messages = error.issues.map((err) => `${err.path.map(String).join('.')}: ${err.message}`).join('\n')
-      throw new Error(`Environment variable validation failed:\n${messages}`)
-    }
-    throw error
+  const result = envSchema.safeParse(process.env)
+  if (!result.success) {
+    const messages = result.error.issues.map((err) => `${err.path.map(String).join('.')}: ${err.message}`).join('\n')
+    throw new Error(`Environment variable validation failed:\n${messages}`)
   }
+  return result.data
 }
 
 /**
  * 환경 변수 접근 (타입 안전)
  * 
- * 개발 모드에서는 검증 오류를 즉시 표시하고,
- * 프로덕션에서는 기본값을 사용하거나 경고만 표시합니다.
+ * 모든 환경에서 엄격하게 검증하여 필수 환경변수 누락 시 배포가 실패하도록 합니다.
  */
 let cachedEnv: Env | null = null
 
@@ -77,25 +73,8 @@ export function getEnv(): Env {
     return cachedEnv
   }
 
-  // 개발 모드에서는 엄격하게 검증
-  if (process.env.NODE_ENV === 'development') {
-    cachedEnv = validateEnv()
-    return cachedEnv
-  }
-
-  // 프로덕션에서는 부분적으로 검증 (필수 항목만)
-  try {
-    cachedEnv = envSchema.parse(process.env)
-  } catch (error) {
-    console.warn('[ENV] Some environment variables may be missing:', error)
-    // 기본값으로 fallback
-    cachedEnv = envSchema.parse({
-      ...process.env,
-      NODE_ENV: 'production',
-      API_TIMEOUT: '30000',
-    } as unknown as z.infer<typeof envSchema>)
-  }
-
+  // 모든 환경에서 엄격하게 검증
+  cachedEnv = validateEnv()
   return cachedEnv
 }
 

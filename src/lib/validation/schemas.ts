@@ -156,6 +156,8 @@ export const imageGenerationSchema = z.object({
   imageUrls: z.array(z.string().url()).max(10).optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
+  // Generate mode flag - Edit 모델 사용 시에도 Custom 해상도 계산 적용 여부
+  isGenerateMode: z.boolean().optional(),
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

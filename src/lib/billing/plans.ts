@@ -4,31 +4,39 @@ type PlanProductConfig = {
   legacyEnvVar?: string
 }
 
-export type PlanId = 'blooma-1000' | 'blooma-3000' | 'blooma-5000'
+/**
+ * Polar.sh에서 정의된 플랜 ID (실제 제품명과 일치)
+ * - Starter: $19/month, 2,200 credits
+ * - Pro: $49/month, 6,000 credits
+ * - Studio: $99/month, 13,000 credits
+ */
+export type PlanId = 'Starter' | 'Pro' | 'Studio'
 
 const PLAN_PRODUCT_CONFIGS: Record<PlanId, PlanProductConfig> = {
-  'blooma-1000': {
-    productEnvVar: 'POLAR_BLOOMA_1000_PRODUCT_ID',
-    legacyEnvVar: 'POLAR_HOBBY_PRODUCT_ID',
+  'Starter': {
+    productEnvVar: 'POLAR_BLOOMA_STARTER_PRODUCT_ID',
+    legacyEnvVar: 'POLAR_BLOOMA_1000_PRODUCT_ID',
     fallbackProductId: 'd745917d-ec02-4a2d-b7bb-fd081dc59cf9',
   },
-  'blooma-3000': {
-    productEnvVar: 'POLAR_BLOOMA_3000_PRODUCT_ID',
+  'Pro': {
+    productEnvVar: 'POLAR_BLOOMA_PRO_PRODUCT_ID',
+    legacyEnvVar: 'POLAR_BLOOMA_3000_PRODUCT_ID',
     fallbackProductId: '4afac01f-6437-41b6-9255-87114906fd4e',
   },
-  'blooma-5000': {
-    productEnvVar: 'POLAR_BLOOMA_5000_PRODUCT_ID',
+  'Studio': {
+    productEnvVar: 'POLAR_BLOOMA_STUDIO_PRODUCT_ID',
+    legacyEnvVar: 'POLAR_BLOOMA_5000_PRODUCT_ID',
     fallbackProductId: 'ef63cb29-ad44-4d53-baa9-023455ba81d4',
   },
 }
 
 export const PLAN_CREDIT_TOPUPS: Record<PlanId, number> = {
-  'blooma-1000': 2200,
-  'blooma-3000': 6000,
-  'blooma-5000': 13000,
+  'Starter': 2200,
+  'Pro': 6000,
+  'Studio': 13000,
 }
 
-const PLAN_IDS: PlanId[] = ['blooma-1000', 'blooma-3000', 'blooma-5000']
+const PLAN_IDS: PlanId[] = ['Starter', 'Pro', 'Studio']
 
 function resolveProductId(planId: PlanId): string {
   const config = PLAN_PRODUCT_CONFIGS[planId]

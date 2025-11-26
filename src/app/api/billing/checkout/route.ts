@@ -3,29 +3,9 @@ import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { hasActiveSubscription } from '@/lib/billing/subscription'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
+import { getProductIdForPlan, isPlanId, type PlanId } from '@/lib/billing/plans'
 
-type PlanId = 'blooma-1000' | 'blooma-3000' | 'blooma-5000'
-
-const PLAN_PRODUCT_ID_MAP: Record<
-  PlanId,
-  { productEnvVar: string; legacyEnvVar?: string; fallbackProductId: string }
-> = {
-  'blooma-1000': {
-    productEnvVar: 'POLAR_BLOOMA_1000_PRODUCT_ID',
-    legacyEnvVar: 'POLAR_HOBBY_PRODUCT_ID',
-    fallbackProductId: 'd745917d-ec02-4a2d-b7bb-fd081dc59cf9',
-  },
-  'blooma-3000': {
-    productEnvVar: 'POLAR_BLOOMA_3000_PRODUCT_ID',
-    fallbackProductId: '4afac01f-6437-41b6-9255-87114906fd4e',
-  },
-  'blooma-5000': {
-    productEnvVar: 'POLAR_BLOOMA_5000_PRODUCT_ID',
-    fallbackProductId: 'ef63cb29-ad44-4d53-baa9-023455ba81d4',
-  },
-}
-
-const DEFAULT_PLAN: PlanId = 'blooma-1000'
+const DEFAULT_PLAN: PlanId = 'Starter'
 
 function resolveAppBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'http://localhost:3000'
@@ -40,16 +20,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}))
+    const requestedPlan = typeof body.plan === 'string' ? body.plan : DEFAULT_PLAN
 
-    const supportedPlans = Object.keys(PLAN_PRODUCT_ID_MAP) as PlanId[]
-    const requestedPlan =
-      typeof body.plan === 'string' ? (body.plan as string) : (DEFAULT_PLAN as string)
-
-    if (requestedPlan && !supportedPlans.includes(requestedPlan as PlanId)) {
+    // plans.ts의 유효성 검사 함수 사용
+    if (!isPlanId(requestedPlan)) {
       return NextResponse.json({ error: 'Unsupported plan requested.' }, { status: 400 })
     }
 
-    const planId = (requestedPlan as PlanId) ?? DEFAULT_PLAN
+    const planId: PlanId = requestedPlan
 
     const alreadyActive = await hasActiveSubscription(userId)
     if (alreadyActive) {
@@ -62,20 +40,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment provider is not configured.' }, { status: 500 })
     }
 
-    const planProductConfig = PLAN_PRODUCT_ID_MAP[planId]
-    const productId =
-      process.env[planProductConfig.productEnvVar] ??
-      (planProductConfig.legacyEnvVar
-        ? process.env[planProductConfig.legacyEnvVar]
-        : undefined) ??
-      planProductConfig.fallbackProductId
+    // plans.ts의 중앙 집중화된 함수 사용
+    const productId = getProductIdForPlan(planId)
 
     if (!productId) {
-      console.error('Polar product ID is not configured for plan', {
-        plan: planId,
-        attemptedEnvVar: planProductConfig.productEnvVar,
-        legacyEnvVar: planProductConfig.legacyEnvVar,
-      })
+      console.error('Polar product ID is not configured for plan', { planId })
       return NextResponse.json({ error: 'Payment provider is not configured.' }, { status: 500 })
     }
 
