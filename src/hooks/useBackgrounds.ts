@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useBackgroundStore } from '@/store/backgrounds'
-import type { BackgroundCandidate } from '@/lib/backgroundExtractor'
+import type { BackgroundCandidate } from '@/types/background'
 
 /**
  * Hook to load and initialize backgrounds for a project
@@ -9,7 +9,7 @@ import type { BackgroundCandidate } from '@/lib/backgroundExtractor'
  */
 export function useBackgrounds(backgrounds?: BackgroundCandidate[]) {
   const { initializeBackgrounds } = useBackgroundStore()
-  
+
   useEffect(() => {
     if (backgrounds && backgrounds.length > 0) {
       console.log('[useBackgrounds] Initializing backgrounds:', backgrounds.length)
