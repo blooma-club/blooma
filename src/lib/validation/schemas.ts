@@ -124,7 +124,7 @@ export const videoGenerationSchema = z.object({
   endFrameId: z.string().uuid().optional(),
   prompt: z.string().max(5000).optional(),
   modelId: z.string().min(1),
-  duration: z.enum(['5', '10']).optional(), // 비디오 길이 (5초 기본, 10초는 2배 크레딧)
+  duration: z.number().int().min(1).max(30).optional(), // 비디오 길이 (초)
 })
 
 export type VideoGenerationValidated = z.infer<typeof videoGenerationSchema>
@@ -156,8 +156,6 @@ export const imageGenerationSchema = z.object({
   imageUrls: z.array(z.string().url()).max(10).optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
-  // Generate mode flag - Edit 모델 사용 시에도 Custom 해상도 계산 적용 여부
-  isGenerateMode: z.boolean().optional(),
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

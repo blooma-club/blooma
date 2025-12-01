@@ -116,30 +116,8 @@ export interface Version {
   created_at: string
 }
 
-// 캐릭터 타입 (D1용)
-export interface Character {
-  id: string
-  user_id: string
-  project_id?: string
-  name: string
-  description?: string
-  edit_prompt?: string
-  // R2 asset references
-  image_url?: string
-  image_key?: string
-  image_size?: number
-  image_content_type?: string
-  // Original reference image
-  original_image_url?: string
-  original_image_key?: string
-  original_image_size?: number
-  created_at?: string
-  updated_at?: string
-}
-
 // 하위 호환성을 위한 별칭 타입
 export type UserProfile = User
-export type SupabaseCharacter = Character // Supabase에서 D1으로 마이그레이션
 
 // 클라이언트 사이드 편의성 타입
 export interface ProjectWithCards extends Project {

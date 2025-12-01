@@ -157,16 +157,7 @@ export async function deleteProjectForUser(userId: string, projectId: string): P
       [projectId, userId],
       'cards',
     )
-    await deleteRelatedRecords(
-      `DELETE FROM characters WHERE project_id = ?1 AND user_id = ?2`,
-      [projectId, userId],
-      'characters',
-    )
-    await deleteRelatedRecords(
-      `DELETE FROM storyboards WHERE project_id = ?1 AND user_id = ?2`,
-      [projectId, userId],
-      'storyboards',
-    )
+
     await deleteRelatedRecords(
       `DELETE FROM ai_usage WHERE project_id = ?1 AND user_id = ?2`,
       [projectId, userId],

@@ -33,6 +33,8 @@ interface StoryboardCardProps {
   onCardClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   cardWidth?: number
   hoverActions?: HoverAction[]
+  /** 비동기 이미지 생성 중 여부 */
+  isGenerating?: boolean
 }
 
 const StoryboardCard: React.FC<StoryboardCardProps> = ({
@@ -52,6 +54,7 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
   onCardClick,
   cardWidth,
   hoverActions,
+  isGenerating = false,
 }) => {
   void description
   const [isDragging, setIsDragging] = useState(false)
@@ -328,6 +331,22 @@ const StoryboardCard: React.FC<StoryboardCardProps> = ({
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-2" />
             <p className="text-white text-sm font-medium">Uploading...</p>
+          </div>
+        )}
+        
+        {/* 비동기 이미지 생성 오버레이 */}
+        {isGenerating && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
+            <div className="relative w-10 h-10 mb-3">
+              {/* Outer Ring */}
+              <div className="absolute inset-0 rounded-full border-2 border-violet-500/20" />
+              {/* Spinning Segment */}
+              <div className="absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+              {/* Inner Dot */}
+              <div className="absolute inset-0 m-auto w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+            </div>
+            <span className="text-xs font-medium text-foreground">Generating...</span>
+            <span className="text-[10px] text-muted-foreground mt-1">You can continue working</span>
           </div>
         )}
         

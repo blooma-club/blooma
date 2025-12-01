@@ -14,14 +14,12 @@ import ThemeToggle from '@/components/ui/theme-toggle'
 import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
 import { SlidersHorizontal } from 'lucide-react'
 import { createCard } from '@/lib/cards'
-import { buildPromptWithCharacterMentions, resolveCharacterMentions } from '@/lib/characterMentions'
 import StoryboardWidthControls from '@/components/storyboard/StoryboardWidthControls'
 import EmptyStoryboardState from '@/components/storyboard/EmptyStoryboardState'
 import LoadingGrid from '@/components/storyboard/LoadingGrid'
 import { useCardWidth } from '@/hooks/useCardWidth'
 import { useStoryboardNavigation } from '@/hooks/useStoryboardNavigation'
 import { useFrameManagement } from '@/hooks/useFrameManagement'
-import { useProjectCharacters } from '@/hooks/useProjectCharacters'
 import { useCards, useProjects } from '@/lib/api'
 import {
   DEFAULT_RATIO,
@@ -66,8 +64,6 @@ export default function StoryboardPage() {
   const [viewMode, setViewMode] = useState<'storyboard' | 'models'>('storyboard')
   const [isAddingFrame, setIsAddingFrame] = useState(false)
   const [initialLoadState, setInitialLoadState] = useState<'pending' | 'done'>('pending')
-
-  const { characters: projectCharacters } = useProjectCharacters(projectId, userId)
 
   const { storyboardViewMode, setStoryboardViewMode, isClient } = useHydratedUIStore()
   const { initializeBackgrounds, setProjectId } = useBackgroundStore()
@@ -133,6 +129,11 @@ export default function StoryboardPage() {
     handleGenerateVideo,
     videoPreview,
     setVideoPreview,
+    // 비동기 이미지 생성 상태 관리
+    generatingImageIds,
+    startImageGeneration,
+    stopImageGeneration,
+    isGeneratingImage,
   } = useFrameManagement(projectId, userId ?? null, latestCardWidthRef)
   const frameCacheRef = useRef<FrameCache>(new Map())
 
@@ -213,6 +214,46 @@ export default function StoryboardPage() {
       console.log('[updateCardImages] Card patch completed for:', cardId)
     },
     [patchCards, queryCards]
+  )
+
+  // History에서 이미지 선택 시 메인 이미지로 설정
+  const handleSelectHistoryImage = useCallback(
+    async (cardId: string, imageUrl: string) => {
+      const currentCard = Array.isArray(queryCards)
+        ? queryCards.find((card: Card) => card.id === cardId)
+        : undefined
+      
+      if (!currentCard) return
+
+      const existingHistory: string[] = Array.isArray(currentCard?.image_urls)
+        ? currentCard.image_urls.filter((url: unknown): url is string => typeof url === 'string')
+        : []
+      
+      // 선택한 이미지가 히스토리에 있는지 확인
+      const imageIndex = existingHistory.indexOf(imageUrl)
+      
+      if (imageIndex === -1) {
+        // 히스토리에 없으면 새 이미지로 추가
+        await updateCardImages(cardId, imageUrl)
+        return
+      }
+
+      // 히스토리에 있으면 해당 이미지를 메인으로 설정
+      const previousUrl = currentCard?.image_url
+      const historyWithoutSelected = existingHistory.filter(url => url !== imageUrl)
+      const newHistory = [imageUrl, ...historyWithoutSelected].slice(0, 20)
+
+      const patch: Partial<Card> = {
+        id: cardId,
+        image_url: imageUrl,
+        image_urls: newHistory,
+        selected_image_url: 0, // 첫 번째가 선택된 이미지
+        storyboard_status: currentCard.storyboard_status || 'ready',
+      }
+
+      await patchCards([patch])
+    },
+    [queryCards, patchCards, updateCardImages]
   )
 
   const handleImageUpload = useCallback(
@@ -350,9 +391,8 @@ export default function StoryboardPage() {
         throw new Error('생성할 씬에 대한 설명을 입력해 주세요.')
       }
 
-      const mentionMatches = resolveCharacterMentions(trimmedPrompt, projectCharacters)
-      const requestPrompt = buildPromptWithCharacterMentions(trimmedPrompt, mentionMatches)
-      const mentionImageUrls = Array.from(new Set(mentionMatches.flatMap(match => match.imageUrls)))
+      const requestPrompt = trimmedPrompt
+      const mentionImageUrls: string[] = []
 
       const currentCardsSnapshot = queryCards || []
       let inserted: Card | null = null
@@ -472,7 +512,7 @@ export default function StoryboardPage() {
           : new Error('씬 생성 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.')
       }
     },
-    [userId, projectId, ratio, projectCharacters]
+    [userId, projectId, ratio]
   )
 
   // 비디오 관련 핸들러 (커스텀 훅에서 가져옴)
@@ -892,6 +932,7 @@ export default function StoryboardPage() {
                         setIndex(result.newIndex)
                       }
                     }}
+                    generatingImageIds={generatingImageIds}
                   />
                 </div>
               )}
@@ -916,6 +957,7 @@ export default function StoryboardPage() {
                     isAddingFrame={isAddingFrame}
                     aspectRatio={ratio}
                     selectedFrameId={selectedFrameId}
+                    generatingImageIds={generatingImageIds}
                   />
                 </div>
               )}
@@ -933,24 +975,8 @@ export default function StoryboardPage() {
               // SWR에 의해 자동 반영되므로 모달만 닫음
               setEditingFrameId(null)
             }}
-            onDeleteHistoryImage={async (imageUrl: string) => {
-              if (!editingFrameId) return
-              
-              // 현재 카드 찾기
-              const currentCard = queryCards.find((card: Card) => card.id === editingFrameId)
-              if (!currentCard) return
-              
-              // image_urls에서 해당 URL 제거
-              const currentUrls = Array.isArray(currentCard.image_urls) 
-                ? currentCard.image_urls.filter((url: string) => typeof url === 'string')
-                : []
-              const updatedUrls = currentUrls.filter((url: string) => url !== imageUrl)
-              
-              // 카드 업데이트
-              await patchCards([{
-                id: editingFrameId,
-                image_urls: updatedUrls,
-              }])
+            onSelectHistoryImage={async (imageUrl: string) => {
+              await handleSelectHistoryImage(editingFrame.id, imageUrl)
             }}
           />
         )}
@@ -1019,6 +1045,44 @@ export default function StoryboardPage() {
             } catch (e) {
               console.error('Failed to apply generated image:', e)
             }
+          }}
+          // 비동기 이미지 생성 콜백
+          onStartImageGeneration={(frameId) => {
+            startImageGeneration(frameId)
+          }}
+          onImageGenerated={async (frameId, imageUrls) => {
+            stopImageGeneration(frameId)
+            if (imageUrls.length > 0) {
+              // 첫 번째 이미지를 메인으로, 나머지는 히스토리에 추가
+              const [mainImage, ...historyImages] = imageUrls
+              
+              // 기존 히스토리 가져오기
+              const currentCard = Array.isArray(queryCards)
+                ? queryCards.find((card: Card) => card.id === frameId)
+                : undefined
+              const existingHistory: string[] = Array.isArray(currentCard?.image_urls)
+                ? currentCard.image_urls.filter((url: unknown): url is string => typeof url === 'string')
+                : []
+              
+              // 새 히스토리 = 나머지 이미지 + 기존 히스토리 (중복 제거)
+              const newHistory = [...historyImages, ...existingHistory].filter(
+                (url, idx, arr) => arr.indexOf(url) === idx && url !== mainImage
+              ).slice(0, 19) // 최대 20개 (mainImage 포함)
+              
+              const patch: Partial<Card> = {
+                id: frameId,
+                image_url: mainImage,
+                image_urls: [mainImage, ...newHistory],
+                selected_image_url: 0,
+                storyboard_status: 'ready',
+              }
+              
+              await patchCards([patch])
+            }
+          }}
+          onImageGenerationError={(frameId, errorMsg) => {
+            stopImageGeneration(frameId)
+            setError(errorMsg)
           }}
         />
       )}

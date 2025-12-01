@@ -34,6 +34,12 @@ remotePatterns.push({
 
 remotePatterns.push({
   protocol: 'https',
+  hostname: 'pub-deb00233907c47758076fa8897df6bda.r2.dev',
+  pathname: '/**'
+})
+
+remotePatterns.push({
+  protocol: 'https',
   hostname: '*.r2.cloudflarestorage.com',
   pathname: '/**'
 })

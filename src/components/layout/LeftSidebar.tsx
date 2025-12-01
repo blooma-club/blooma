@@ -51,7 +51,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
             <span className="text-sm font-semibold tracking-tight text-foreground/90">Workspace</span>
           </div>
         </div>
-        
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
@@ -78,7 +78,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
             Menu
           </span>
         </div>
-        
+
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -90,8 +90,8 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
               className={cn(
                 "group relative flex w-full items-center rounded-xl transition-all duration-300 ease-out outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 dark:focus-visible:ring-white/20",
                 isCollapsed ? "justify-center px-0 py-3" : "px-3 py-2.5 gap-3",
-                isActive 
-                  ? "bg-foreground/10 dark:bg-white/10 text-foreground dark:text-white shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]" 
+                isActive
+                  ? "bg-foreground/10 dark:bg-white/10 text-foreground dark:text-white shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
               )}
               title={isCollapsed ? tab.name : undefined}
@@ -102,7 +102,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
                   isCollapsed ? "h-8 top-1/2 -translate-y-1/2 left-0.5 w-0.5" : "opacity-0"
                 )} />
               )}
-              
+
               <Icon className={cn(
                 "shrink-0 transition-all duration-300",
                 isActive ? "text-foreground dark:text-white" : "opacity-70 group-hover:opacity-100",
@@ -129,7 +129,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
                   )}
                 </div>
               )}
-              
+
               {/* Hover Glow Effect */}
               {!isActive && (
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-foreground/0 via-foreground/5 to-foreground/0 dark:from-white/0 dark:via-white/5 dark:to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -151,7 +151,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
               <p className="text-[10px] text-muted-foreground leading-relaxed mb-3">
                 Upgrade for unlimited AI generations and team features.
               </p>
-              <button 
+              <button
                 onClick={() => router.push('/pricing')}
                 className="w-full py-1.5 rounded-lg bg-foreground text-background dark:bg-white dark:text-black text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
               >
@@ -163,7 +163,7 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
               B
             </div>
           )}
-          
+
           {/* Background Decoration */}
           {!isCollapsed && (
             <div className="absolute -top-10 -right-10 w-24 h-24 bg-foreground/5 dark:bg-white/5 blur-2xl rounded-full pointer-events-none" />

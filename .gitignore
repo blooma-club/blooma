@@ -42,3 +42,11 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# MD files with sensitive environment variable examples
+# Note: These files may contain placeholder values that look like real secrets
+# If you add actual secrets to any MD file, add that file here
+*_secrets.md
+*_env_examples.md
+DEPLOYMENT_GUIDE.local.md
+PRODUCTION_CHECKLIST.local.md

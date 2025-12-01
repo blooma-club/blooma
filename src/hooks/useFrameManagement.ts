@@ -33,9 +33,28 @@ export const useFrameManagement = (
   const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null)
   const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<{ frameId: string; url: string } | null>(null)
+  // 이미지 생성 중인 프레임 ID Set
+  const [generatingImageIds, setGeneratingImageIds] = useState<Set<string>>(new Set())
 
   const { cards, updateCards, deleteCard, mutate } = useCards(projectId)
   const framesRef = useRef<StoryboardFrame[]>([])
+
+  // 이미지 생성 상태 관리 함수
+  const startImageGeneration = useCallback((frameId: string) => {
+    setGeneratingImageIds(prev => new Set(prev).add(frameId))
+  }, [])
+
+  const stopImageGeneration = useCallback((frameId: string) => {
+    setGeneratingImageIds(prev => {
+      const next = new Set(prev)
+      next.delete(frameId)
+      return next
+    })
+  }, [])
+
+  const isGeneratingImage = useCallback((frameId: string) => {
+    return generatingImageIds.has(frameId)
+  }, [generatingImageIds])
 
   const handleAddFrame = useCallback(
     async (insertIndex?: number, duplicateCardId?: string) => {
@@ -407,5 +426,10 @@ export const useFrameManagement = (
     handleReorderFrames,
     handleGenerateVideo,
     handlePlayVideo,
+    // 이미지 생성 상태 관리
+    generatingImageIds,
+    startImageGeneration,
+    stopImageGeneration,
+    isGeneratingImage,
   }
 }

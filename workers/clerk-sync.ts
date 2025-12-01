@@ -369,7 +369,7 @@ async function createD1User(
   }
 
   if (columns.has('subscription_tier')) {
-    desiredColumns.push({ name: 'subscription_tier', value: 'basic' })
+    desiredColumns.push({ name: 'subscription_tier', value: 'free' })
   }
 
   const insertColumns: string[] = []
@@ -440,14 +440,5 @@ function computeNextCreditsResetDate(reference: Date): string {
 }
 
 function resolveDefaultCredits(value?: string): number {
-  if (!value) {
-    return 100
-  }
-
-  const parsed = Number(value)
-  if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-    return parsed
-  }
-
-  return 100
+  return 0
 }

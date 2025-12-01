@@ -12,14 +12,18 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const isAssetsRoute =
     pathname?.startsWith('/assets') ||
     pathname?.startsWith('/models')
+  
+  const isStudioRoute = pathname?.startsWith('/studio')
 
-  const activeTab = isAssetsRoute ? 'assets' : 'projects'
+  const activeTab = isStudioRoute ? 'studio' : isAssetsRoute ? 'assets' : 'projects'
 
   const handleTabChange = (tab: string) => {
     if (tab === activeTab) return
 
     if (tab === 'assets') {
       router.push('/assets/models')
+    } else if (tab === 'studio') {
+      router.push('/studio')
     } else {
       router.push('/dashboard')
     }

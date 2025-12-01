@@ -29,23 +29,8 @@ export interface StoryboardFrame {
   videoUrl?: string
   videoKey?: string
   videoPrompt?: string
-  // Character metadata for dragged characters
-  characterMetadata?: Array<{
-    characterId: string
-    characterName: string
-    characterHandle?: string
-    characterImageUrl?: string
-    modelId: string
-    modelLabel: string
-  }>
-}
-
-export interface Character {
-  id: string
-  name: string
-  imageUrl?: string
-  originalImageUrl?: string
-  editPrompt?: string
+  /** 이미지 생성 중 여부 (비동기 생성 시 사용) */
+  isGenerating?: boolean
 }
 
 export interface BuildStoryboardOptions {
@@ -57,20 +42,6 @@ export interface BuildStoryboardOptions {
   mode?: 'sync' | 'async'
   // AI Model settings
   aiModel?: string
-  // Character references for image generation
-  characters?: Character[]
-  // Scene metadata with dragged characters
-  sceneMetadata?: Array<{
-    sceneId: string
-    metadata: Array<{
-      characterId: string
-      characterName: string
-      characterHandle?: string
-      characterImageUrl?: string
-      modelId: string
-      modelLabel: string
-    }>
-  }>
   // Background consistency
   backgrounds?: Array<{
     id: string

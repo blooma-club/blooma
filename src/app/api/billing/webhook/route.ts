@@ -309,7 +309,7 @@ async function handleSubscriptionUpdated(event: PolarWebhookEvent) {
       // 플랜 정보 업데이트
       await updateUserSubscriptionTier(userId, planId)
       console.log(`[webhook] Updated subscription_tier to ${planId} for user ${userId}`)
-      
+
       // subscription.updated가 갱신을 의미할 수 있으므로 크레딧 지급 여부 확인
       // 주의: 매월 갱신 시 중복 지급을 방지하기 위해 current_period_start를 확인해야 할 수 있음
       // 현재는 subscription.active 이벤트에서 처리하므로 여기서는 플랜만 업데이트

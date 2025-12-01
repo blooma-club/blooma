@@ -18,19 +18,21 @@ export interface FrameInfoModalProps {
   aspectRatio?: StoryboardAspectRatio
   /** 히스토리에서 이미지 URL 삭제 콜백 */
   onDeleteHistoryImage?: (imageUrl: string) => Promise<void>
+  /** 히스토리에서 이미지 선택 시 메인 이미지로 설정하는 콜백 */
+  onSelectHistoryImage?: (imageUrl: string) => Promise<void>
 }
 
 // Read-only Property Row Component
-const PropertyRow = ({ 
-  icon: Icon, 
-  label, 
-  value, 
-  className 
-}: { 
-  icon: React.ElementType; 
-  label: string; 
-  value?: string | number | null; 
-  className?: string 
+const PropertyRow = ({
+  icon: Icon,
+  label,
+  value,
+  className
+}: {
+  icon: React.ElementType;
+  label: string;
+  value?: string | number | null;
+  className?: string
 }) => (
   <div className={clsx("flex items-start gap-3 py-2 group", className)}>
     <div className="flex items-center gap-2 w-32 flex-shrink-0 mt-0.5 text-muted-foreground">
@@ -43,20 +45,37 @@ const PropertyRow = ({
   </div>
 )
 
-const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectRatio = '16:9', onDeleteHistoryImage }) => {
+const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectRatio = '16:9', onDeleteHistoryImage, onSelectHistoryImage }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details')
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(frame.imageUrl || null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [deletingImageUrl, setDeletingImageUrl] = useState<string | null>(null)
+  const [selectingImageUrl, setSelectingImageUrl] = useState<string | null>(null)
 
   useEffect(() => {
     setPreviewImageUrl(frame.imageUrl || null)
   }, [frame.imageUrl])
 
+  // 히스토리 이미지 선택 핸들러 (메인 이미지로 설정)
+  const handleSelectHistoryImage = async (imageUrl: string) => {
+    if (!onSelectHistoryImage || selectingImageUrl || imageUrl === frame.imageUrl) return
+
+    try {
+      setSelectingImageUrl(imageUrl)
+      await onSelectHistoryImage(imageUrl)
+      // 성공 시 프리뷰도 업데이트
+      setPreviewImageUrl(imageUrl)
+    } catch (error) {
+      console.error('Failed to select history image:', error)
+    } finally {
+      setSelectingImageUrl(null)
+    }
+  }
+
   // 히스토리 이미지 삭제 핸들러
   const handleDeleteHistoryImage = async (imageUrl: string) => {
     if (!onDeleteHistoryImage || deletingImageUrl) return
-    
+
     // 현재 메인 이미지는 삭제 불가
     if (imageUrl === frame.imageUrl) {
       console.warn('Cannot delete the current main image')
@@ -66,7 +85,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
     try {
       setDeletingImageUrl(imageUrl)
       await onDeleteHistoryImage(imageUrl)
-      
+
       // 삭제한 이미지가 프리뷰 중이었으면 메인 이미지로 전환
       if (previewImageUrl === imageUrl) {
         setPreviewImageUrl(frame.imageUrl || null)
@@ -97,14 +116,14 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      
+
       // Generate filename
       const sceneNumber = frame.scene || 'frame'
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
       // Get extension from blob type
       const extension = blob.type.split('/')[1] || 'png'
       const filename = `scene-${sceneNumber}-${timestamp}.${extension}`
-      
+
       link.href = url
       link.download = filename
       document.body.appendChild(link)
@@ -113,7 +132,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to download image:', error)
-      
+
       // Final fallback: Open original URL in new tab
       // This relies on the browser's native ability to handle the URL
       try {
@@ -129,11 +148,11 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
   const historyImages = useMemo(() => {
     const rawHistory = Array.isArray(frame.imageHistory)
       ? frame.imageHistory.filter(
-          (url): url is string => typeof url === 'string' && url.trim().length > 0
-        )
+        (url): url is string => typeof url === 'string' && url.trim().length > 0
+      )
       : []
     const uniqueHistory = Array.from(new Set(rawHistory))
-    
+
     if (frame.imageUrl && frame.imageUrl.trim().length > 0) {
       const historyWithoutCurrent = uniqueHistory.filter(url => url !== frame.imageUrl)
       return [frame.imageUrl, ...historyWithoutCurrent]
@@ -146,7 +165,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
     const isPortrait = ['9:16', '2:3', '3:4'].includes(aspectRatio)
     const isSquare = aspectRatio === '1:1'
     const isLandscape = ['16:9', '4:3', '3:2'].includes(aspectRatio)
-    
+
     return {
       // Modal width: narrower for portrait, wider for landscape
       modalWidth: isPortrait ? 'max-w-5xl' : isSquare ? 'max-w-5xl' : 'max-w-7xl',
@@ -165,14 +184,14 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent 
+      <DialogContent
         className={clsx(
           "p-0 overflow-hidden gap-0 border-border/40 bg-background/95 backdrop-blur-xl shadow-lg rounded-2xl [&>button]:hidden transition-all duration-300",
           layoutConfig.modalWidth
         )}
       >
         <div className={clsx("flex flex-col md:flex-row", layoutConfig.modalHeight)}>
-          
+
           {/* Left Panel: Image Preview & Prompt */}
           <div className={clsx(
             "relative flex w-full flex-col border-b md:border-b-0 md:border-r border-border/40 bg-zinc-50/50 dark:bg-zinc-900/20 transition-all duration-300",
@@ -181,16 +200,16 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
             {/* Image Area - Optimized image display */}
             <div className={clsx("relative flex-1 flex items-center justify-center overflow-hidden min-h-0", layoutConfig.imagePadding)}>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-500/5 via-transparent to-transparent" />
-              
+
               {previewImageUrl ? (
-                <div 
+                <div
                   className="relative w-full h-full flex items-center justify-center group"
                   style={{
                     maxWidth: '100%',
                     maxHeight: '100%'
                   }}
                 >
-                  <div 
+                  <div
                     className="relative w-full h-full shadow-md rounded-xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10 transition-all duration-500"
                     style={{
                       aspectRatio: layoutConfig.imageContainerRatio,
@@ -219,6 +238,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                         fill
                         className="object-contain bg-zinc-100 dark:bg-zinc-900"
                         priority
+                        quality={80}
                         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
                         onError={() => {
                           console.error('Failed to load image:', previewImageUrl)
@@ -242,7 +262,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="relative flex flex-col items-center justify-center gap-3 text-muted-foreground/40 rounded-xl border-2 border-dashed border-border/30 bg-muted/5 w-full"
                   style={{
                     aspectRatio: layoutConfig.imageContainerRatio,
@@ -252,10 +272,10 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                     height: 'auto'
                   }}
                 >
-                   <div className="p-4 rounded-full bg-muted/30">
-                      <ImageIcon className="w-8 h-8" strokeWidth={1} />
-                   </div>
-                   <p className="text-sm font-medium">No image</p>
+                  <div className="p-4 rounded-full bg-muted/30">
+                    <ImageIcon className="w-8 h-8" strokeWidth={1} />
+                  </div>
+                  <p className="text-sm font-medium">No image</p>
                 </div>
               )}
             </div>
@@ -279,7 +299,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
             "flex w-full flex-col bg-background transition-all duration-300",
             layoutConfig.rightPanelWidth
           )}>
-            
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-border/40">
               <div className="flex flex-col gap-1">
@@ -288,9 +308,9 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                   Shot {frame.scene} details
                 </DialogDescription>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
                 className="h-8 w-8 p-0 rounded-full hover:bg-muted text-muted-foreground transition-colors"
               >
@@ -314,7 +334,7 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
 
                 <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                   <TabsContent value="details" className="h-full m-0 p-6 space-y-8 animate-in slide-in-from-bottom-2 duration-300">
-                    
+
                     {/* General Info Group */}
                     <div className="space-y-1">
                       <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-3 pl-1">General</h4>
@@ -343,8 +363,8 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
 
                   </TabsContent>
 
-                  <TabsContent value="history" className="h-full m-0 p-6">
-                    <div className="grid grid-cols-3 gap-3">
+                  <TabsContent value="history" className="h-full m-0 p-4">
+                    <div className="grid grid-cols-4 gap-2">
                       {historyImages.length > 0 ? (
                         historyImages.map((url, idx) => {
                           const isPreviewing = previewImageUrl === url
@@ -353,28 +373,38 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                               key={`${url}-${idx}`}
                               role="button"
                               tabIndex={0}
-                              onClick={() => setPreviewImageUrl(url)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault()
+                              onClick={() => {
+                                // 현재 메인 이미지가 아닌 경우에만 선택 (카드에 적용)
+                                if (url !== frame.imageUrl && onSelectHistoryImage) {
+                                  void handleSelectHistoryImage(url)
+                                } else {
+                                  // 이미 메인 이미지인 경우 프리뷰만 업데이트
                                   setPreviewImageUrl(url)
                                 }
                               }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  if (url !== frame.imageUrl && onSelectHistoryImage) {
+                                    void handleSelectHistoryImage(url)
+                                  } else {
+                                    setPreviewImageUrl(url)
+                                  }
+                                }
+                              }}
                               className={clsx(
-                                "group relative aspect-video overflow-hidden rounded-lg border transition-all duration-300 cursor-pointer",
-                                isPreviewing 
-                                  ? "border-violet-500 ring-2 ring-violet-500/20 z-10" 
-                                  : "border-border/50 hover:border-violet-500/50 hover:shadow-md opacity-70 hover:opacity-100"
+                                "group relative aspect-video overflow-hidden rounded-md border transition-all duration-200 cursor-pointer",
+                                isPreviewing
+                                  ? "border-violet-500 ring-2 ring-violet-500/20 z-10 opacity-100"
+                                  : "border-border/30 hover:border-violet-500/50 opacity-50 hover:opacity-100",
+                                selectingImageUrl === url && "opacity-60"
                               )}
                             >
                               {url.startsWith('data:image/') || url.startsWith('blob:') ? (
                                 <img
                                   src={url}
                                   alt={`History ${idx + 1}`}
-                                  className={clsx(
-                                    "w-full h-full object-cover transition-transform duration-500",
-                                    !isPreviewing && "group-hover:scale-105 grayscale group-hover:grayscale-0"
-                                  )}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement
                                     target.style.display = 'none'
@@ -385,22 +415,38 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                   src={url}
                                   alt={`History ${idx + 1}`}
                                   fill
-                                  className={clsx(
-                                    "object-cover transition-transform duration-500",
-                                    !isPreviewing && "group-hover:scale-105 grayscale group-hover:grayscale-0"
-                                  )}
+                                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                  loading="lazy"
+                                  quality={60}
+                                  sizes="(max-width: 768px) 25vw, 120px"
                                   onError={() => {
                                     console.error('Failed to load history image:', url)
                                   }}
                                 />
                               )}
-                              {isPreviewing && (
-                                <div className="absolute inset-0 bg-violet-500/10 backdrop-blur-[1px] flex items-center justify-center">
-                                   <span className="bg-violet-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">Preview</span>
-                                </div>
-                              )}
+
                               {/* History image action buttons */}
                               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 flex gap-1">
+                                {/* 선택 버튼: 현재 메인 이미지가 아닌 경우에만 표시 */}
+                                {url !== frame.imageUrl && onSelectHistoryImage && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      void handleSelectHistoryImage(url)
+                                    }}
+                                    disabled={selectingImageUrl === url}
+                                    className="h-5 w-5 p-0 bg-violet-500/80 backdrop-blur-sm border border-violet-500/20 rounded-md hover:bg-violet-600 text-white transition-all"
+                                    title="Set as main image"
+                                  >
+                                    {selectingImageUrl === url ? (
+                                      <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                      <ImageIcon className="w-2.5 h-2.5" strokeWidth={2} />
+                                    )}
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -409,10 +455,10 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                     handleDownloadImage(url)
                                   }}
                                   disabled={isDownloading}
-                                  className="h-6 w-6 p-0 bg-background/90 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-background hover:shadow transition-all"
+                                  className="h-5 w-5 p-0 bg-black/40 backdrop-blur-sm border border-white/10 rounded-md hover:bg-black/60 text-white transition-all"
                                   title="Download original image"
                                 >
-                                  <Download className="w-3 h-3" strokeWidth={2} />
+                                  <Download className="w-2.5 h-2.5" strokeWidth={2} />
                                 </Button>
                                 {/* 삭제 버튼: 현재 메인 이미지가 아닌 경우에만 표시 */}
                                 {onDeleteHistoryImage && url !== frame.imageUrl && (
@@ -424,13 +470,13 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                                       handleDeleteHistoryImage(url)
                                     }}
                                     disabled={deletingImageUrl === url}
-                                    className="h-6 w-6 p-0 bg-red-500/90 backdrop-blur-sm border border-red-600/50 shadow-sm hover:bg-red-600 hover:shadow transition-all text-white"
+                                    className="h-5 w-5 p-0 bg-red-500/80 backdrop-blur-sm border border-red-500/20 rounded-md hover:bg-red-600 text-white transition-all"
                                     title="Delete from history"
                                   >
                                     {deletingImageUrl === url ? (
-                                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                      <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     ) : (
-                                      <Trash2 className="w-3 h-3" strokeWidth={2} />
+                                      <Trash2 className="w-2.5 h-2.5" strokeWidth={2} />
                                     )}
                                   </Button>
                                 )}
@@ -439,9 +485,9 @@ const FrameInfoModal: React.FC<FrameInfoModalProps> = ({ frame, onClose, aspectR
                           )
                         })
                       ) : (
-                        <div className="col-span-3 py-20 flex flex-col items-center justify-center text-muted-foreground/40 border border-dashed border-border/40 rounded-xl bg-muted/5">
-                           <Clock className="w-8 h-8 mb-2 opacity-50" strokeWidth={1.5} />
-                           <p className="text-sm font-medium">No history</p>
+                        <div className="col-span-4 py-12 flex flex-col items-center justify-center text-muted-foreground/40 border border-dashed border-border/30 rounded-lg bg-muted/5">
+                          <Clock className="w-6 h-6 mb-2 opacity-50" strokeWidth={1.5} />
+                          <p className="text-xs font-medium">No history</p>
                         </div>
                       )}
                     </div>

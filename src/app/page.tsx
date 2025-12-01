@@ -182,7 +182,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border border-black/5 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-violet-500" />
               <span className="text-xs font-medium text-foreground/80 tracking-wide">
-                AI Brand Studio
+                Your AI Studio is here.
               </span>
             </div>
           </div>
@@ -190,12 +190,12 @@ export default function Home() {
           {/* Main Heading */}
           <h1 className="text-center mb-8 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100 max-w-4xl mx-auto">
             <span className="block text-5xl sm:text-6xl md:text-7xl font-medium tracking-tight leading-[1.1] text-foreground font-geist-sans">
-              Create on-brand visuals <br className="hidden sm:block"/> in seconds.
+              Create on-brand visuals in seconds.
             </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-center text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 leading-relaxed">
+          <p className="text-center text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 leading-relaxed">
             The first AI studio that understands your brand. <br className="hidden sm:block"/>
             Generate consistent storyboards, marketing assets, and concepts.
           </p>
@@ -203,9 +203,11 @@ export default function Home() {
           {/* CTA Button */}
           <div className="flex justify-center gap-4 mb-12 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
             <Link href="/dashboard">
-              <Button size="lg" className="rounded-full px-8 py-6 text-base font-medium shadow-lg hover:shadow-violet-500/20 transition-all">
-                Get Started 
-                <ArrowRight className="ml-2 w-4 h-4" />
+              <Button 
+                className="group relative h-11 px-6 pr-6 rounded-xl bg-foreground text-background font-medium transition-all duration-300 hover:bg-foreground/90 hover:scale-[1.02] hover:pr-10 hover:shadow-[0_0_30px_-10px_rgba(139,92,246,0.5)] dark:hover:shadow-[0_0_30px_-10px_rgba(139,92,246,0.4)] overflow-hidden"
+              >
+                <span className="relative z-10">Get Started</span>
+                <ArrowRight className="absolute right-3 w-4 h-4 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0" />
               </Button>
             </Link>
           </div>

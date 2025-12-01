@@ -29,33 +29,6 @@ const serializeList = (values?: unknown): string => {
     .join(',')
 }
 
-const normalizeCharacterMetadata = (card: Card) => {
-  const metadata = card.metadata?.characterMetadata
-  if (!Array.isArray(metadata)) {
-    return ''
-  }
-  return metadata
-    .map(item => {
-      if (!item || typeof item !== 'object') {
-        return ''
-      }
-      const { characterId, modelId, characterHandle, characterName } = item as Record<
-        string,
-        unknown
-      >
-      return [
-        characterId ?? '',
-        modelId ?? '',
-        characterHandle ?? '',
-        characterName ?? '',
-      ]
-        .map(value => String(value ?? ''))
-        .join(':')
-    })
-    .sort()
-    .join('|')
-}
-
 export const createFrameSignature = (
   card: Card,
   normalizedWidth: number,
@@ -90,7 +63,6 @@ export const createFrameSignature = (
     card.video_prompt ?? card.videoPrompt ?? '',
     card.updated_at ?? '',
     serializeList(card.image_urls),
-    normalizeCharacterMetadata(card),
   ].join('|')
 }
 

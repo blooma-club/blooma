@@ -20,19 +20,13 @@ export async function POST(request: NextRequest) {
     const projectIdValue = sanitizeOptionalString(formData.get('projectId'))
     const projectId = projectIdValue || storyboardIdValue
     const frameId = sanitizeOptionalString(formData.get('frameId'))
-    const characterId = sanitizeOptionalString(formData.get('characterId'))
-    const characterName = sanitizeOptionalString(formData.get('characterName'))
-    const editPrompt = sanitizeOptionalString(formData.get('editPrompt'))
-    const isUpdate = parseBoolean(formData.get('isUpdate'))
     const uploadType = sanitizeOptionalString(formData.get('type'))?.toLowerCase()
     
     // Determine upload context
-    const isCharacterUpload = uploadType === 'character' || !!characterId
     const isModelUpload = uploadType === 'model'
     const isBackgroundUpload = uploadType === 'background'
     
-    const targetId = isCharacterUpload ? characterId : 
-                    (isModelUpload || isBackgroundUpload) ? (formData.get('assetId') as string) : frameId
+    const targetId = (isModelUpload || isBackgroundUpload) ? (formData.get('assetId') as string) : frameId
 
     if (!file || (!projectId && !isModelUpload && !isBackgroundUpload) || !targetId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -47,10 +41,8 @@ export async function POST(request: NextRequest) {
     // Special handling for 'model' and 'background' types
     if (isModelUpload || isBackgroundUpload) {
       try {
-        // Use R2 upload helper (reusing character logic for now as it handles custom paths well, or generic image upload)
-        // Ideally, we might want specific folders like 'models/' or 'backgrounds/'
-        // For now, we can reuse generic upload or character upload which structures by ID.
-        // Let's use uploadCharacterImageToR2 for custom assets as it creates a unique path.
+        // Use R2 upload helper for custom assets (models/backgrounds)
+        // uploadCharacterImageToR2 creates a unique path structure by ID
         const assetResult = await uploadCharacterImageToR2(targetId!, dataUrl, projectId || 'shared')
         
         const assetUrl = assetResult.publicUrl || assetResult.signedUrl
@@ -95,112 +87,7 @@ export async function POST(request: NextRequest) {
         signedUrl: null,
         key: '',
         size: file.size,
-        type: isCharacterUpload ? 'character' : 'uploaded'
-      })
-    }
-
-    if (isCharacterUpload && characterId) {
-      let previousImageKey: string | null = null
-      if (isUpdate) {
-        try {
-          const existingCharacter = await queryD1Single<{ image_key?: string | null }>(
-            `SELECT image_key FROM characters WHERE id = ?1 AND user_id = ?2 LIMIT 1`,
-            [characterId, userId]
-          )
-
-          if (existingCharacter) {
-            previousImageKey = existingCharacter.image_key ?? null
-          }
-        } catch (error) {
-          console.warn('[Upload] Unexpected error reading character image metadata:', error)
-        }
-      }
-
-      const characterResult = await uploadCharacterImageToR2(characterId, dataUrl, projectId)
-      const characterUrl = characterResult.publicUrl || characterResult.signedUrl || null
-      const resolvedCharacterSize =
-        typeof characterResult.size === 'number' ? characterResult.size : file.size || null
-
-      let characterRecord: Record<string, unknown> | null = null
-      try {
-        if (isUpdate) {
-          const updateSql = `
-            UPDATE characters 
-            SET image_url = ?, image_key = ?, image_size = ?, image_content_type = ?, 
-                name = COALESCE(?, name), edit_prompt = COALESCE(?, edit_prompt), 
-                project_id = COALESCE(?, project_id), updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND user_id = ?
-          `
-          
-          await queryD1(updateSql, [
-            characterUrl,
-            characterResult.key,
-            resolvedCharacterSize,
-            file.type || null,
-            characterName ?? null,
-            editPrompt ?? null,
-            projectId ?? null,
-            characterId,
-            userId
-          ])
-
-          // Fetch updated character
-          const updatedCharacter = await queryD1Single<Record<string, unknown>>(
-            `SELECT * FROM characters WHERE id = ?1 AND user_id = ?2`,
-            [characterId, userId]
-          )
-          characterRecord = updatedCharacter
-        } else if (characterName) {
-          const now = new Date().toISOString()
-          const insertSql = `
-            INSERT INTO characters (
-              id, user_id, project_id, name, description, edit_prompt,
-              image_url, image_key, image_size, image_content_type, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `
-          
-          await queryD1(insertSql, [
-            characterId,
-            userId,
-            projectId ?? null,
-            characterName,
-            null,
-            null,
-            editPrompt ?? null,
-            characterUrl,
-            characterResult.key,
-            resolvedCharacterSize,
-            file.type || null,
-            now,
-            now
-          ])
-
-          // Fetch inserted character
-          const insertedCharacter = await queryD1Single<Record<string, unknown>>(
-            `SELECT * FROM characters WHERE id = ?1 AND user_id = ?2`,
-            [characterId, userId]
-          )
-          characterRecord = insertedCharacter
-        }
-      } catch (error) {
-        console.warn('[Upload] Character metadata persistence error:', error)
-      }
-
-      if (isUpdate && previousImageKey && previousImageKey !== characterResult.key) {
-        deleteImageFromR2(previousImageKey).catch(error => {
-          console.warn('[Upload] Failed to delete previous character image from R2:', error)
-        })
-      }
-
-      return NextResponse.json({
-        success: true,
-        publicUrl: characterUrl,
-        signedUrl: characterResult.signedUrl || null,
-        key: characterResult.key,
-        size: resolvedCharacterSize,
-        contentType: file.type || null,
-        type: 'character',
-        character: characterRecord,
+        type: 'uploaded'
       })
     }
 

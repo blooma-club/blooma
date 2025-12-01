@@ -18,6 +18,8 @@ interface FrameListProps {
   isAddingFrame?: boolean
   aspectRatio?: StoryboardAspectRatio
   selectedFrameId?: string
+  /** 이미지 생성 중인 프레임 ID Set */
+  generatingImageIds?: Set<string>
 }
 
 const BetweenInsertRow = ({
@@ -58,6 +60,7 @@ export const FrameList: React.FC<FrameListProps> = ({
   isAddingFrame = false,
   aspectRatio = '16:9',
   selectedFrameId,
+  generatingImageIds,
 }) => {
   const previewWidthClass = PORTRAIT_RATIOS.includes(aspectRatio) ? 'w-72' : 'w-96'
   const previewWidthPx = PORTRAIT_RATIOS.includes(aspectRatio) ? 288 : 384
@@ -111,7 +114,8 @@ export const FrameList: React.FC<FrameListProps> = ({
                     onOpen={() => onFrameEdit(i)}
                     onImageUpload={onImageUpload ? (file) => onImageUpload(frame.id, file) : undefined}
                     aspectRatio={aspectRatio}
-                  cardWidth={previewWidthPx}
+                    cardWidth={previewWidthPx}
+                    isGenerating={generatingImageIds?.has(frame.id)}
                   />
                 </div>
 

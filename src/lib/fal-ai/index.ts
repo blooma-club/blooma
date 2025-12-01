@@ -94,20 +94,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     },
   },
 
-  // ByteDance Seedream v4 Series
-  {
-    id: 'fal-ai/bytedance/seedream/v4/text-to-image',
-    name: 'Seedream v4',
-    description: 'ByteDance Seedream v4 Text to Image',
-    category: 'image-generation',
-    maxResolution: '4K',
-    credits: 10,
-    inputSchema: {
-      prompt: 'string',
-      num_images: 'number?',
-      image_size: 'string?', // supports enum: auto_2K, auto_4K
-    },
-  },
+  // ByteDance Seedream v4 Series (Edit only)
   {
     id: 'fal-ai/bytedance/seedream/v4/edit',
     name: 'Seedream v4 Edit',
@@ -410,8 +397,7 @@ async function generateImageByModel(
 ): Promise<string | string[]> {
   // Use Nano Banana Pro logic for text-to-image models
   if (modelId === 'fal-ai/nano-banana-pro' || 
-      modelId === 'fal-ai/nano-banana' || 
-      modelId === 'fal-ai/bytedance/seedream/v4/text-to-image') {
+      modelId === 'fal-ai/nano-banana') {
     return await generateWithNanoBananaPro(prompt, options, modelId)
   }
 
@@ -569,34 +555,6 @@ async function generateWithNanoBananaPro(
   const outputFormat = resolveOutputFormat(options.outputFormat)
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
   const numImages = options.numImages || 1
-  
-  // Seedream Text-to-Image logic (비율 자동 매핑)
-  if (modelId.includes('seedream')) {
-    const imageSize = resolveSeedreamImageSizeForT2I(options.aspectRatio, options.resolution)
-    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages)
-    const submission = (await fal.subscribe(modelId, {
-      input: {
-        prompt,
-        num_images: numImages,
-        max_images: numImages, // Seedream은 max_images도 설정해야 여러 장 생성 가능
-        image_size: imageSize,
-        enable_safety_checker: true,
-        sync_mode: true,
-      },
-      logs: true,
-      onQueueUpdate(update: FalAISubmissionUpdate) {
-        if (update?.status === 'IN_PROGRESS') {
-          console.log(`[FAL][${modelId}]`, update.status)
-        }
-      },
-    })) as FalAISubmission
-    
-    // 여러 이미지 요청 시 배열로 반환
-    if (numImages > 1) {
-      return extractImageUrls(submission, modelId)
-    }
-    return extractImageUrl(submission, modelId)
-  }
 
   // Nano Banana Pro는 resolution 지원, Standard는 미지원
   const isPro = modelId.includes('-pro')
@@ -1017,11 +975,8 @@ export function isImageToImageModel(modelId: string): boolean {
 export function isTextToImageModel(modelId: string): boolean {
   return (
     modelId === 'fal-ai/nano-banana-pro' ||
-    modelId === 'fal-ai/nano-banana' ||
-    modelId === 'fal-ai/bytedance/seedream/v4/text-to-image' ||
-    modelId.includes('/edit') // Edit models can often do T2I if no image provided, though usually require image. 
-    // Actually, `generateWithNanoBananaProEdit` throws if no image. 
-    // So T2I specific check should be more strict if we use it for filtering T2I only lists.
+    modelId === 'fal-ai/nano-banana'
+    // Edit models require images, so they are not T2I models
   )
 }
 

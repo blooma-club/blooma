@@ -188,7 +188,7 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
               </div>
               <div>
                 <p className="text-xs font-medium text-foreground">No models yet</p>
-                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Upload a character reference to maintain consistency across your shots.</p>
+                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Upload a model reference to maintain consistency across your shots.</p>
               </div>
               <Button 
                 onClick={handleUploadClick} 

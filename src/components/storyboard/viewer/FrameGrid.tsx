@@ -45,6 +45,8 @@ interface FrameGridProps {
   mode?: 'generate' | 'edit' | 'video'
   selectedFrameIds?: string[]
   onCardSelect?: (id: string, options?: { multi?: boolean; toggle?: boolean; role?: 'start' | 'end' }) => void
+  /** 이미지 생성 중인 프레임 ID Set */
+  generatingImageIds?: Set<string>
 }
 
 const SideInsertButton = ({
@@ -105,6 +107,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
   mode,
   selectedFrameIds,
   onCardSelect,
+  generatingImageIds,
 }) => {
   const aspectValue = RATIO_TO_CSS[aspectRatio]
   const normalizedCardWidth = useMemo(() => clampCardWidth(cardWidth), [cardWidth])
@@ -389,6 +392,7 @@ export const FrameGrid: React.FC<FrameGridProps> = ({
                       : selectedFrameId === frame.id)
                   }
                   onCardSelect={onCardSelect ? handleCardSelectInternal : undefined}
+                  isGenerating={generatingImageIds?.has(frame.id)}
                 />
               )
             })}
@@ -472,6 +476,8 @@ type SortableFrameCardProps = {
     icon?: React.FC<{ className?: string }>
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
   }>
+  /** 이미지 생성 중 여부 */
+  isGenerating?: boolean
 }
 
 const SortableFrameCardComponent: React.FC<SortableFrameCardProps> = ({
@@ -488,6 +494,7 @@ const SortableFrameCardComponent: React.FC<SortableFrameCardProps> = ({
   onImageUpload,
   onCardSelect,
   hoverActions,
+  isGenerating,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: frame.id,
@@ -577,6 +584,7 @@ const SortableFrameCardComponent: React.FC<SortableFrameCardProps> = ({
         aspectRatio={aspectRatio}
         cardWidth={cardWidth}
         hoverActions={hoverActions}
+        isGenerating={isGenerating}
       />
 
       <SideInsertButton

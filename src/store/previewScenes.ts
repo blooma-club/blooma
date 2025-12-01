@@ -1,11 +1,10 @@
 import { create } from 'zustand'
 
 type SceneModelMetadata = {
-  characterId: string
-  characterName: string
-  characterHandle?: string
-  characterImageUrl?: string
   modelId: string
+  modelName: string
+  modelHandle?: string
+  modelImageUrl?: string
   modelLabel: string
 }
 
@@ -29,8 +28,8 @@ type InitializeSceneArgs = {
 type PreviewScenesState = {
   scenes: SceneEntry[]
   initializeScenes: (scenes: InitializeSceneArgs[]) => void
-  assignCharacterToScene: (sceneId: string, metadata: SceneModelMetadata) => void
-  removeCharacterFromScene: (sceneId: string, characterId: string) => void
+  assignModelToScene: (sceneId: string, metadata: SceneModelMetadata) => void
+  removeModelFromScene: (sceneId: string, modelId: string) => void
   clearSceneAssignments: (sceneId: string) => void
 }
 
@@ -53,7 +52,7 @@ export const usePreviewScenesStore = create<PreviewScenesState>((set, get) => ({
       }
     })
   },
-  assignCharacterToScene: (sceneId, metadata) => {
+  assignModelToScene: (sceneId, metadata) => {
     set(state => ({
       scenes: state.scenes.map(scene =>
         scene.id === sceneId
@@ -61,20 +60,20 @@ export const usePreviewScenesStore = create<PreviewScenesState>((set, get) => ({
               ...scene,
               metadata: [
                 metadata,
-                ...scene.metadata.filter(entry => entry.characterId !== metadata.characterId),
+                ...scene.metadata.filter(entry => entry.modelId !== metadata.modelId),
               ],
             }
           : scene
       ),
     }))
   },
-  removeCharacterFromScene: (sceneId, characterId) => {
+  removeModelFromScene: (sceneId, modelId) => {
     set(state => ({
       scenes: state.scenes.map(scene =>
         scene.id === sceneId
           ? {
               ...scene,
-              metadata: scene.metadata.filter(entry => entry.characterId !== characterId),
+              metadata: scene.metadata.filter(entry => entry.modelId !== modelId),
             }
           : scene
       ),

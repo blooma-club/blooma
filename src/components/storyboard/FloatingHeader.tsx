@@ -137,52 +137,59 @@ export const FloatingHeader: React.FC<FloatingHeaderProps> = ({
         {/* 구분선 */}
         <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
 
-        {/* 프로젝트 제목 편집 */}
-        {projectId &&
-          projectTitle &&
-          (isEditing ? (
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                type="text"
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="w-[200px] text-sm font-semibold bg-transparent border-0 border-b-2 border-border focus:outline-none focus:ring-0 focus:border-foreground px-0 py-1 text-foreground transition-colors duration-200 placeholder:text-muted-foreground"
-                autoFocus
-                disabled={isUpdating}
-                placeholder="Enter project title"
-              />
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={handleEditSave}
+        {/* 프로젝트 제목 편집 또는 읽기 전용 제목 */}
+        {projectTitle &&
+          (projectId ? (
+            isEditing ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={e => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-[200px] text-sm font-semibold bg-transparent border-0 border-b-2 border-border focus:outline-none focus:ring-0 focus:border-foreground px-0 py-1 text-foreground transition-colors duration-200 placeholder:text-muted-foreground"
+                  autoFocus
                   disabled={isUpdating}
-                  className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-accent text-foreground"
-                  title="Save"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
+                  placeholder="Enter project title"
+                />
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={handleEditSave}
+                    disabled={isUpdating}
+                    className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-accent text-foreground"
+                    title="Save"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={handleEditCancel}
+                    disabled={isUpdating}
+                    className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group min-w-0">
+                <span className="text-sm font-semibold truncate text-foreground">
+                  {projectTitle}
+                </span>
                 <button
-                  onClick={handleEditCancel}
-                  disabled={isUpdating}
-                  className="inline-flex items-center justify-center p-1.5 rounded-md transition-all duration-200 disabled:opacity-50 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                  title="Cancel"
+                  onClick={handleEditStart}
+                  className="inline-flex items-center justify-center p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-accent transition-all duration-200 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Edit title"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <Edit3 className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
+            )
           ) : (
-            <div className="flex items-center gap-2 group min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm font-semibold truncate text-foreground">
                 {projectTitle}
               </span>
-              <button
-                onClick={handleEditStart}
-                className="inline-flex items-center justify-center p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-accent transition-all duration-200 flex-shrink-0 text-muted-foreground hover:text-foreground"
-                title="Edit title"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
             </div>
           ))}
       </div>

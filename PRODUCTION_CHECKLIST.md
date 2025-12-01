@@ -76,15 +76,15 @@
 
 ```bash
 # Polar.sh 설정
-POLAR_ACCESS_TOKEN=polar_oat_...  # 또는 POLAR_API_KEY
+POLAR_ACCESS_TOKEN=<YOUR_POLAR_ACCESS_TOKEN>  # 또는 POLAR_API_KEY
 POLAR_API_BASE_URL=https://api.polar.sh  # ✅ 올바른 API URL
-POLAR_WEBHOOK_SECRET=polar_whs_...  # Webhook 검증용 Secret
+POLAR_WEBHOOK_SECRET=<YOUR_POLAR_WEBHOOK_SECRET>  # Webhook 검증용 Secret
 POLAR_SERVER=production  # 또는 sandbox (테스트 환경)
 
 # Product IDs (Starter, Pro, Studio)
-POLAR_BLOOMA_STARTER_PRODUCT_ID=...  # $19/month, 2,200 credits
-POLAR_BLOOMA_PRO_PRODUCT_ID=...      # $49/month, 6,000 credits
-POLAR_BLOOMA_STUDIO_PRODUCT_ID=...   # $99/month, 13,000 credits
+POLAR_BLOOMA_STARTER_PRODUCT_ID=<YOUR_STARTER_PRODUCT_ID>  # $19/month, 2,200 credits
+POLAR_BLOOMA_PRO_PRODUCT_ID=<YOUR_PRO_PRODUCT_ID>      # $49/month, 6,000 credits
+POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>   # $99/month, 13,000 credits
 
 # Legacy 환경변수 (호환성 유지)
 # POLAR_BLOOMA_1000_PRODUCT_ID (Starter로 매핑)

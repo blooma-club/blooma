@@ -9,12 +9,16 @@ import {
   listProjectsForUser,
   updateProjectForUser,
 } from '@/lib/db/projects'
+import { ensureIndexes } from '@/lib/db/indexes'
 
 const handleError = createErrorHandler('api/projects')
 
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
+    
+    // 데이터베이스 인덱스 생성 보장 (한 번만 실행됨)
+    await ensureIndexes()
 
     const { searchParams } = new URL(request.url)
     const requestedUserId = searchParams.get('user_id')
