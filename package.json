@@ -49,6 +49,7 @@
     "react-virtuoso": "^4.14.1",
     "react-window": "^1.8.11",
     "replicate": "^1.0.1",
+    "svix": "^1.81.0",
     "swr": "^2.3.6",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
