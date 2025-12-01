@@ -60,8 +60,15 @@ export async function syncClerkUser(profile: ClerkUserProfile): Promise<D1UserRe
 
 export async function getUserById(userId: string): Promise<D1UserRecord | null> {
   const metadata = await getUsersTableMetadata()
-  const row = await selectUserById(userId, metadata)
-  return row
+
+  // Try to find by clerk_user_id first since that's what we usually pass as userId
+  const byClerkId = await selectUserByClerkId(userId, metadata)
+  if (byClerkId) {
+    return byClerkId
+  }
+
+  // Fallback to primary key lookup
+  return selectUserById(userId, metadata)
 }
 
 async function getUsersTableMetadata(): Promise<UsersTableMetadata> {
@@ -349,7 +356,7 @@ function buildUserSelectColumns(metadata: UsersTableMetadata): string {
 
   if (columns.has('image_url')) {
     selectColumns.push('image_url')
-  } else   if (columns.has('avatar_url')) {
+  } else if (columns.has('avatar_url')) {
     selectColumns.push('avatar_url')
   }
 
