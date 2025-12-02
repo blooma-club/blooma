@@ -1,0 +1,95 @@
+Loading .env.local
+--- Inspecting D1 Schema ---
+Executing SQL: PRAGMA table_info(users)
+✅ Success!
+Schema Info:
+[
+  {
+    "cid": 0,
+    "name": "user_id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "email",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "name",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "avatar_url",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "credits",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "credits_used",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "credits_reset_date",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "subscription_tier",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": "'free'",
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "created_at",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "updated_at",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "clerk_user_id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  }
+]

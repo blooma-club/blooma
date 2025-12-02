@@ -250,7 +250,7 @@ async function createD1User(
 
   if (columns.has('subscription_tier')) {
     insertColumns.push('subscription_tier')
-    values.push('basic')
+    values.push('free')
   }
 
   if (columns.has('created_at')) {
@@ -261,6 +261,14 @@ async function createD1User(
   if (columns.has('updated_at')) {
     insertColumns.push('updated_at')
     values.push(now)
+  }
+
+  if (columns.has('credits_reset_date')) {
+    insertColumns.push('credits_reset_date')
+    // Set reset date to 1 month from now
+    const nextMonth = new Date(nowDate)
+    nextMonth.setMonth(nextMonth.getMonth() + 1)
+    values.push(nextMonth.toISOString())
   }
 
   const placeholders = insertColumns.map(() => '?').join(', ')
