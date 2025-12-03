@@ -5,7 +5,7 @@ import { Instrument_Serif, Inter } from 'next/font/google'
 import { GeistSans } from 'geist/font/sans'
 import Script from 'next/script'
 import './globals.css'
-import ClerkSyncEffect from '@/components/auth/ClerkSyncEffect'
+
 import { GlobalPopupProvider } from '@/components/GlobalPopupProvider'
 import { THEME_STORAGE_KEY } from '@/lib/theme'
 
@@ -71,7 +71,7 @@ export default function RootLayout({
   const appShell = (
     <ToasterProvider>
       <GlobalPopupProvider />
-      {clerkPublishableKey ? <ClerkSyncEffect /> : null}
+
       <div id="root" className="relative flex min-h-screen flex-col">
         <main className="flex-1">{children}</main>
       </div>

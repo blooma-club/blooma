@@ -65,6 +65,48 @@ export async function GET() {
             results.db.userCheckError = e.message
         }
 
+        // 4. Sync Dry-Run
+        try {
+            const userId = authUser.userId
+            const existingUser = await getUserById(userId)
+
+            results.syncDryRun = {
+                step1_checkD1: existingUser ? 'FOUND' : 'NOT_FOUND',
+                step2_fetchClerk: 'PENDING',
+                step3_syncAction: 'PENDING'
+            }
+
+            if (!existingUser) {
+                const profile = await resolveClerkUserProfile()
+                results.syncDryRun.step2_fetchClerk = 'SUCCESS'
+                results.syncDryRun.clerkIdMatch = profile.id === userId
+
+                if (profile.id === userId) {
+                    results.syncDryRun.step3_syncAction = 'WOULD_CREATE_OR_UPDATE'
+                } else {
+                    results.syncDryRun.step3_syncAction = 'ID_MISMATCH_ABORT'
+                }
+            } else {
+                results.syncDryRun.step2_fetchClerk = 'SKIPPED_USER_EXISTS'
+                results.syncDryRun.step3_syncAction = 'NONE_NEEDED'
+            }
+        } catch (e: any) {
+            results.syncDryRun = { error: e.message }
+        }
+
+        // 5. Foreign Key Integrity Check
+        try {
+            const userId = authUser.userId
+            const projectCount = await queryD1<{ count: number }>("SELECT COUNT(*) as count FROM projects WHERE user_id = ?1", [userId])
+            results.integrity = {
+                projectsFound: projectCount[0].count,
+                userExistsInD1: !!results.db.userRecord && results.db.userRecord !== 'NOT_FOUND',
+                orphanRisk: projectCount[0].count > 0 && (!results.db.userRecord || results.db.userRecord === 'NOT_FOUND')
+            }
+        } catch (e: any) {
+            results.integrity = { error: e.message }
+        }
+
         return NextResponse.json(results, { status: 200 })
     } catch (error: any) {
         return NextResponse.json({

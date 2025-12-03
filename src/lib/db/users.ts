@@ -458,6 +458,33 @@ function toNullableNumber(value: unknown): number | null {
 }
 
 export async function deleteUser(userId: string): Promise<void> {
+  console.log(`[deleteUser] Starting cascading deletion for user ${userId}`)
+
+  // Tables to clean up, ordered by dependency (though not strictly required without FK constraints)
+  const tables = [
+    'cards',
+    'ai_usage',
+    'projects',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs'
+  ]
+
+  for (const table of tables) {
+    try {
+      // Check if table exists first to avoid errors
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`DELETE FROM ${table} WHERE user_id = ?`, [userId])
+        console.log(`[deleteUser] Deleted records from ${table}`)
+      }
+    } catch (error) {
+      console.warn(`[deleteUser] Failed to cleanup table ${table}`, error)
+      // Continue with other tables
+    }
+  }
+
   const metadata = await getUsersTableMetadata()
 
   try {
@@ -465,6 +492,7 @@ export async function deleteUser(userId: string): Promise<void> {
       `DELETE FROM users WHERE ${metadata.idColumn} = ?1`,
       [userId]
     )
+    console.log(`[deleteUser] Deleted user record`)
   } catch (error) {
     throw new D1UsersTableError('Unable to delete user from Cloudflare D1', error)
   }
