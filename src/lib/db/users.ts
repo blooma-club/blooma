@@ -50,8 +50,21 @@ export async function syncClerkUser(profile: ClerkUserProfile): Promise<D1UserRe
   if (profile.email) {
     const existingByEmail = await selectUserByEmail(profile.email, metadata)
     if (existingByEmail) {
-      await updateClerkMapping(existingByEmail.id, profile, metadata)
-      return (await selectUserByClerkId(profile.id, metadata)) ?? existingByEmail
+      // If IDs differ, migrate the old user to the new ID
+      if (existingByEmail.id !== profile.id) {
+        console.log(`[syncClerkUser] ID mismatch detected for email ${profile.email}. Migrating ${existingByEmail.id} to ${profile.id}`)
+        await migrateUser(existingByEmail.id, profile.id)
+
+        // Re-fetch the user after migration
+        const migratedUser = await selectUserByClerkId(profile.id, metadata)
+        if (migratedUser) {
+          await updateClerkMapping(migratedUser.id, profile, metadata)
+          return migratedUser
+        }
+      } else {
+        await updateClerkMapping(existingByEmail.id, profile, metadata)
+        return (await selectUserByClerkId(profile.id, metadata)) ?? existingByEmail
+      }
     }
   }
 
@@ -454,5 +467,49 @@ export async function deleteUser(userId: string): Promise<void> {
     )
   } catch (error) {
     throw new D1UsersTableError('Unable to delete user from Cloudflare D1', error)
+  }
+}
+
+/**
+ * Migrates a user from an old ID to a new ID (e.g., when Clerk ID changes but email matches).
+ * Updates all related tables to point to the new ID.
+ */
+export async function migrateUser(oldId: string, newId: string): Promise<void> {
+  console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
+
+  const tablesToUpdate = [
+    'projects',
+    'cards',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs'
+  ]
+
+  // 1. Update dependent tables
+  for (const table of tablesToUpdate) {
+    try {
+      // Check if table exists first to avoid errors
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [newId, oldId])
+        console.log(`[migrateUser] Updated ${table} for user migration`)
+      }
+    } catch (error) {
+      console.warn(`[migrateUser] Failed to update table ${table}`, error)
+      // Continue with other tables
+    }
+  }
+
+  // 2. Update users table (Primary Key update)
+  const metadata = await getUsersTableMetadata()
+  try {
+    await queryD1(
+      `UPDATE users SET ${metadata.idColumn} = ?, clerk_user_id = ? WHERE ${metadata.idColumn} = ?`,
+      [newId, newId, oldId]
+    )
+    console.log(`[migrateUser] Updated users table primary key`)
+  } catch (error) {
+    throw new D1UsersTableError('Unable to migrate user record in Cloudflare D1', error)
   }
 }
