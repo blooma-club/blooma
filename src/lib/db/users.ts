@@ -42,33 +42,151 @@ export async function syncClerkUser(profile: ClerkUserProfile): Promise<D1UserRe
   const metadata = await getUsersTableMetadata()
 
   const existingByClerkId = await selectUserByClerkId(profile.id, metadata)
+
+  // Always check by email (case-insensitive) to detect duplicates or migration candidates
+  let existingByEmail: D1UserRecord | null = null
+  if (profile.email) {
+    existingByEmail = await selectUserByEmail(profile.email, metadata)
+  }
+
   if (existingByClerkId) {
+    // Scenario A: User exists by ID.
+    // Check if there is a "Split Brain" duplicate (same email, different ID)
+    if (existingByEmail && existingByEmail.id !== existingByClerkId.id) {
+      console.log(`[syncClerkUser] Split account detected. Merging data from ${existingByEmail.id} to ${existingByClerkId.id}`)
+      await mergeUsers(existingByClerkId.id, existingByEmail.id)
+    }
+
     await updateClerkMapping(existingByClerkId.id, profile, metadata)
     return (await selectUserByClerkId(profile.id, metadata)) ?? existingByClerkId
   }
 
-  if (profile.email) {
-    const existingByEmail = await selectUserByEmail(profile.email, metadata)
-    if (existingByEmail) {
-      // If IDs differ, migrate the old user to the new ID
-      if (existingByEmail.id !== profile.id) {
-        console.log(`[syncClerkUser] ID mismatch detected for email ${profile.email}. Migrating ${existingByEmail.id} to ${profile.id}`)
-        await migrateUser(existingByEmail.id, profile.id)
+  // Scenario B: User does NOT exist by ID.
+  if (existingByEmail) {
+    // If IDs differ, migrate the old user to the new ID
+    if (existingByEmail.id !== profile.id) {
+      console.log(`[syncClerkUser] ID mismatch detected for email ${profile.email}. Migrating ${existingByEmail.id} to ${profile.id}`)
+      await migrateUser(existingByEmail.id, profile.id)
 
-        // Re-fetch the user after migration
-        const migratedUser = await selectUserByClerkId(profile.id, metadata)
-        if (migratedUser) {
-          await updateClerkMapping(migratedUser.id, profile, metadata)
-          return migratedUser
-        }
-      } else {
-        await updateClerkMapping(existingByEmail.id, profile, metadata)
-        return (await selectUserByClerkId(profile.id, metadata)) ?? existingByEmail
+      // Re-fetch the user after migration
+      const migratedUser = await selectUserByClerkId(profile.id, metadata)
+      if (migratedUser) {
+        await updateClerkMapping(migratedUser.id, profile, metadata)
+        return migratedUser
       }
+    } else {
+      await updateClerkMapping(existingByEmail.id, profile, metadata)
+      return (await selectUserByClerkId(profile.id, metadata)) ?? existingByEmail
     }
   }
 
   return createD1User(profile, metadata)
+}
+
+// ... (existing functions) ...
+
+async function selectUserByEmail(
+  email: string,
+  metadata: UsersTableMetadata,
+): Promise<D1UserRecord | null> {
+  if (!metadata.columns.has('email')) {
+    return null
+  }
+
+  const selectColumns = buildUserSelectColumns(metadata)
+
+  // Use LOWER() for case-insensitive matching
+  const row = await queryD1Single<Record<string, unknown>>(
+    `SELECT ${selectColumns} FROM users WHERE LOWER(email) = LOWER(?1) LIMIT 1`,
+    [email],
+  )
+
+  return row ? normaliseUserRecord(row) : null
+}
+
+// ... (existing functions) ...
+
+/**
+ * Merges data from a source user to a target user, then deletes the source user.
+ * Used when both old and new user records exist (Split Brain).
+ */
+export async function mergeUsers(targetUserId: string, sourceUserId: string): Promise<void> {
+  console.log(`[mergeUsers] Merging data from ${sourceUserId} to ${targetUserId}`)
+
+  const tablesToUpdate = [
+    'projects',
+    'cards',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs'
+  ]
+
+  // 1. Move dependent data to target user
+  for (const table of tablesToUpdate) {
+    try {
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [targetUserId, sourceUserId])
+        console.log(`[mergeUsers] Moved records in ${table} from ${sourceUserId} to ${targetUserId}`)
+      }
+    } catch (error) {
+      console.warn(`[mergeUsers] Failed to update table ${table}`, error)
+    }
+  }
+
+  // 2. Delete the source user (since target user already exists)
+  const metadata = await getUsersTableMetadata()
+  try {
+    await queryD1(
+      `DELETE FROM users WHERE ${metadata.idColumn} = ?`,
+      [sourceUserId]
+    )
+    console.log(`[mergeUsers] Deleted source user record ${sourceUserId}`)
+  } catch (error) {
+    throw new D1UsersTableError('Unable to delete source user during merge', error)
+  }
+}
+
+export async function migrateUser(oldId: string, newId: string): Promise<void> {
+  // ... (existing migrateUser implementation) ...
+  console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
+
+  const tablesToUpdate = [
+    'projects',
+    'cards',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs'
+  ]
+
+  // 1. Update dependent tables
+  for (const table of tablesToUpdate) {
+    try {
+      // Check if table exists first to avoid errors
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [newId, oldId])
+        console.log(`[migrateUser] Updated ${table} for user migration`)
+      }
+    } catch (error) {
+      console.warn(`[migrateUser] Failed to update table ${table}`, error)
+      // Continue with other tables
+    }
+  }
+
+  // 2. Update users table (Primary Key update)
+  const metadata = await getUsersTableMetadata()
+  try {
+    await queryD1(
+      `UPDATE users SET ${metadata.idColumn} = ?, clerk_user_id = ? WHERE ${metadata.idColumn} = ?`,
+      [newId, newId, oldId]
+    )
+    console.log(`[migrateUser] Updated users table primary key`)
+  } catch (error) {
+    throw new D1UsersTableError('Unable to migrate user record in Cloudflare D1', error)
+  }
 }
 
 export async function getUserById(userId: string): Promise<D1UserRecord | null> {
@@ -154,23 +272,7 @@ async function selectUserById(
   return row ? normaliseUserRecord(row) : null
 }
 
-async function selectUserByEmail(
-  email: string,
-  metadata: UsersTableMetadata,
-): Promise<D1UserRecord | null> {
-  if (!metadata.columns.has('email')) {
-    return null
-  }
 
-  const selectColumns = buildUserSelectColumns(metadata)
-
-  const row = await queryD1Single<Record<string, unknown>>(
-    `SELECT ${selectColumns} FROM users WHERE email = ?1 LIMIT 1`,
-    [email],
-  )
-
-  return row ? normaliseUserRecord(row) : null
-}
 
 async function updateClerkMapping(
   userId: string,
@@ -502,42 +604,4 @@ export async function deleteUser(userId: string): Promise<void> {
  * Migrates a user from an old ID to a new ID (e.g., when Clerk ID changes but email matches).
  * Updates all related tables to point to the new ID.
  */
-export async function migrateUser(oldId: string, newId: string): Promise<void> {
-  console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
 
-  const tablesToUpdate = [
-    'projects',
-    'cards',
-    'camera_presets',
-    'uploaded_models',
-    'uploaded_backgrounds',
-    'video_jobs'
-  ]
-
-  // 1. Update dependent tables
-  for (const table of tablesToUpdate) {
-    try {
-      // Check if table exists first to avoid errors
-      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
-      if (tableExists.length > 0) {
-        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [newId, oldId])
-        console.log(`[migrateUser] Updated ${table} for user migration`)
-      }
-    } catch (error) {
-      console.warn(`[migrateUser] Failed to update table ${table}`, error)
-      // Continue with other tables
-    }
-  }
-
-  // 2. Update users table (Primary Key update)
-  const metadata = await getUsersTableMetadata()
-  try {
-    await queryD1(
-      `UPDATE users SET ${metadata.idColumn} = ?, clerk_user_id = ? WHERE ${metadata.idColumn} = ?`,
-      [newId, newId, oldId]
-    )
-    console.log(`[migrateUser] Updated users table primary key`)
-  } catch (error) {
-    throw new D1UsersTableError('Unable to migrate user record in Cloudflare D1', error)
-  }
-}
