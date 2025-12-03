@@ -2,6 +2,7 @@
 
 import { queryD1, queryD1Single } from '@/lib/db/d1'
 import { getUserById } from '@/lib/db/users'
+import { ensureUserExists } from '@/lib/db/sync'
 import { InsufficientCreditsError } from '@/lib/credits-utils'
 
 async function getUsersIdColumn(): Promise<'id' | 'user_id'> {
@@ -17,7 +18,8 @@ export async function ensureCredits(userId: string, required: number): Promise<{
   used: number
   remaining: number
 }> {
-  const user = await getUserById(userId)
+  // Use JIT sync to ensure user exists
+  const user = await ensureUserExists(userId)
   const total = typeof user?.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 0
   const used = typeof user?.credits_used === 'number' && Number.isFinite(user.credits_used)
     ? user.credits_used
@@ -40,6 +42,9 @@ export async function consumeCredits(userId: string, amount: number): Promise<{
   if (amount <= 0) {
     return ensureCredits(userId, 0)
   }
+
+  // Ensure user exists before attempting UPDATE
+  await ensureUserExists(userId)
 
   const idColumn = await getUsersIdColumn()
   const sql = `UPDATE users

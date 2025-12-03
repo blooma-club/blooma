@@ -443,3 +443,16 @@ function toNullableNumber(value: unknown): number | null {
   }
   return null
 }
+
+export async function deleteUser(userId: string): Promise<void> {
+  const metadata = await getUsersTableMetadata()
+
+  try {
+    await queryD1(
+      `DELETE FROM users WHERE ${metadata.idColumn} = ?1`,
+      [userId]
+    )
+  } catch (error) {
+    throw new D1UsersTableError('Unable to delete user from Cloudflare D1', error)
+  }
+}

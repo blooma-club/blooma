@@ -12,7 +12,7 @@ type CreditsIndicatorProps = {
 }
 
 export default function CreditsIndicator({ className }: CreditsIndicatorProps) {
-  const { total, remaining, percentage, isLoading, isAvailable } = useUserCredits()
+  const { total, remaining, percentage, isLoading, isAvailable, subscriptionTier } = useUserCredits()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -98,11 +98,20 @@ export default function CreditsIndicator({ className }: CreditsIndicatorProps) {
 
             {/* Actions */}
             <div className="pt-2">
-              <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none">
-                <Link href="/customerportal">
-                  Manage Subscription
-                </Link>
-              </Button>
+              {(!subscriptionTier || subscriptionTier === 'free') ? (
+                <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-white">
+                  <Link href="/pricing">
+                    <Sparkles className="mr-2 h-3.5 w-3.5" />
+                    Upgrade to Starter
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none">
+                  <Link href="/customerportal">
+                    Manage Subscription
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
