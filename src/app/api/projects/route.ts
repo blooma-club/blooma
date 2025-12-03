@@ -10,8 +10,7 @@ import {
   updateProjectForUser,
 } from '@/lib/db/projects'
 import { ensureIndexes } from '@/lib/db/indexes'
-import { getUserById, syncClerkUser } from '@/lib/db/users'
-import { resolveClerkUserProfile } from '@/lib/clerk'
+import { ensureUserExists } from '@/lib/db/sync'
 
 const handleError = createErrorHandler('api/projects')
 
@@ -39,19 +38,8 @@ export async function POST(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
 
-    // Ensure user exists in D1 to prevent foreign key constraint errors
-    const user = await getUserById(userId)
-    if (!user) {
-      console.log('[api/projects] User not found in D1, syncing from Clerk...', userId)
-      try {
-        const profile = await resolveClerkUserProfile()
-        await syncClerkUser(profile)
-        console.log('[api/projects] User synced successfully')
-      } catch (syncError) {
-        console.error('[api/projects] Failed to sync user during project creation', syncError)
-        // Continue and let the DB error out if it must, or throw here
-      }
-    }
+    // Ensure user exists in D1 using centralized helper
+    await ensureUserExists(userId)
 
     const body = await request.json()
     const validated = projectInputSchema.parse(body)
