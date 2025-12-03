@@ -29,11 +29,23 @@ type FallbackCategory = keyof typeof CREDIT_COSTS
 export function getCreditCostForModel(
   modelId: string,
   fallbackCategory: FallbackCategory = 'IMAGE',
+  options?: {
+    resolution?: string
+  }
 ): number {
   const info = getModelInfo(modelId)
   if (info && typeof info.credits === 'number' && Number.isFinite(info.credits) && info.credits > 0) {
-    // 모델 크레딧을 정수로 반올림 (소수 비용이 올 수 있는 경우 대비)
-    return Math.ceil(info.credits)
+    let cost = Math.ceil(info.credits)
+
+    // Nano Banana Pro (nanobanana 2) 4K resolution multiplier
+    if (
+      (modelId === 'fal-ai/nano-banana-pro' || modelId === 'fal-ai/nano-banana-pro/edit') &&
+      options?.resolution === '4K'
+    ) {
+      cost *= 2
+    }
+
+    return cost
   }
   return CREDIT_COSTS[fallbackCategory]
 }

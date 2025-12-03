@@ -12,19 +12,19 @@ const handleError = createErrorHandler('api/generate-image')
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
-    
+
     // Rate Limit 확인
     const rateLimitResult = await checkRateLimit(userId, 'imageGeneration')
     if (!rateLimitResult.success) {
       return NextResponse.json(
         createRateLimitError(rateLimitResult),
-        { 
+        {
           status: 429,
           headers: createRateLimitHeaders(rateLimitResult),
         }
       )
     }
-    
+
     const falKeyConfigured = !!process.env.FAL_KEY?.trim()?.length
     if (!falKeyConfigured) {
       console.warn('[API] FAL_KEY is not configured. Image requests will use placeholder output.')
@@ -84,7 +84,9 @@ export async function POST(request: NextRequest) {
     const fallbackCategory = modelInfo.category === 'inpainting'
       ? 'IMAGE_EDIT'
       : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
-    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory)
+    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
+      resolution: validated.resolution,
+    })
     await consumeCredits(userId, creditCost)
 
     const result = await generateImageWithModel(validated.prompt, effectiveModelId, {

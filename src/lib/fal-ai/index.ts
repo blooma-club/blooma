@@ -62,7 +62,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       aspect_ratio: 'string?',
     },
   },
-  
+
   // Nano Banana Series (Standard)
   {
     id: 'fal-ai/nano-banana',
@@ -134,7 +134,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     name: 'Kling v2.5 Turbo Standard',
     description: 'Kling Video v2.5 Turbo Standard image-to-video generation model.',
     category: 'video-generation',
-    maxResolution: '720p',
+    maxResolution: '1080p',
     credits: 70,
     inputSchema: {
       image_url: 'string',
@@ -186,7 +186,7 @@ export function initializeFalAI(): boolean {
 // Helper to resolve aspect ratio to model-specific format
 function resolveAspectRatio(aspectRatio?: string): string {
   if (!aspectRatio) return 'auto'
-  
+
   const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
   switch (normalized) {
     case '1:1':
@@ -396,15 +396,15 @@ async function generateImageByModel(
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
   // Use Nano Banana Pro logic for text-to-image models
-  if (modelId === 'fal-ai/nano-banana-pro' || 
-      modelId === 'fal-ai/nano-banana') {
+  if (modelId === 'fal-ai/nano-banana-pro' ||
+    modelId === 'fal-ai/nano-banana') {
     return await generateWithNanoBananaPro(prompt, options, modelId)
   }
 
   // Use Nano Banana Pro Edit logic for image-to-image edit models
-  if (modelId === 'fal-ai/nano-banana-pro/edit' || 
-      modelId === 'fal-ai/nano-banana/edit' ||
-      modelId === 'fal-ai/bytedance/seedream/v4/edit') {
+  if (modelId === 'fal-ai/nano-banana-pro/edit' ||
+    modelId === 'fal-ai/nano-banana/edit' ||
+    modelId === 'fal-ai/bytedance/seedream/v4/edit') {
     return await generateWithNanoBananaProEdit(prompt, options, modelId)
   }
 
@@ -623,7 +623,7 @@ async function generateWithNanoBananaProEdit(
         }
       },
     })) as FalAISubmission
-    
+
     // 여러 이미지 요청 시 배열로 반환
     if (numImages > 1) {
       return extractImageUrls(submission, modelId)
@@ -743,30 +743,30 @@ async function generateWithKlingStartEndVideo(
 // 비디오 URL 추출 헬퍼
 function extractVideoUrl(submission: FalAISubmission, modelName: string): string {
   const elapsed = Date.now()
-  
-  let videoUrl: string | undefined = 
-    (submission as any)?.video?.url || 
+
+  let videoUrl: string | undefined =
+    (submission as any)?.video?.url ||
     (submission?.output as any)?.video?.url ||
     (submission?.data as any)?.video?.url
 
   if (!videoUrl && submission && typeof submission === 'object') {
-     // Deep scan fallback
-     try {
-        const stack: unknown[] = [submission]
-        while (stack.length) {
-          const current = stack.pop()
-          if (!current || typeof current !== 'object') continue
-          
-          const currentObj = current as any
-          if (currentObj.video && typeof currentObj.video.url === 'string') {
-            videoUrl = currentObj.video.url
-            break
-          }
-          Object.values(currentObj).forEach(v => stack.push(v))
+    // Deep scan fallback
+    try {
+      const stack: unknown[] = [submission]
+      while (stack.length) {
+        const current = stack.pop()
+        if (!current || typeof current !== 'object') continue
+
+        const currentObj = current as any
+        if (currentObj.video && typeof currentObj.video.url === 'string') {
+          videoUrl = currentObj.video.url
+          break
         }
-     } catch (e) {
-       console.warn('Video URL deep scan failed', e)
-     }
+        Object.values(currentObj).forEach(v => stack.push(v))
+      }
+    } catch (e) {
+      console.warn('Video URL deep scan failed', e)
+    }
   }
 
   if (!videoUrl) {
@@ -1003,7 +1003,7 @@ export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIMode
   if (mode === 'edit') {
     return FAL_AI_MODELS.filter(m => m.category === 'inpainting')
   }
-  
+
   return []
 }
 

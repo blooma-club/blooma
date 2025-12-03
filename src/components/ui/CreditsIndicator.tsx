@@ -83,10 +83,10 @@ export default function CreditsIndicator({ className }: CreditsIndicatorProps) {
                 <span className="text-3xl font-bold tracking-tight">{displayRemaining}</span>
                 <span className="text-sm text-muted-foreground">/ {displayTotal}</span>
               </div>
-              
+
               {/* Custom Progress Bar */}
               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary/50 mt-2">
-                <div 
+                <div
                   className="h-full bg-primary transition-all duration-500 ease-out"
                   style={{ width: `${percentage}%` }}
                 />
