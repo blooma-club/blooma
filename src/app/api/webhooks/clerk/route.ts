@@ -84,13 +84,30 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'No user ID found' }, { status: 400 })
         }
 
+        console.log(`[Webhook] Processing user.deleted for: ${id}`)
+
         try {
             await deleteUser(id)
             console.log(`[Webhook] User and related data deleted: ${id}`)
             return NextResponse.json({ message: 'User and related data deleted successfully' }, { status: 200 })
         } catch (error) {
-            console.error('Error deleting user:', error)
-            return NextResponse.json({ error: 'Error deleting user' }, { status: 500 })
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorStack = error instanceof Error ? error.stack : undefined
+            const errorDetails = (error as any)?.details
+
+            console.error('[Webhook] Error deleting user:', {
+                userId: id,
+                message: errorMessage,
+                stack: errorStack,
+                details: errorDetails
+            })
+
+            return NextResponse.json({
+                error: 'Error deleting user',
+                userId: id,
+                message: errorMessage,
+                details: errorDetails
+            }, { status: 500 })
         }
     }
 
