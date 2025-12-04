@@ -493,7 +493,8 @@ export async function deleteUser(userId: string): Promise<void> {
     'camera_presets',
     'uploaded_models',
     'uploaded_backgrounds',
-    'video_jobs'
+    'video_jobs',
+    'credit_transactions'
   ]
 
   for (const table of tables) {
@@ -533,7 +534,8 @@ export async function mergeUsers(targetUserId: string, sourceUserId: string): Pr
     'uploaded_models',
     'uploaded_backgrounds',
     'video_jobs',
-    'credit_transactions'
+    'credit_transactions',
+    'ai_usage'
   ]
 
   // 1. Move dependent data to target user
@@ -573,7 +575,7 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
     'uploaded_backgrounds',
     'video_jobs',
     'credit_transactions',
-    'credit_transactions'
+    'ai_usage'
   ]
 
   // 1. Update dependent tables
