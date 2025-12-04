@@ -572,6 +572,7 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
     'uploaded_models',
     'uploaded_backgrounds',
     'video_jobs',
+    'credit_transactions',
     'credit_transactions'
   ]
 
