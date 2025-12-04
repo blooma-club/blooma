@@ -110,84 +110,7 @@ async function selectUserByEmail(
  * Merges data from a source user to a target user, then deletes the source user.
  * Used when both old and new user records exist (Split Brain).
  */
-export async function mergeUsers(targetUserId: string, sourceUserId: string): Promise<void> {
-  console.log(`[mergeUsers] Merging data from ${sourceUserId} to ${targetUserId}`)
 
-  const tablesToUpdate = [
-    'projects',
-    'cards',
-    'camera_presets',
-    'uploaded_models',
-    'uploaded_backgrounds',
-    'video_jobs'
-  ]
-
-  // 1. Move dependent data to target user
-  for (const table of tablesToUpdate) {
-    try {
-      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
-      if (tableExists.length > 0) {
-        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [targetUserId, sourceUserId])
-        console.log(`[mergeUsers] Moved records in ${table} from ${sourceUserId} to ${targetUserId}`)
-      }
-    } catch (error) {
-      console.warn(`[mergeUsers] Failed to update table ${table}`, error)
-    }
-  }
-
-  // 2. Delete the source user (since target user already exists)
-  const metadata = await getUsersTableMetadata()
-  try {
-    await queryD1(
-      `DELETE FROM users WHERE ${metadata.idColumn} = ?`,
-      [sourceUserId]
-    )
-    console.log(`[mergeUsers] Deleted source user record ${sourceUserId}`)
-  } catch (error) {
-    throw new D1UsersTableError('Unable to delete source user during merge', error)
-  }
-}
-
-export async function migrateUser(oldId: string, newId: string): Promise<void> {
-  // ... (existing migrateUser implementation) ...
-  console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
-
-  const tablesToUpdate = [
-    'projects',
-    'cards',
-    'camera_presets',
-    'uploaded_models',
-    'uploaded_backgrounds',
-    'video_jobs'
-  ]
-
-  // 1. Update dependent tables
-  for (const table of tablesToUpdate) {
-    try {
-      // Check if table exists first to avoid errors
-      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
-      if (tableExists.length > 0) {
-        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [newId, oldId])
-        console.log(`[migrateUser] Updated ${table} for user migration`)
-      }
-    } catch (error) {
-      console.warn(`[migrateUser] Failed to update table ${table}`, error)
-      // Continue with other tables
-    }
-  }
-
-  // 2. Update users table (Primary Key update)
-  const metadata = await getUsersTableMetadata()
-  try {
-    await queryD1(
-      `UPDATE users SET ${metadata.idColumn} = ?, clerk_user_id = ? WHERE ${metadata.idColumn} = ?`,
-      [newId, newId, oldId]
-    )
-    console.log(`[migrateUser] Updated users table primary key`)
-  } catch (error) {
-    throw new D1UsersTableError('Unable to migrate user record in Cloudflare D1', error)
-  }
-}
 
 export async function getUserById(userId: string): Promise<D1UserRecord | null> {
   const metadata = await getUsersTableMetadata()
@@ -600,8 +523,83 @@ export async function deleteUser(userId: string): Promise<void> {
   }
 }
 
-/**
- * Migrates a user from an old ID to a new ID (e.g., when Clerk ID changes but email matches).
- * Updates all related tables to point to the new ID.
- */
+export async function mergeUsers(targetUserId: string, sourceUserId: string): Promise<void> {
+  console.log(`[mergeUsers] Merging data from ${sourceUserId} to ${targetUserId}`)
+
+  const tablesToUpdate = [
+    'projects',
+    'cards',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs',
+    'credit_transactions'
+  ]
+
+  // 1. Move dependent data to target user
+  for (const table of tablesToUpdate) {
+    try {
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [targetUserId, sourceUserId])
+        console.log(`[mergeUsers] Moved records in ${table} from ${sourceUserId} to ${targetUserId}`)
+      }
+    } catch (error) {
+      console.warn(`[mergeUsers] Failed to update table ${table}`, error)
+    }
+  }
+
+  // 2. Delete the source user (since target user already exists)
+  const metadata = await getUsersTableMetadata()
+  try {
+    await queryD1(
+      `DELETE FROM users WHERE ${metadata.idColumn} = ?`,
+      [sourceUserId]
+    )
+    console.log(`[mergeUsers] Deleted source user record ${sourceUserId}`)
+  } catch (error) {
+    throw new D1UsersTableError('Unable to delete source user during merge', error)
+  }
+}
+
+export async function migrateUser(oldId: string, newId: string): Promise<void> {
+  console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
+
+  const tablesToUpdate = [
+    'projects',
+    'cards',
+    'camera_presets',
+    'uploaded_models',
+    'uploaded_backgrounds',
+    'video_jobs',
+    'credit_transactions'
+  ]
+
+  // 1. Update dependent tables
+  for (const table of tablesToUpdate) {
+    try {
+      // Check if table exists first to avoid errors
+      const tableExists = await queryD1(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table])
+      if (tableExists.length > 0) {
+        await queryD1(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, [newId, oldId])
+        console.log(`[migrateUser] Updated ${table} for user migration`)
+      }
+    } catch (error) {
+      console.warn(`[migrateUser] Failed to update table ${table}`, error)
+      // Continue with other tables
+    }
+  }
+
+  // 2. Update users table (Primary Key update)
+  const metadata = await getUsersTableMetadata()
+  try {
+    await queryD1(
+      `UPDATE users SET ${metadata.idColumn} = ?, clerk_user_id = ? WHERE ${metadata.idColumn} = ?`,
+      [newId, newId, oldId]
+    )
+    console.log(`[migrateUser] Updated users table primary key`)
+  } catch (error) {
+    throw new D1UsersTableError('Unable to migrate user record in Cloudflare D1', error)
+  }
+}
 
