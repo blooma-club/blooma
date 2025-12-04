@@ -1,4 +1,4 @@
-import { queryD1, queryD1Single } from './d1'
+import { queryD1, queryD1Single, queryD1Batch } from './d1'
 import type { ClerkUserProfile } from '@/lib/clerk'
 
 export type D1UserRecord = {
@@ -485,50 +485,39 @@ function toNullableNumber(value: unknown): number | null {
 export async function deleteUser(userId: string): Promise<void> {
   console.log(`[deleteUser] Starting cascading deletion for user ${userId}`)
 
-  // Disable FK checks to avoid constraint violations
-  console.log(`[deleteUser] Disabling foreign key checks`)
-  await queryD1('PRAGMA foreign_keys = OFF')
+  // Get the ID column name first
+  const metadata = await getUsersTableMetadata()
+  console.log(`[deleteUser] Using ID column: ${metadata.idColumn}`)
+
+  // Build batch statements - all executed in a single request
+  const statements = [
+    // 1. Disable FK checks
+    { sql: 'PRAGMA foreign_keys = OFF' },
+
+    // 2. Delete from all dependent tables
+    { sql: 'DELETE FROM cards WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM ai_usage WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM projects WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM camera_presets WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM uploaded_models WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM uploaded_backgrounds WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM video_jobs WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM credit_transactions WHERE user_id = ?', params: [userId] },
+
+    // 3. Delete the user record
+    { sql: `DELETE FROM users WHERE ${metadata.idColumn} = ?`, params: [userId] },
+
+    // 4. Re-enable FK checks
+    { sql: 'PRAGMA foreign_keys = ON' }
+  ]
 
   try {
-    // Tables to clean up (order doesn't matter with FK disabled)
-    const tables = [
-      'cards',
-      'ai_usage',
-      'projects',
-      'camera_presets',
-      'uploaded_models',
-      'uploaded_backgrounds',
-      'video_jobs',
-      'credit_transactions'
-    ]
-
-    for (const table of tables) {
-      try {
-        const result = await queryD1(`DELETE FROM ${table} WHERE user_id = ?`, [userId])
-        console.log(`[deleteUser] Deleted from ${table}`)
-      } catch (error) {
-        console.error(`[deleteUser] Error deleting from ${table}:`, error)
-        // Continue with other tables - we'll throw at the end if needed
-      }
-    }
-
-    // Delete the user record itself
-    const metadata = await getUsersTableMetadata()
-    console.log(`[deleteUser] Deleting user record with ID column: ${metadata.idColumn}`)
-
-    await queryD1(
-      `DELETE FROM users WHERE ${metadata.idColumn} = ?1`,
-      [userId]
-    )
-    console.log(`[deleteUser] Successfully deleted user ${userId}`)
-
+    console.log(`[deleteUser] Executing batch deletion (${statements.length} statements)`)
+    await queryD1Batch(statements)
+    console.log(`[deleteUser] Successfully deleted user ${userId} and all related data`)
   } catch (error) {
-    console.error(`[deleteUser] Fatal error during deletion:`, error)
+    console.error(`[deleteUser] Batch deletion failed:`, error)
     throw new D1UsersTableError('Unable to delete user from Cloudflare D1', error)
-  } finally {
-    // Always re-enable FK checks
-    console.log(`[deleteUser] Re-enabling foreign key checks`)
-    await queryD1('PRAGMA foreign_keys = ON')
   }
 }
 
