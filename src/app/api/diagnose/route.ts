@@ -1,17 +1,47 @@
 import { NextResponse } from 'next/server'
 import { queryD1 } from '@/lib/db/d1'
 import { requireAuth } from '@/lib/errors/handlers'
-import { getUserById } from '@/lib/db/users'
+import { deleteUser, getUserById } from '@/lib/db/users'
 import { resolveClerkUserProfile } from '@/lib/clerk'
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        // 0. Parse Query Params
+        const { searchParams } = new URL(req.url)
+        const action = searchParams.get('action')
+        const targetUserId = searchParams.get('userId')
+
         // 1. Auth Check
         let authUser
         try {
             authUser = await requireAuth()
         } catch (e) {
             return NextResponse.json({ error: 'Not authenticated', details: e }, { status: 401 })
+        }
+
+        // Handle Manual Delete Action
+        if (action === 'delete') {
+            if (!targetUserId) {
+                return NextResponse.json({ error: 'Missing userId for delete action' }, { status: 400 })
+            }
+            // Only allow deleting self or specific test users for safety, or admin (omitted for now)
+            // For diagnosis, we'll allow it but log it heavily.
+            console.log(`[Diagnostic] Manual delete requested for ${targetUserId} by ${authUser.userId}`)
+
+            try {
+                await deleteUser(targetUserId)
+                return NextResponse.json({
+                    success: true,
+                    message: `Successfully deleted user ${targetUserId}`,
+                    action: 'delete'
+                }, { status: 200 })
+            } catch (error: any) {
+                return NextResponse.json({
+                    error: 'Delete failed',
+                    message: error.message,
+                    stack: error.stack
+                }, { status: 500 })
+            }
         }
 
         const results: any = {
