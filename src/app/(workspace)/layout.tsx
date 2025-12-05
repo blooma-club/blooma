@@ -12,10 +12,11 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const isAssetsRoute =
     pathname?.startsWith('/assets') ||
     pathname?.startsWith('/models')
-  
-  const isStudioRoute = pathname?.startsWith('/studio')
 
-  const activeTab = isStudioRoute ? 'studio' : isAssetsRoute ? 'assets' : 'projects'
+  const isStudioRoute = pathname?.startsWith('/studio')
+  const isFittingRoomRoute = pathname?.startsWith('/fitting-room')
+
+  const activeTab = isStudioRoute ? 'studio' : isAssetsRoute ? 'assets' : isFittingRoomRoute ? 'fitting-room' : 'projects'
 
   const handleTabChange = (tab: string) => {
     if (tab === activeTab) return
@@ -24,6 +25,8 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       router.push('/assets/models')
     } else if (tab === 'studio') {
       router.push('/studio')
+    } else if (tab === 'fitting-room') {
+      router.push('/fitting-room')
     } else {
       router.push('/dashboard')
     }

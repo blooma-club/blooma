@@ -14,12 +14,13 @@ const ASSET_TABLE_STATEMENTS = [
     image_key TEXT,
     image_size INTEGER,
     image_content_type TEXT,
+    is_public INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS uploaded_models_user_id_idx ON uploaded_models(user_id)`,
   `CREATE INDEX IF NOT EXISTS uploaded_models_project_id_idx ON uploaded_models(project_id)`,
-  
+
   `CREATE TABLE IF NOT EXISTS uploaded_backgrounds (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -30,6 +31,7 @@ const ASSET_TABLE_STATEMENTS = [
     image_key TEXT,
     image_size INTEGER,
     image_content_type TEXT,
+    is_public INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -65,6 +67,7 @@ export type UploadedAsset = {
   image_url: string
   image_key?: string | null
   created_at: string
+  is_public?: number // 0 or 1
 }
 
 export async function insertUploadedAsset(
@@ -75,16 +78,17 @@ export async function insertUploadedAsset(
   }
 ) {
   await ensureAssetsTables()
-  
+
   const now = new Date().toISOString()
   const sql = `
     INSERT INTO ${table} (
       id, user_id, project_id, name, subtitle, 
       image_url, image_key, image_size, image_content_type, 
+      is_public,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-  
+
   await queryD1(sql, [
     asset.id,
     asset.user_id,
@@ -95,10 +99,11 @@ export async function insertUploadedAsset(
     asset.image_key || null,
     asset.image_size || null,
     asset.image_content_type || null,
+    asset.is_public || 0,
     now,
     now
   ])
-  
+
   return { ...asset, created_at: now, updated_at: now }
 }
 
@@ -108,17 +113,27 @@ export async function listUploadedAssets(
   projectId?: string
 ): Promise<UploadedAsset[]> {
   await ensureAssetsTables()
-  
-  let sql = `SELECT * FROM ${table} WHERE user_id = ?`
+
+  // Fetch user's own assets OR public assets
+  let sql = `SELECT * FROM ${table} WHERE (user_id = ? OR is_public = 1)`
   const params: any[] = [userId]
-  
+
   if (projectId) {
-    sql += ` AND (project_id = ? OR project_id IS NULL)`
+    // If project_id is provided, we still want public assets, 
+    // but for private assets, we might want to filter by project?
+    // Usually public assets are global, so they don't have project_id or we ignore it.
+    // Let's keep it simple: (My Assets) OR (Public Assets)
+    // The original logic was: WHERE user_id = ? AND (project_id = ? OR project_id IS NULL)
+
+    // New logic:
+    // (user_id = ? AND (project_id = ? OR project_id IS NULL)) OR (is_public = 1)
+
+    sql = `SELECT * FROM ${table} WHERE (user_id = ? AND (project_id = ? OR project_id IS NULL)) OR is_public = 1`
     params.push(projectId)
   }
-  
+
   sql += ` ORDER BY created_at DESC`
-  
+
   const results = await queryD1<UploadedAsset>(sql, params)
   return results || []
 }
@@ -129,17 +144,24 @@ export async function deleteUploadedAsset(
   userId: string
 ) {
   await ensureAssetsTables()
-  
-  // Get key first to delete from R2 later if needed
-  const asset = await queryD1Single<{ image_key?: string }>(
-    `SELECT image_key FROM ${table} WHERE id = ? AND user_id = ?`,
-    [id, userId]
+
+  // Get asset first to verify ownership and check public status
+  // We explicitly check user_id matches, which prevents deleting system/public assets owned by others
+  const asset = await queryD1Single<{ image_key?: string; user_id: string; is_public: number }>(
+    `SELECT image_key, user_id, is_public FROM ${table} WHERE id = ?`,
+    [id]
   )
-  
+
   if (!asset) return null
-  
+
+  // Security check: Only allow deletion if the user owns the asset
+  if (asset.user_id !== userId) {
+    console.warn(`[deleteUploadedAsset] Unauthorized deletion attempt: User ${userId} tried to delete asset ${id} owned by ${asset.user_id}`)
+    return null
+  }
+
   await queryD1(`DELETE FROM ${table} WHERE id = ? AND user_id = ?`, [id, userId])
-  
+
   return asset.image_key
 }
 

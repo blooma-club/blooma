@@ -20,6 +20,7 @@ type ModelAsset = {
   name: string
   image_url: string
   created_at?: string
+  is_public?: number
 }
 
 export default function ModelsPage() {
@@ -40,7 +41,10 @@ export default function ModelsPage() {
       if (!response.ok) throw new Error('Failed to fetch models')
       const result = await response.json()
       if (result.success) {
-        setModels(result.data)
+        setModels(result.data.map((item: any) => ({
+          ...item,
+          is_public: (item.is_public === 1 || item.is_public === true || item.is_public === '1') ? 1 : 0
+        })))
       }
     } catch (error) {
       console.error('Error fetching models:', error)
@@ -69,7 +73,7 @@ export default function ModelsPage() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('type', 'model')
-      formData.append('assetId', `model-${Date.now()}`) 
+      formData.append('assetId', `model-${Date.now()}`)
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',
@@ -77,7 +81,7 @@ export default function ModelsPage() {
       })
 
       if (!response.ok) throw new Error('Failed to upload model')
-      
+
       const result = await response.json()
       if (result.success) {
         toast({
@@ -112,7 +116,7 @@ export default function ModelsPage() {
       })
 
       if (!response.ok) throw new Error('Failed to delete model')
-      
+
       setModels(prev => prev.filter(m => m.id !== id))
       toast({
         title: 'Deleted',
@@ -127,7 +131,7 @@ export default function ModelsPage() {
     }
   }
 
-  const filteredModels = models.filter(model => 
+  const filteredModels = models.filter(model =>
     model.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -146,8 +150,8 @@ export default function ModelsPage() {
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:w-64 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
-              <Input 
-                placeholder="Search..." 
+              <Input
+                placeholder="Search..."
                 className="pl-10 h-10 bg-muted/30 border-border/40 focus:border-foreground/20 focus:ring-0 transition-all rounded-lg text-sm"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -160,8 +164,8 @@ export default function ModelsPage() {
               className="hidden"
               onChange={handleUpload}
             />
-            <Button 
-              onClick={() => fileInputRef.current?.click()} 
+            <Button
+              onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="h-10 px-5 rounded-lg bg-foreground text-background hover:bg-foreground/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-medium text-sm shadow-sm"
             >
@@ -198,8 +202,8 @@ export default function ModelsPage() {
             </button>
 
             {filteredModels.map((model) => (
-              <div 
-                key={model.id} 
+              <div
+                key={model.id}
                 className="group relative aspect-[3/4] rounded-xl overflow-hidden bg-muted/20 border border-border/10 shadow-sm hover:shadow-md transition-all duration-300"
               >
                 {/* Image */}
@@ -210,7 +214,7 @@ export default function ModelsPage() {
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                   sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
                 />
-                
+
                 {/* Overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
 
@@ -220,28 +224,30 @@ export default function ModelsPage() {
                 </div>
 
                 {/* Menu Button */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="secondary" 
-                        size="icon" 
-                        className="h-7 w-7 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm border-0"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-32 rounded-lg bg-background border-border/20 shadow-xl">
-                      <DropdownMenuItem 
-                        className="text-destructive focus:text-destructive cursor-pointer text-xs"
-                        onClick={() => handleDelete(model.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                {!model.is_public && (
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-7 w-7 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm border-0"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-32 rounded-lg bg-background border-border/20 shadow-xl">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive cursor-pointer text-xs"
+                          onClick={() => handleDelete(model.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -254,8 +260,8 @@ export default function ModelsPage() {
             <p className="text-xs text-muted-foreground max-w-[200px] mb-6 leading-relaxed">
               Upload character references to start building your library.
             </p>
-            <Button 
-              onClick={() => fileInputRef.current?.click()} 
+            <Button
+              onClick={() => fileInputRef.current?.click()}
               variant="outline"
               className="h-9 px-4 rounded-lg border-border/40 hover:bg-muted/20 text-xs"
             >

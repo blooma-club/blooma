@@ -94,11 +94,11 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     },
   },
 
-  // ByteDance Seedream v4 Series (Edit only)
+  // ByteDance Seedream v4.5 Series (Edit only)
   {
-    id: 'fal-ai/bytedance/seedream/v4/edit',
-    name: 'Seedream v4 Edit',
-    description: 'ByteDance Seedream v4 Image Edit',
+    id: 'fal-ai/bytedance/seedream/v4.5/edit',
+    name: 'Seedream v4.5 Edit',
+    description: 'ByteDance Seedream v4.5 Image Edit - unified image generation and editing',
     category: 'inpainting',
     maxResolution: '4K',
     credits: 10,
@@ -106,7 +106,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
       prompt: 'string',
       image_urls: 'list<string>',
       num_images: 'number?',
-      image_size: 'string?', // supports enum: auto_2K, auto_4K
+      image_size: 'string?', // supports enum: auto_2K, auto_4K, square_hd, portrait_4_3, etc.
     },
   },
 
@@ -404,7 +404,7 @@ async function generateImageByModel(
   // Use Nano Banana Pro Edit logic for image-to-image edit models
   if (modelId === 'fal-ai/nano-banana-pro/edit' ||
     modelId === 'fal-ai/nano-banana/edit' ||
-    modelId === 'fal-ai/bytedance/seedream/v4/edit') {
+    modelId === 'fal-ai/bytedance/seedream/v4.5/edit') {
     return await generateWithNanoBananaProEdit(prompt, options, modelId)
   }
 
@@ -439,13 +439,13 @@ type SeedreamImageSize =
   | { width: number; height: number }
 
 /**
- * Blooma의 StoryboardAspectRatio를 Seedream v4의 image_size로 변환
+ * Blooma의 StoryboardAspectRatio를 Seedream v4.5의 image_size로 변환
  * Text-to-Image 모델 전용 (Edit 모델은 레퍼런스 이미지 비율을 따르므로 auto 사용)
  * 
  * Seedream image_size 옵션:
- * - Enum: landscape_16_9, portrait_16_9 등 (기본 해상도, 약 1K~2K)
+ * - Enum: landscape_16_9, portrait_16_9, square_hd, square, portrait_4_3, landscape_4_3 등
  * - auto_2K, auto_4K: 자동 비율 + 고해상도
- * - 커스텀 { width, height }: 정확한 크기 지정 (1024~4096 범위)
+ * - 커스텀 { width, height }: 정확한 크기 지정 (1920~4096 범위)
  * 
  * 2K/4K 요청 시 커스텀 크기를 사용해야 정확한 해상도가 적용됩니다.
  * 

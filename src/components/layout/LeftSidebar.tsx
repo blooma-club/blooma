@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FolderOpen, Layers, PanelLeftClose, PanelLeftOpen, Box } from 'lucide-react'
+import { FolderOpen, Layers, PanelLeftClose, PanelLeftOpen, Box, Shirt } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +28,12 @@ export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSid
       icon: Box,
       shortcut: 'A',
       badge: modelsCount > 0 ? modelsCount : undefined
+    },
+    {
+      id: 'fitting-room',
+      name: 'Fitting Room',
+      icon: Shirt,
+      shortcut: 'F'
     },
   ] as const
 
