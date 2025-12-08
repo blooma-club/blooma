@@ -107,9 +107,6 @@ remotePatterns.push(
 )
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   transpilePackages: ['geist'],
   images: {
     remotePatterns,
@@ -117,6 +114,8 @@ const nextConfig: NextConfig = {
     contentDispositionType: 'inline',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  // Empty turbopack config for Next.js 16 compatibility
+  turbopack: {},
   // Webpack 설정은 Turbopack을 사용하지 않을 때만 적용
   ...(process.env.NODE_ENV === 'production' && {
     webpack: (config) => {
