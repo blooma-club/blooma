@@ -3,7 +3,7 @@ import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors
 import { ApiError } from '@/lib/errors/api'
 import { imageGenerationSchema } from '@/lib/validation/schemas'
 import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/fal-ai'
-import { getCreditCostForModel, InsufficientCreditsError } from '@/lib/credits-utils'
+import { getCreditCostForModel } from '@/lib/credits-utils'
 import { consumeCredits, refundCredits } from '@/lib/credits'
 import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/lib/ratelimit'
 
@@ -11,19 +11,35 @@ const handleError = createErrorHandler('api/generate-image')
 
 // ============================================================================
 // [Prompt Presets System]
-// 프리셋을 통해 일관된 프롬프트 품질을 보장합니다.
-// 나중에 'lookbook', 'editorial', 'casual' 등 추가 가능
 // ============================================================================
-const PROMPT_PRESETS: Record<string, { base: string; suffix?: string }> = {
-  'fitting-room': {
-    base: "A fashion photoshoot featuring the model wearing the outfit from the reference image. Professional lighting, studio quality, high-end fashion photography style. Maintain the model's face and body proportions exactly.",
-    suffix: ""
+
+// Analyzed style from user's reference image (High-end streetwear / Editorial)
+const FASHION_PROMPT_TEMPLATE = {
+  "image_type": "commercial_fashion_photography",
+  "sub_type": "studio_lookbook, e-commerce_catalog, full_body_shot",
+  "subject": {
+    "model_source": "Use the face and body of the model from the reference image",
+    "expression": "neutral_expression, looking_straight_at_camera, confident",
+    "pose": "standing_straight, front_view, arms_relaxed_at_sides",
+    "skin": "natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed"
   },
-  // 나중에 추가할 프리셋 예시:
-  // 'lookbook': {
-  //   base: "Studio lookbook shot, full body, standing pose, white background",
-  //   suffix: ", professional fashion photography, 8k"
-  // },
+  "apparel": {
+    "instruction": "Wear the exact outfit provided in the reference image",
+    "fit": "Maintain the original fit, silhouette, and volume of the reference outfit",
+    "details": "Keep all details, materials, textures, and colors strictly from the reference outfit",
+    "styling": "High-end streetwear, minimalist styling",
+    "realism": "natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body"
+  },
+  "environment": {
+    "background": "seamless_pure_white_studio_background, cyclorama_wall, infinite_white",
+    "props": "none, minimalist"
+  },
+  "technical_specs": {
+    "lighting": "soft_even_studio_lighting, subtle_shadows_for_depth, cinematic_soft_light",
+    "image_quality": "high_resolution, photorealistic, sharp_focus, 8k, masterpiece, raw_photo",
+    "composition": "centered_subject, full_body_frame",
+    "finish": "natural_film_grain, no_plastic_skin, true_to_life_colors"
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -77,19 +93,31 @@ export async function POST(request: NextRequest) {
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
 
-    // Seedream 모델 (fitting-room)에 프리셋 적용
+    // Seedream 모델 (fitting-room)에 JSON 템플릿 적용
     if (effectiveModelId === 'fal-ai/bytedance/seedream/v4.5/edit') {
-      const preset = PROMPT_PRESETS['fitting-room']
       const userPrompt = validated.prompt?.trim() || ''
 
-      // 사용자 입력이 있으면 base + userPrompt, 없으면 base만
+      // 1. 템플릿 복사
+      const promptObj: Record<string, any> = { ...FASHION_PROMPT_TEMPLATE }
+
+      // 2. 사용자 프롬프트가 있다면 맨 마지막에 추가
       if (userPrompt) {
-        validated.prompt = `${preset.base} ${userPrompt}${preset.suffix ? ` ${preset.suffix}` : ''}`
-      } else {
-        validated.prompt = preset.base
+        promptObj["user_add_prompt"] = userPrompt
       }
 
-      console.log(`[API] Applied fitting-room preset. Final prompt: ${validated.prompt.slice(0, 100)}...`)
+      // 3. JSON 구조를 문자열로 변환하여 프롬프트로 사용
+      // 대부분의 최신 모델은 구조화된 텍스트(JSON 형태)를 잘 이해합니다.
+      // 콤마로 구분된 key: value 형태로 변환하여 토큰 절약 및 가독성 확보
+      const formattedPrompt = Object.entries(promptObj).map(([key, value]) => {
+        if (typeof value === 'object') {
+          return `${key}: { ${Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(', ')} }`
+        }
+        return `${key}: ${value}`
+      }).join(', ')
+
+      validated.prompt = formattedPrompt
+
+      console.log(`[API] Applied JSON Template prompt:`, validated.prompt)
     }
 
     if (effectiveModelId !== modelId) {

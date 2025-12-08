@@ -150,7 +150,7 @@ export const scriptGenerationSchema = z.object({
 const imageUrlSchema = z.string().min(1, 'URL cannot be empty')
 
 export const imageGenerationSchema = z.object({
-  prompt: z.string().min(1, 'Prompt is required').max(10000, 'Prompt must be 10000 characters or less'),
+  prompt: z.string().max(10000, 'Prompt must be 10000 characters or less').optional().default(''),
   modelId: z.string().min(1).optional(),
   style: z.string().max(200).optional(),
   aspectRatio: z.string().max(50).optional(),

@@ -107,6 +107,7 @@ export default function FittingRoomCreatePage() {
                 // imageUrls[0]은 모델, 나머지는 의상
                 const uploadedModelUrl = imageUrls[0];
                 const uploadedOutfitUrls = imageUrls.slice(1);
+                const batchId = crypto.randomUUID();
 
                 for (const imgUrl of generatedImageUrls) {
                     await fetch('/api/fitting-room/generated', {
@@ -114,6 +115,7 @@ export default function FittingRoomCreatePage() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             image_url: imgUrl,
+                            group_id: batchId,
                             prompt: userPrompt,
                             model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
                             source_model_url: uploadedModelUrl,

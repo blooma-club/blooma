@@ -13,6 +13,7 @@ const GENERATED_IMAGES_TABLE_STATEMENTS = [
     `CREATE TABLE IF NOT EXISTS generated_images (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
+    group_id TEXT,
     image_url TEXT NOT NULL,
     image_key TEXT,
     prompt TEXT,
@@ -27,6 +28,7 @@ const GENERATED_IMAGES_TABLE_STATEMENTS = [
   )`,
     `CREATE INDEX IF NOT EXISTS generated_images_user_id_idx ON generated_images(user_id)`,
     `CREATE INDEX IF NOT EXISTS generated_images_created_at_idx ON generated_images(created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS generated_images_group_id_idx ON generated_images(group_id)`,
 ]
 
 /**
@@ -44,6 +46,15 @@ export async function ensureGeneratedImagesTable(): Promise<void> {
                     console.warn('[GeneratedImages] Failed to execute:', statement, error)
                 }
             }
+
+            // Migration: group_id column adding
+            try {
+                await queryD1(`ALTER TABLE generated_images ADD COLUMN group_id TEXT`)
+                console.log('[GeneratedImages] Added group_id column')
+            } catch (error) {
+                // Ignore error if column likely exists
+            }
+
             generatedImagesTableEnsured = true
             ensureGeneratedImagesTablePromise = null
         })().catch(error => {
@@ -58,6 +69,7 @@ export async function ensureGeneratedImagesTable(): Promise<void> {
 export interface GeneratedImage {
     id: string
     user_id: string
+    group_id: string | null
     image_url: string
     image_key: string | null
     prompt: string | null
@@ -74,6 +86,7 @@ export interface GeneratedImage {
 export interface CreateGeneratedImageInput {
     id: string
     user_id: string
+    group_id?: string | null
     image_url: string
     image_key?: string | null
     prompt?: string | null
@@ -102,15 +115,16 @@ export async function createGeneratedImage(input: CreateGeneratedImageInput): Pr
 
     await queryD1(
         `INSERT INTO generated_images (
-      id, user_id, image_url, image_key, prompt, model_id,
+      id, user_id, group_id, image_url, image_key, prompt, model_id,
       source_model_url, source_outfit_urls, generation_params,
       credit_cost, is_favorite, created_at, updated_at
     ) VALUES (
-      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, ?11, ?11
+      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?12
     )`,
         [
             input.id,
             input.user_id,
+            input.group_id ?? null,
             input.image_url,
             input.image_key ?? null,
             input.prompt ?? null,
@@ -126,6 +140,7 @@ export async function createGeneratedImage(input: CreateGeneratedImageInput): Pr
     return {
         id: input.id,
         user_id: input.user_id,
+        group_id: input.group_id ?? null,
         image_url: input.image_url,
         image_key: input.image_key ?? null,
         prompt: input.prompt ?? null,

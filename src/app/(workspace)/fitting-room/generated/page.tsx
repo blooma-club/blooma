@@ -28,6 +28,7 @@ const formatDate = (dateString: string, style: 'short' | 'long' = 'short') => {
 
 type GeneratedImage = {
     id: string
+    group_id?: string
     image_url: string
     prompt?: string
     source_model_url?: string
@@ -135,6 +136,27 @@ export default function GeneratedPage() {
         !searchQuery || img.prompt?.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
+    // 그룹별 대표 이미지만 표시 (group_id가 같은 이미지 중 첫 번째만)
+    const displayImages = filteredImages.reduce<GeneratedImage[]>((acc, img) => {
+        // group_id가 없으면 개별 이미지로 표시
+        if (!img.group_id) {
+            acc.push(img)
+            return acc
+        }
+        // 이미 같은 group_id가 추가되었는지 확인
+        const alreadyAdded = acc.some(existing => existing.group_id === img.group_id)
+        if (!alreadyAdded) {
+            acc.push(img)
+        }
+        return acc
+    }, [])
+
+    // 그룹당 이미지 개수 계산
+    const getGroupCount = (groupId?: string): number => {
+        if (!groupId) return 1
+        return images.filter(img => img.group_id === groupId).length
+    }
+
     return (
         <div className="min-h-[calc(100vh-7rem)] bg-background">
             <div className="max-w-6xl mx-auto px-6 py-8">
@@ -164,9 +186,9 @@ export default function GeneratedPage() {
                             <div key={i} className="aspect-[3/4] rounded-2xl bg-muted/30 animate-pulse" />
                         ))}
                     </div>
-                ) : filteredImages.length > 0 ? (
+                ) : displayImages.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {filteredImages.map((image) => (
+                        {displayImages.map((image) => (
                             <div
                                 key={image.id}
                                 className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted/30 cursor-pointer ring-1 ring-border/30 hover:ring-border transition-all"
@@ -182,6 +204,13 @@ export default function GeneratedPage() {
                                     quality={75}
                                     loading="lazy"
                                 />
+
+                                {/* Group count badge */}
+                                {getGroupCount(image.group_id) > 1 && (
+                                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-lg">
+                                        {getGroupCount(image.group_id)} images
+                                    </div>
+                                )}
 
                                 {/* Hover overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -289,13 +318,48 @@ export default function GeneratedPage() {
                         </div>
 
                         {/* Details */}
-                        <div className="w-80 p-8 flex flex-col relative">
+                        <div className="w-80 p-8 flex flex-col relative overflow-y-auto">
                             <button
                                 onClick={() => setSelectedImage(null)}
-                                className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors"
+                                className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors z-10"
                             >
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
+
+                            {/* Variations Loop */}
+                            {selectedImage && selectedImage.group_id && (
+                                <div className="mb-8 mt-4">
+                                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Variations</h4>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <div className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden ring-2 ring-foreground">
+                                            <Image
+                                                src={selectedImage.image_url}
+                                                alt="Current"
+                                                fill
+                                                className="object-cover"
+                                                sizes="64px"
+                                            />
+                                        </div>
+                                        {images
+                                            .filter(img => img.group_id === selectedImage.group_id && img.id !== selectedImage.id)
+                                            .map((sibling) => (
+                                                <div
+                                                    key={sibling.id}
+                                                    className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-border/50 cursor-pointer hover:ring-foreground/50 transition-all opacity-70 hover:opacity-100"
+                                                    onClick={() => setSelectedImage(sibling)}
+                                                >
+                                                    <Image
+                                                        src={sibling.image_url}
+                                                        alt="Variation"
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="64px"
+                                                    />
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Model Image */}
                             {selectedImage.source_model_url && (

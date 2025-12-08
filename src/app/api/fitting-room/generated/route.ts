@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
             source_model_url,
             source_outfit_urls,
             generation_params,
-            credit_cost
+            credit_cost,
+            group_id
         } = body
 
         if (!image_url) {
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
         const image = await createGeneratedImage({
             id,
             user_id: userId,
+            group_id,
             image_url,
             image_key,
             prompt,
