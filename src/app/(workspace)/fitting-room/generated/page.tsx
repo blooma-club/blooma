@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { Search, MoreHorizontal, Trash2, Image as ImageIcon, RefreshCw, Eye, X } from 'lucide-react'
+import { Search, MoreHorizontal, Trash2, Image as ImageIcon, RefreshCw, Eye, X, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -107,6 +107,30 @@ export default function GeneratedPage() {
         }
     }
 
+    // Download original image
+    const handleDownload = useCallback(async (imageUrl: string, filename?: string) => {
+        try {
+            toast({ title: 'Preparing download...', description: 'Fetching original image' })
+
+            const response = await fetch(imageUrl)
+            const blob = await response.blob()
+
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = filename || `blooma-${Date.now()}.png`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+
+            toast({ title: 'Downloaded', description: 'Original image saved to your device' })
+        } catch (error) {
+            console.error('Download error:', error)
+            toast({ title: 'Error', description: 'Failed to download image' })
+        }
+    }, [toast])
+
     const filteredImages = images.filter(img =>
         !searchQuery || img.prompt?.toLowerCase().includes(searchQuery.toLowerCase())
     )
@@ -133,7 +157,7 @@ export default function GeneratedPage() {
                     </div>
                 </div>
 
-                {/* Gallery */}
+                {/* Gallery Grid */}
                 {loading ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {[...Array(8)].map((_, i) => (
@@ -148,12 +172,15 @@ export default function GeneratedPage() {
                                 className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted/30 cursor-pointer ring-1 ring-border/30 hover:ring-border transition-all"
                                 onClick={() => setSelectedImage(image)}
                             >
+                                {/* Optimized Thumbnail Image */}
                                 <Image
                                     src={image.image_url}
                                     alt={image.prompt || 'Generated image'}
                                     fill
                                     className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                                    sizes="(max-width: 768px) 50vw, 25vw"
+                                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                                    quality={75}
+                                    loading="lazy"
                                 />
 
                                 {/* Hover overlay */}
@@ -179,7 +206,7 @@ export default function GeneratedPage() {
                                                 <MoreHorizontal className="w-4 h-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-36 rounded-xl">
+                                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
                                             <DropdownMenuItem
                                                 className="rounded-lg text-xs"
                                                 onClick={(e) => {
@@ -189,6 +216,16 @@ export default function GeneratedPage() {
                                             >
                                                 <Eye className="w-3.5 h-3.5 mr-2" />
                                                 View
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                className="rounded-lg text-xs"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleDownload(image.image_url, `blooma-${image.id}.png`)
+                                                }}
+                                            >
+                                                <Download className="w-3.5 h-3.5 mr-2" />
+                                                Download
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 className="rounded-lg text-xs text-destructive focus:text-destructive"
@@ -236,7 +273,7 @@ export default function GeneratedPage() {
                         className="bg-background rounded-3xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Preview */}
+                        {/* Preview - High Quality for Modal */}
                         <div className="flex-1 bg-muted/20 flex items-center justify-center p-8">
                             <div className="relative w-full aspect-[3/4] max-h-[65vh] rounded-2xl overflow-hidden">
                                 <Image
@@ -244,6 +281,9 @@ export default function GeneratedPage() {
                                     alt={selectedImage.prompt || 'Generated image'}
                                     fill
                                     className="object-contain"
+                                    sizes="(max-width: 1024px) 80vw, 50vw"
+                                    quality={90}
+                                    priority
                                 />
                             </div>
                         </div>
@@ -267,6 +307,8 @@ export default function GeneratedPage() {
                                             alt="Model"
                                             fill
                                             className="object-cover"
+                                            sizes="96px"
+                                            quality={60}
                                         />
                                     </div>
                                 </div>
@@ -279,7 +321,14 @@ export default function GeneratedPage() {
                                     <div className="flex gap-2 flex-wrap">
                                         {selectedImage.source_outfit_urls.map((img, idx) => (
                                             <div key={`o-${idx}`} className="relative w-16 h-16 rounded-xl overflow-hidden ring-1 ring-border/50">
-                                                <Image src={img} alt="Outfit" fill className="object-cover" />
+                                                <Image
+                                                    src={img}
+                                                    alt="Outfit"
+                                                    fill
+                                                    className="object-cover"
+                                                    sizes="64px"
+                                                    quality={60}
+                                                />
                                             </div>
                                         ))}
                                     </div>
@@ -294,12 +343,14 @@ export default function GeneratedPage() {
 
                             {/* Actions */}
                             <div className="mt-auto space-y-3">
+                                {/* Download Original Button */}
                                 <Button
                                     variant="outline"
                                     className="w-full h-11 rounded-xl text-sm"
-                                    onClick={() => window.location.href = '/fitting-room/create'}
+                                    onClick={() => handleDownload(selectedImage.image_url, `blooma-${selectedImage.id}.png`)}
                                 >
-                                    Edit in Creator
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download Original
                                 </Button>
                                 <Button
                                     className="w-full h-11 rounded-xl bg-foreground hover:bg-foreground/90 text-background text-sm"

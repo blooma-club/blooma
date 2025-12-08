@@ -1,181 +1,277 @@
 'use client'
 
-import { useState } from 'react'
-import { FolderOpen, Layers, PanelLeftClose, PanelLeftOpen, Box, Shirt } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useState, createContext, useContext, memo, useEffect } from 'react'
+import Image from 'next/image'
+import Link, { LinkProps } from 'next/link'
+import { usePathname } from 'next/navigation'
+import { FolderOpen, Box, Shirt, Menu, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useUser } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
+import { useThemePreference } from '@/hooks/useThemePreference'
+import CreditsIndicator from '@/components/ui/CreditsIndicator'
+import ThemeToggle from '@/components/ui/theme-toggle'
+import ProfileMenu from '@/components/layout/ProfileMenu'
 
-interface LeftSidebarProps {
-  activeTab: string
-  onTabChange: (tab: string) => void
-  modelsCount?: number
+// --- Detect Mobile ---
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  return isMobile
 }
 
-export function LeftSidebar({ activeTab, onTabChange, modelsCount = 0 }: LeftSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const router = useRouter()
+// --- Sidebar Context ---
+interface SidebarContextProps {
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
 
-  const tabs = [
-    {
-      id: 'projects',
-      name: 'Projects',
-      icon: FolderOpen,
-      shortcut: 'P'
-    },
-    {
-      id: 'assets',
-      name: 'Assets',
-      icon: Box,
-      shortcut: 'A',
-      badge: modelsCount > 0 ? modelsCount : undefined
-    },
-    {
-      id: 'fitting-room',
-      name: 'Fitting Room',
-      icon: Shirt,
-      shortcut: 'F'
-    },
-  ] as const
+const SidebarContext = createContext<SidebarContextProps | undefined>(undefined)
 
-  return (
-    <aside
-      className={cn(
-        "sticky top-0 z-20 flex h-screen flex-col bg-background/60 backdrop-blur-xl border-r border-border/40 transition-all duration-500 ease-out will-change-[width]",
-        isCollapsed ? "w-[72px]" : "w-[260px]"
-      )}
-    >
-      {/* Header Area */}
-      <div className="flex h-16 items-center px-4 border-b border-border/40">
-        <div className={cn(
-          "flex items-center flex-1 overflow-hidden transition-all duration-500",
-          isCollapsed ? "w-0 opacity-0" : "w-full opacity-100"
-        )}>
-          <div className="flex items-center gap-2.5">
-            <div className="h-5 w-5 rounded-md bg-foreground/10 dark:bg-white/10 flex items-center justify-center ring-1 ring-foreground/20 dark:ring-white/20">
-              <div className="h-2.5 w-2.5 rounded-sm bg-foreground dark:bg-white shadow-[0_0_8px_rgba(0,0,0,0.3)] dark:shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
-            </div>
-            <span className="text-sm font-semibold tracking-tight text-foreground/90">Workspace</span>
-          </div>
-        </div>
+const useSidebar = () => {
+  const context = useContext(SidebarContext)
+  if (!context) throw new Error("useSidebar must be used within LeftSidebar")
+  return context
+}
 
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            "group relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 hover:bg-muted/50 text-muted-foreground hover:text-foreground",
-            isCollapsed && "mx-auto"
-          )}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+// --- Navigation Links ---
+const navLinks = [
+  { label: 'Projects', href: '/dashboard', icon: FolderOpen },
+  { label: 'Assets', href: '/assets/models', icon: Box },
+  { label: 'Fitting Room', href: '/fitting-room', icon: Shirt },
+]
+
+// --- Main Component ---
+export function LeftSidebar() {
+  const [desktopOpen, setDesktopOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const { user } = useUser()
+  const theme = useThemePreference()
+  const isMobile = useIsMobile()
+  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+
+  // Desktop Sidebar (rendered only on md+)
+  if (!isMobile) {
+    return (
+      <SidebarContext.Provider value={{ open: desktopOpen, setOpen: setDesktopOpen }}>
+        <motion.aside
+          className="flex flex-col bg-background/60 backdrop-blur-xl border-r border-border/40 h-screen sticky top-0 z-20 overflow-hidden"
+          animate={{ width: desktopOpen ? 280 : 72 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          onMouseEnter={() => setDesktopOpen(true)}
+          onMouseLeave={() => setDesktopOpen(false)}
         >
-          {isCollapsed ? (
-            <PanelLeftOpen className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
-          )}
+          <div className="flex flex-col h-full p-4 min-w-[260px]">
+            {/* Logo */}
+            <div className="pb-6 pt-1">
+              <SidebarLogo logoSrc={logoSrc} />
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex flex-col gap-1 flex-1 overflow-y-auto scrollbar-none">
+              {navLinks.map((link) => (
+                <SidebarNavLink key={link.href} link={link} />
+              ))}
+            </nav>
+
+            {/* Footer - Always mounted to prevent API refetch */}
+            <div className="pt-4 min-h-[120px] relative">
+              {/* Expanded Card */}
+              <motion.div
+                className="bg-foreground/[0.03] dark:bg-white/[0.03] rounded-xl p-3 flex flex-col gap-4 absolute inset-x-0 bottom-0"
+                animate={{ opacity: desktopOpen ? 1 : 0, scale: desktopOpen ? 1 : 0.95 }}
+                style={{ pointerEvents: desktopOpen ? 'auto' : 'none' }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ProfileMenu />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate text-foreground">
+                        {user?.fullName || user?.username || "User"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        {user?.primaryEmailAddress?.emailAddress || ""}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 opacity-50 hover:opacity-100 transition-opacity scale-90">
+                    <ThemeToggle />
+                  </div>
+                </div>
+                <CreditsIndicator minimal />
+              </motion.div>
+
+              {/* Collapsed Avatar */}
+              <motion.div
+                className="flex justify-center absolute inset-x-0 bottom-0"
+                animate={{ opacity: !desktopOpen ? 1 : 0 }}
+                style={{ pointerEvents: !desktopOpen ? 'auto' : 'none' }}
+                transition={{ duration: 0.2 }}
+              >
+                <ProfileMenu />
+              </motion.div>
+            </div>
+          </div>
+        </motion.aside>
+      </SidebarContext.Provider>
+    )
+  }
+
+  // Mobile Sidebar
+  return (
+    <SidebarContext.Provider value={{ open: mobileOpen, setOpen: setMobileOpen }}>
+      {/* Mobile Header */}
+      <div className="flex items-center justify-between p-4 bg-background/60 backdrop-blur-xl border-b border-border/40 sticky top-0 z-20 w-full h-14">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="relative h-7 w-7">
+            <Image src={logoSrc} alt="Blooma" fill className="object-contain" />
+          </div>
+          <span className="font-bold text-foreground">Blooma</span>
+        </Link>
+        <button onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <Menu className="h-6 w-6 text-foreground" />
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-none">
-        <div className="mb-4 px-2">
-          <span className={cn(
-            "text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 transition-opacity duration-300",
-            isCollapsed ? "opacity-0 hidden" : "opacity-100"
-          )}>
-            Menu
-          </span>
-        </div>
-
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          const isActive = activeTab === tab.id
-
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={cn(
-                "group relative flex w-full items-center rounded-xl transition-all duration-300 ease-out outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 dark:focus-visible:ring-white/20",
-                isCollapsed ? "justify-center px-0 py-3" : "px-3 py-2.5 gap-3",
-                isActive
-                  ? "bg-foreground/10 dark:bg-white/10 text-foreground dark:text-white shadow-[0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-              )}
-              title={isCollapsed ? tab.name : undefined}
-            >
-              {isActive && (
-                <div className={cn(
-                  "absolute left-0 h-full w-1 rounded-r-full bg-foreground dark:bg-white shadow-[0_0_12px_rgba(0,0,0,0.4)] dark:shadow-[0_0_12px_rgba(255,255,255,0.4)] transition-all duration-300",
-                  isCollapsed ? "h-8 top-1/2 -translate-y-1/2 left-0.5 w-0.5" : "opacity-0"
-                )} />
-              )}
-
-              <Icon className={cn(
-                "shrink-0 transition-all duration-300",
-                isActive ? "text-foreground dark:text-white" : "opacity-70 group-hover:opacity-100",
-                isCollapsed ? "h-5 w-5" : "h-4.5 w-4.5"
-              )} strokeWidth={isActive ? 2 : 1.5} />
-
-              {!isCollapsed && (
-                <div className="flex flex-1 items-center justify-between overflow-hidden">
-                  <span className={cn(
-                    "text-sm font-medium transition-all duration-300 truncate",
-                    isActive ? "translate-x-0.5" : "group-hover:translate-x-0.5"
-                  )}>
-                    {tab.name}
-                  </span>
-                  {/* Keyboard shortcut or badge placeholder */}
-                  {'badge' in tab && tab.badge ? (
-                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-foreground/10 dark:bg-white/10 px-1.5 text-[10px] font-bold text-foreground dark:text-white">
-                      {tab.badge}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-medium text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {tab.shortcut}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Hover Glow Effect */}
-              {!isActive && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-foreground/0 via-foreground/5 to-foreground/0 dark:from-white/0 dark:via-white/5 dark:to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              )}
-            </button>
-          )
-        })}
-      </nav>
-
-      {/* Footer Area (User Profile or Settings placeholder) */}
-      <div className="p-3 border-t border-border/40">
-        <div className={cn(
-          "rounded-xl bg-gradient-to-br from-muted/50 to-muted/10 border border-foreground/5 dark:border-white/5 p-3 transition-all duration-500 group relative overflow-hidden",
-          isCollapsed ? "aspect-square p-0 flex items-center justify-center bg-transparent border-0" : ""
-        )}>
-          {!isCollapsed ? (
-            <div className="relative z-10">
-              <h3 className="text-xs font-semibold text-foreground/80 mb-1">Blooma Pro</h3>
-              <p className="text-[10px] text-muted-foreground leading-relaxed mb-3">
-                Upgrade for unlimited AI generations and team features.
-              </p>
-              <button
-                onClick={() => router.push('/pricing')}
-                className="w-full py-1.5 rounded-lg bg-foreground text-background dark:bg-white dark:text-black text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
-              >
-                Upgrade Plan
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed inset-0 bg-background z-[100] p-6 flex flex-col"
+          >
+            <div className="flex justify-end mb-6">
+              <button onClick={() => setMobileOpen(false)} aria-label="Close menu">
+                <X className="h-6 w-6 text-foreground" />
               </button>
             </div>
-          ) : (
-            <div className="h-8 w-8 rounded-full bg-foreground dark:bg-white shadow-lg shadow-black/20 dark:shadow-white/20 flex items-center justify-center text-background dark:text-black text-[10px] font-bold cursor-pointer hover:scale-105 transition-transform">
-              B
-            </div>
-          )}
 
-          {/* Background Decoration */}
-          {!isCollapsed && (
-            <div className="absolute -top-10 -right-10 w-24 h-24 bg-foreground/5 dark:bg-white/5 blur-2xl rounded-full pointer-events-none" />
-          )}
-        </div>
-      </div>
-    </aside>
+            <Link href="/" className="flex items-center gap-3 mb-8" onClick={() => setMobileOpen(false)}>
+              <div className="relative h-8 w-8">
+                <Image src={logoSrc} alt="Blooma" fill className="object-contain" />
+              </div>
+              <span className="font-bold text-xl text-foreground">Blooma</span>
+            </Link>
+
+            <nav className="flex flex-col gap-2 flex-1">
+              {navLinks.map((link) => (
+                <MobileNavLink key={link.href} link={link} onNavigate={() => setMobileOpen(false)} />
+              ))}
+            </nav>
+
+            <div className="pt-4 border-t border-border/40">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <ProfileMenu />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{user?.fullName || "User"}</span>
+                    <span className="text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</span>
+                  </div>
+                </div>
+                <ThemeToggle />
+              </div>
+              <CreditsIndicator minimal />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </SidebarContext.Provider>
   )
 }
+
+// --- Sub Components ---
+
+const SidebarLogo = memo(function SidebarLogo({ logoSrc }: { logoSrc: string }) {
+  const { open } = useSidebar()
+  return (
+    <Link href="/" className="flex items-center gap-3 px-1 group">
+      <div className="relative h-8 w-8 shrink-0 transition-transform group-hover:scale-105">
+        <Image src={logoSrc} alt="Blooma" fill className="object-contain" draggable={false} />
+      </div>
+      <motion.span
+        animate={{ opacity: open ? 1 : 0, width: open ? 'auto' : 0 }}
+        className="font-bold text-lg text-foreground tracking-tight whitespace-nowrap overflow-hidden"
+      >
+        Blooma
+      </motion.span>
+    </Link>
+  )
+})
+
+const SidebarNavLink = memo(function SidebarNavLink({
+  link
+}: {
+  link: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }
+}) {
+  const { open } = useSidebar()
+  const pathname = usePathname()
+  const Icon = link.icon
+
+  const isActive = link.href === '/dashboard'
+    ? pathname === '/dashboard' || pathname?.startsWith('/project')
+    : pathname?.startsWith(link.href)
+
+  return (
+    <Link
+      href={link.href}
+      className={cn(
+        "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors",
+        isActive
+          ? "bg-foreground/10 dark:bg-white/10 text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+      )}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      <motion.span
+        animate={{ opacity: open ? 1 : 0, width: open ? 'auto' : 0 }}
+        className="text-sm whitespace-nowrap overflow-hidden"
+      >
+        {link.label}
+      </motion.span>
+    </Link>
+  )
+})
+
+const MobileNavLink = memo(function MobileNavLink({
+  link,
+  onNavigate
+}: {
+  link: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }
+  onNavigate: () => void
+}) {
+  const pathname = usePathname()
+  const Icon = link.icon
+
+  const isActive = link.href === '/dashboard'
+    ? pathname === '/dashboard' || pathname?.startsWith('/project')
+    : pathname?.startsWith(link.href)
+
+  return (
+    <Link
+      href={link.href}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 py-3 px-4 rounded-lg transition-colors",
+        isActive
+          ? "bg-foreground/10 dark:bg-white/10 text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+      )}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      <span className="text-base">{link.label}</span>
+    </Link>
+  )
+})

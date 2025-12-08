@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { LogOut, User, Settings } from 'lucide-react'
-import { useUserCredits } from '@/hooks/useUserCredits'
 
 type ProfileMenuProps = {
   className?: string
@@ -24,7 +23,6 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
   const { user } = useUser()
   const { signOut, redirectToUserProfile } = useClerk()
   const router = useRouter()
-  const { total, remaining, resetDate, subscriptionTier, isLoading } = useUserCredits()
 
   const primaryEmail = user?.primaryEmailAddress?.emailAddress ?? ''
   const displayName = useMemo(() => {
@@ -34,14 +32,6 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
   }, [primaryEmail, user?.firstName, user?.fullName])
 
   const profileInitial = (displayName?.charAt(0) || 'B').toUpperCase()
-  const quotaLabel =
-    isLoading && total === 0 && remaining === 0
-      ? '-- / --'
-      : total > 0
-        ? `${remaining}/${total}`
-        : `${remaining}`
-  const planLabel = subscriptionTier ? subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1) : 'Free'
-  const nextReset = resetDate ? new Date(resetDate).toLocaleDateString() : 'Not scheduled'
 
   if (!user) {
     return null
@@ -76,8 +66,9 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-72 rounded-2xl border border-border/70 bg-popover/95 text-popover-foreground shadow-2xl backdrop-blur-sm dark:border-white/10"
+        className="w-64 rounded-2xl border border-border/70 bg-popover/95 text-popover-foreground shadow-2xl backdrop-blur-sm dark:border-white/10"
         align="end"
+        side="top"
         sideOffset={12}
       >
         <div className="px-4 pt-4">
@@ -101,25 +92,9 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
                 {profileInitial}
               </div>
             )}
-            <div>
-              <p className="text-sm font-semibold text-foreground">{displayName}</p>
-              <p className="text-xs text-muted-foreground">No bio yet</p>
-            </div>
-          </div>
-        </div>
-        <div className="px-4 pt-4">
-          <div className="rounded-xl border border-border/60 bg-card/60 p-3 dark:border-white/10">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Subscription</span>
-              <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-foreground">
-                {planLabel}
-              </span>
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Credits remaining</span>
-                <span className="text-foreground font-semibold">{quotaLabel}</span>
-              </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{primaryEmail}</p>
             </div>
           </div>
         </div>
@@ -155,4 +130,3 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
     </DropdownMenu>
   )
 }
-
