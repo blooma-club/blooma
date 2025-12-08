@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { uploadFileToR2 } from '@/lib/imageUpload'
 
 type BackgroundAsset = {
   id: string
@@ -60,26 +61,12 @@ export default function BackgroundsPage() {
 
     try {
       setUploading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', 'background')
-      formData.append('assetId', `background-${Date.now()}`)
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
+      await uploadFileToR2(file, { type: 'background', assetId: `background-${Date.now()}` })
+      toast({
+        title: 'Uploaded',
+        description: 'Background uploaded successfully.',
       })
-
-      if (!response.ok) throw new Error('Failed to upload background')
-
-      const result = await response.json()
-      if (result.success) {
-        toast({
-          title: 'Uploaded',
-          description: 'Background uploaded successfully.',
-        })
-        fetchBackgrounds()
-      }
+      fetchBackgrounds()
     } catch (error) {
       console.error('Error uploading background:', error)
       toast({

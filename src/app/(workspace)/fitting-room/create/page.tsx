@@ -7,14 +7,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/storyboard/libraries/ModelLibraryDropdown";
+import { ensureR2Url } from "@/lib/imageUpload";
 
 export default function FittingRoomCreatePage() {
     const [selectedModels, setSelectedModels] = useState<ModelLibraryAsset[]>([]);
-    const [referenceImages, setReferenceImages] = useState<string[]>([]);
+    const [referenceImages, setReferenceImages] = useState<string[]>([]); // blob URLs for preview
     const [prompt, setPrompt] = useState("");
     const [isPromptOpen, setIsPromptOpen] = useState(false);
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [resolution, setResolution] = useState<'2K' | '4K'>('2K'); // 해상도 선택
+    const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Image generation state
@@ -56,44 +59,75 @@ export default function FittingRoomCreatePage() {
 
         try {
             const modelImageUrl = selectedModels[0]?.imageUrl;
-            const imageUrls = [
+            const rawImageUrls = [
                 modelImageUrl,
                 ...referenceImages
             ].filter(Boolean) as string[];
 
-            const finalPrompt = prompt || "Generate a fashion image with the model wearing the outfit";
+            // 모든 URL을 Fal AI가 접근 가능한 공개 URL로 변환
+            console.log('[FittingRoom] Processing images...');
+            const uploadOptions = { projectId: 'fitting-room', frameId: crypto.randomUUID() };
+            const imageUrls = await Promise.all(
+                rawImageUrls.map(async (url) => {
+                    console.log('[FittingRoom] Processing URL:', url.slice(0, 50) + '...');
+                    return await ensureR2Url(url, uploadOptions);
+                })
+            );
+
+            console.log('[FittingRoom] Uploaded imageUrls:', imageUrls);
+
+            // 프롬프트는 서버에서 프리셋으로 처리됨 - 사용자 추가 입력만 전송
+            const userPrompt = prompt?.trim() || '';
 
             const response = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     modelId: 'fal-ai/bytedance/seedream/v4.5/edit',
-                    prompt: finalPrompt,
+                    prompt: userPrompt,
                     imageUrls,
+                    resolution, // 사용자가 선택한 해상도 (2K 또는 4K)
+                    numImages,  // 생성 개수 (2 또는 4)
                 }),
             });
 
             const result = await response.json();
+            console.log('[FittingRoom] API result:', result);
 
-            if (result.success && result.imageUrl) {
-                // Add to local state
-                setGeneratedImages(prev => [result.imageUrl, ...prev]);
-                setPreviewImage(result.imageUrl);
+            // API 응답이 { success: true, data: { imageUrl, imageUrls, ... } } 형식
+            const generatedImageUrls = result.data?.imageUrls || (result.data?.imageUrl ? [result.data.imageUrl] : []);
+            const firstImageUrl = generatedImageUrls[0] || result.data?.imageUrl || result.imageUrl;
 
-                // Save to database
-                await fetch('/api/fitting-room/generated', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        image_url: result.imageUrl,
-                        prompt: finalPrompt,
-                        model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
-                        source_model_url: modelImageUrl,
-                        source_outfit_urls: referenceImages.length > 0 ? referenceImages : null,
-                    }),
-                }).catch(console.error);
+            if (result.success && firstImageUrl) {
+                // 교체 방식: 새로 생성된 이미지들로 교체 (누적 X)
+                setGeneratedImages(generatedImageUrls);
+                setPreviewImage(firstImageUrl);
+
+                // Save each image to database
+                // imageUrls[0]은 모델, 나머지는 의상
+                const uploadedModelUrl = imageUrls[0];
+                const uploadedOutfitUrls = imageUrls.slice(1);
+
+                for (const imgUrl of generatedImageUrls) {
+                    await fetch('/api/fitting-room/generated', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image_url: imgUrl,
+                            prompt: userPrompt,
+                            model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
+                            source_model_url: uploadedModelUrl,
+                            source_outfit_urls: uploadedOutfitUrls.length > 0 ? uploadedOutfitUrls : null,
+                        }),
+                    }).catch(console.error);
+                }
             } else {
-                setError(result.error || "Failed to generate image");
+                // API 에러 응답이 객체일 수 있으므로 message 추출
+                const errorObj = result.error || result.data?.error;
+                const errorMessage = typeof errorObj === 'object' && errorObj?.message
+                    ? errorObj.message
+                    : (typeof errorObj === 'string' ? errorObj : "Failed to generate image");
+                setError(errorMessage);
             }
         } catch (err) {
             console.error('Generation error:', err);
@@ -141,25 +175,30 @@ export default function FittingRoomCreatePage() {
 
                         {/* Thumbnail Gallery */}
                         {generatedImages.length > 0 && (
-                            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-                                {generatedImages.map((img, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setPreviewImage(img)}
-                                        className={cn(
-                                            "w-14 h-14 shrink-0 rounded-xl overflow-hidden transition-all",
-                                            previewImage === img
-                                                ? "ring-2 ring-foreground ring-offset-2"
-                                                : "opacity-60 hover:opacity-100"
-                                        )}
-                                    >
-                                        <img
-                                            src={img}
-                                            alt={`Generated ${idx + 1}`}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </button>
-                                ))}
+                            <div className="mt-4">
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                                    {generatedImages.map((img, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setPreviewImage(img)}
+                                            className={cn(
+                                                "w-16 aspect-[3/4] shrink-0 rounded-lg overflow-hidden transition-all relative",
+                                                previewImage === img
+                                                    ? "opacity-100 after:absolute after:inset-0 after:rounded-lg after:border-2 after:border-foreground after:pointer-events-none"
+                                                    : "opacity-60 hover:opacity-100"
+                                            )}
+                                        >
+                                            <img
+                                                src={img}
+                                                alt={`Generated ${idx + 1}`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                                    {generatedImages.length} image{generatedImages.length > 1 ? 's' : ''} generated
+                                </p>
                             </div>
                         )}
                     </div>
@@ -319,6 +358,67 @@ export default function FittingRoomCreatePage() {
                             </div>
                         )}
 
+                        {/* Settings: Resolution + Count */}
+                        <div>
+                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Settings</h3>
+                            <div className="flex items-center gap-4">
+                                {/* Resolution */}
+                                <div className="flex gap-1">
+                                    <button
+                                        onClick={() => setResolution('2K')}
+                                        className={cn(
+                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                            resolution === '2K'
+                                                ? "border-foreground bg-foreground text-background"
+                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                        )}
+                                    >
+                                        2K
+                                    </button>
+                                    <button
+                                        onClick={() => setResolution('4K')}
+                                        className={cn(
+                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                            resolution === '4K'
+                                                ? "border-foreground bg-foreground text-background"
+                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                        )}
+                                    >
+                                        4K
+                                    </button>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="w-px h-5 bg-border" />
+
+                                {/* Count */}
+                                <div className="flex gap-1">
+                                    <button
+                                        onClick={() => setNumImages(2)}
+                                        className={cn(
+                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                            numImages === 2
+                                                ? "border-foreground bg-foreground text-background"
+                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                        )}
+                                    >
+                                        ×2
+                                    </button>
+                                    <button
+                                        onClick={() => setNumImages(4)}
+                                        className={cn(
+                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                            numImages === 4
+                                                ? "border-foreground bg-foreground text-background"
+                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                        )}
+                                    >
+                                        ×4
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Generate */}
                         <Button
                             size="lg"
@@ -333,7 +433,6 @@ export default function FittingRoomCreatePage() {
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="w-4 h-4 mr-2" />
                                     Generate
                                 </>
                             )}

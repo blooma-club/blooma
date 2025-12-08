@@ -101,7 +101,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     description: 'ByteDance Seedream v4.5 Image Edit - unified image generation and editing',
     category: 'inpainting',
     maxResolution: '4K',
-    credits: 10,
+    credits: 15,
     inputSchema: {
       prompt: 'string',
       image_urls: 'list<string>',
@@ -284,6 +284,11 @@ export async function generateImageWithModel(
       lastError = error
       console.error(`[FAL] Model ${candidateModel} failed:`, error)
 
+      // 상세 에러 body 로깅
+      const errorBody = (error as { body?: unknown }).body
+      if (errorBody) {
+        console.error(`[FAL] Error body:`, JSON.stringify(errorBody, null, 2))
+      }
       const maybeStatus = (error as { status?: number }).status
       if (typeof maybeStatus === 'number') {
         lastStatus = maybeStatus
@@ -521,29 +526,25 @@ function resolveSeedreamImageSizeForT2I(
 }
 
 /**
- * Seedream Edit 모델용 image_size 해상도 결정
+ * Seedream Edit 모델용 image_size 결정 (Fitting Room 전용)
  * 
- * @param aspectRatio - 비율 (예: '16:9', '3:2')
- * @param resolution - 해상도 설정 ('1K', '2K', '4K')
- * @param isGenerateMode - Generate mode 여부 (true면 Custom 픽셀 계산, false면 auto 사용)
+ * 항상 3:4 비율 커스텀 픽셀 사용:
+ * - 2K: 1536 x 2048
+ * - 4K: 3072 x 4096
  * 
- * Generate mode에서 Edit 모델 사용 시: Custom 픽셀 계산 (T2I와 동일)
- * Edit mode에서 Edit 모델 사용 시: auto 계열 사용 (레퍼런스 이미지 비율 따름)
+ * @param resolution - 해상도 설정 ('2K' | '4K')
  */
 function resolveSeedreamImageSizeForEdit(
   aspectRatio?: string,
   resolution?: string,
   isGenerateMode?: boolean
 ): SeedreamImageSize {
-  // Edit mode에서는 레퍼런스 이미지 비율을 따르므로 auto 계열 사용
-  if (!isGenerateMode) {
-    if (resolution === '4K') return 'auto_4K'
-    if (resolution === '2K') return 'auto_2K'
-    return 'auto'
+  // 항상 3:4 비율 커스텀 픽셀 사용
+  if (resolution === '4K') {
+    return { width: 3072, height: 4096 }
   }
-
-  // Generate mode에서 Edit 모델 사용 시: T2I와 동일하게 Custom 픽셀 계산
-  return resolveSeedreamImageSizeForT2I(aspectRatio, resolution as '1K' | '2K' | '4K' | string)
+  // 기본값: 2K (1536 x 2048)
+  return { width: 1536, height: 2048 }
 }
 
 // Nano Banana Pro Text to Image 모델 (Shared logic)

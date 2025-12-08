@@ -9,6 +9,23 @@ import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/
 
 const handleError = createErrorHandler('api/generate-image')
 
+// ============================================================================
+// [Prompt Presets System]
+// 프리셋을 통해 일관된 프롬프트 품질을 보장합니다.
+// 나중에 'lookbook', 'editorial', 'casual' 등 추가 가능
+// ============================================================================
+const PROMPT_PRESETS: Record<string, { base: string; suffix?: string }> = {
+  'fitting-room': {
+    base: "A fashion photoshoot featuring the model wearing the outfit from the reference image. Professional lighting, studio quality, high-end fashion photography style. Maintain the model's face and body proportions exactly.",
+    suffix: ""
+  },
+  // 나중에 추가할 프리셋 예시:
+  // 'lookbook': {
+  //   base: "Studio lookbook shot, full body, standing pose, white background",
+  //   suffix: ", professional fashion photography, 8k"
+  // },
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
@@ -60,10 +77,19 @@ export async function POST(request: NextRequest) {
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
 
-    // Note: kontext model was removed, but keeping this check for safety
-    if (modelId === 'fal-ai/flux-pro/kontext' && inputImageUrls.length === 0) {
-      effectiveModelId = DEFAULT_MODEL
-      modelOverrideWarning = `Model fal-ai/flux-pro/kontext requires a reference image. Using ${DEFAULT_MODEL} instead.`
+    // Seedream 모델 (fitting-room)에 프리셋 적용
+    if (effectiveModelId === 'fal-ai/bytedance/seedream/v4.5/edit') {
+      const preset = PROMPT_PRESETS['fitting-room']
+      const userPrompt = validated.prompt?.trim() || ''
+
+      // 사용자 입력이 있으면 base + userPrompt, 없으면 base만
+      if (userPrompt) {
+        validated.prompt = `${preset.base} ${userPrompt}${preset.suffix ? ` ${preset.suffix}` : ''}`
+      } else {
+        validated.prompt = preset.base
+      }
+
+      console.log(`[API] Applied fitting-room preset. Final prompt: ${validated.prompt.slice(0, 100)}...`)
     }
 
     if (effectiveModelId !== modelId) {
@@ -81,12 +107,16 @@ export async function POST(request: NextRequest) {
     console.log(`[API] Generating image with model: ${effectiveModelId}`)
 
     // 모델 크레딧 기반 선차감 (실패/플레이스홀더 시 환불)
+    // numImages에 따라 총 크레딧 계산 (Seedream v4.5 Edit = 15 크레딧/이미지)
     const fallbackCategory = modelInfo.category === 'inpainting'
       ? 'IMAGE_EDIT'
       : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
-    const creditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
+    const baseCreditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
       resolution: validated.resolution,
     })
+    const numImages = validated.numImages ?? 1
+    const creditCost = baseCreditCost * numImages
+    console.log(`[API] Credit cost: ${baseCreditCost} per image × ${numImages} = ${creditCost} total`)
     await consumeCredits(userId, creditCost)
 
     const result = await generateImageWithModel(validated.prompt, effectiveModelId, {

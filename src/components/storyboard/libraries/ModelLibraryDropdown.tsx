@@ -4,10 +4,13 @@ import React from 'react'
 import clsx from 'clsx'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { uploadFileToR2 } from '@/lib/imageUpload'
 import { Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
 
 export type ModelLibraryAsset = {
@@ -74,24 +77,8 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
 
     try {
       setLoading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', 'model')
-      // Using current timestamp as ID for new uploads if not provided by server (though server should handle ID generation)
-      // We'll let the server return the saved asset
-      formData.append('assetId', `model-${Date.now()}`)
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) throw new Error('Failed to upload model')
-
-      const result = await response.json()
-      if (result.success) {
-        await fetchAssets() // Refresh list
-      }
+      await uploadFileToR2(file, { type: 'model', assetId: `model-${Date.now()}` })
+      await fetchAssets()
     } catch (error) {
       console.error('Error uploading model:', error)
       alert('Failed to upload model')
@@ -138,21 +125,21 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
         className='hidden'
         onChange={handleUpload}
       />
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
-        <DropdownMenuTrigger asChild>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogTrigger asChild>
           <Button
             variant='outline'
             className={clsx(
               'h-9 px-3 text-sm transition-all duration-300 shadow-sm',
-              'border border-border/40 hover:border-violet-400/40 hover:bg-violet-500/5',
+              'border border-border/40 hover:border-foreground/20 hover:bg-muted/30',
               selectedAsset
-                ? 'text-violet-600 dark:text-violet-300 bg-violet-500/10 border-violet-500/20'
+                ? 'text-foreground bg-muted/20'
                 : 'text-muted-foreground bg-background/60 backdrop-blur-sm'
             )}
           >
             {selectedAsset ? (
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
+                <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-border/20 shadow-sm">
                   <img src={selectedAsset.imageUrl} className="w-full h-full object-cover" alt="" />
                 </div>
                 <span className="truncate max-w-[100px] font-medium">{selectedAsset.name}</span>
@@ -161,51 +148,50 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
               <span className="font-normal">Model</span>
             )}
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className='w-80 rounded-2xl p-0 z-[80] border border-border/40 bg-background/80 backdrop-blur-xl shadow-2xl supports-[backdrop-filter]:bg-background/60'
-          sideOffset={8}
-        >
-          <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
-            <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Model Reference</h4>
-            {(assets.length > 0 || loading) && (
-              <button
-                onClick={handleUploadClick}
-                disabled={loading}
-                className="text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors font-medium disabled:opacity-50"
-              >
-                + Upload
-              </button>
-            )}
-          </div>
+        </DialogTrigger>
+        <DialogContent className='sm:max-w-md rounded-2xl p-0 overflow-hidden border border-border/40 shadow-2xl bg-background/95 backdrop-blur-xl'>
+          <DialogHeader className="px-6 py-4 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
+            <DialogTitle className="text-sm font-medium tracking-tight">Model Library</DialogTitle>
+            <div className="flex items-center gap-4 pr-6">
+              {(assets.length > 0 || loading) && (
+                <button
+                  onClick={handleUploadClick}
+                  disabled={loading}
+                  className="text-xs font-medium hover:underline underline-offset-4 disabled:opacity-50 transition-all"
+                >
+                  Upload
+                </button>
+              )}
+            </div>
+          </DialogHeader>
 
           {loading && assets.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p className="text-xs text-muted-foreground">Loading models...</p>
+            <div className="py-16 text-center">
+              <div className="animate-spin w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full mx-auto mb-4"></div>
+              <p className="text-xs text-muted-foreground font-medium">Loading models...</p>
             </div>
           ) : assets.length === 0 ? (
-            <div className="py-12 px-6 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-600 mb-3 transition-colors hover:bg-violet-500/20">
-                <ImageIcon className="w-4 h-4" strokeWidth={1.5} />
+            <div className="py-20 px-8 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground mb-4">
+                <ImageIcon className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <div>
-                <p className="text-xs font-medium text-foreground">No models yet</p>
-                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Upload a model reference to maintain consistency across your shots.</p>
+                <p className="text-sm font-medium text-foreground">No models yet</p>
+                <p className="text-xs text-muted-foreground mt-2 max-w-[220px] leading-relaxed mx-auto">Upload a model reference to maintain consistency across your shots.</p>
               </div>
               <Button
                 onClick={handleUploadClick}
                 variant="outline"
                 size="sm"
-                className="mt-4 w-full h-8 text-xs border-violet-500/20 bg-violet-500/5 hover:bg-violet-500/10 text-violet-700 dark:text-violet-300 transition-all rounded-lg font-normal"
+                className="mt-8 w-full max-w-[160px] h-9 text-xs rounded-lg font-medium border-border/40 hover:bg-foreground hover:text-background transition-all"
               >
-                <Upload className="w-3 h-3 mr-2" />
+                <Upload className="w-3.5 h-3.5 mr-2" />
                 Upload Image
               </Button>
             </div>
           ) : (
-            <div className="p-2">
-              <div className='grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto custom-scrollbar p-1'>
+            <div className="p-6">
+              <div className='grid grid-cols-3 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar p-1'>
                 {assets.map(asset => (
                   <div key={asset.id} className="group relative">
                     <button
@@ -215,42 +201,43 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
                         onOpenChange?.(false)
                       }}
                       className={clsx(
-                        'w-full overflow-hidden rounded-xl border transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20',
+                        'w-full overflow-hidden rounded-xl border transition-all duration-300 focus:outline-none aspect-[3/4]',
                         selectedAsset?.id === asset.id
-                          ? 'border-violet-500/50 ring-1 ring-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.15)]'
-                          : 'border-transparent hover:border-violet-500/30 hover:shadow-lg hover:shadow-violet-500/5'
+                          ? 'border-foreground ring-1 ring-foreground'
+                          : 'border-transparent ring-1 ring-border/20 hover:ring-foreground/20'
                       )}
                       aria-label={`Select ${asset.name} model reference`}
                     >
-                      <div className='relative aspect-square overflow-hidden bg-muted/20'>
+                      <div className='relative w-full h-full overflow-hidden bg-muted/10'>
                         <img
                           src={asset.imageUrl}
                           alt={asset.name}
                           className={clsx(
-                            'h-full w-full object-cover transition-transform duration-700 ease-out',
-                            selectedAsset?.id === asset.id ? 'scale-105' : 'group-hover:scale-110'
+                            'h-full w-full object-cover transition-transform duration-500 will-change-transform',
+                            selectedAsset?.id === asset.id ? 'scale-105' : 'group-hover:scale-105'
                           )}
                         />
 
                         {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                        <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-1 group-hover:translate-y-0 text-left">
-                          <p className="text-[10px] font-medium text-white truncate drop-shadow-sm">{asset.name}</p>
+                        {/* Name on Hover */}
+                        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-1 group-hover:translate-y-0">
+                          <p className="text-[10px] font-medium text-white truncate drop-shadow-md text-left">{asset.name}</p>
                         </div>
 
                         {/* Selected Indicator */}
                         {selectedAsset?.id === asset.id && (
-                          <div className="absolute inset-0 bg-violet-500/10 border-2 border-violet-500/50 rounded-xl" />
+                          <div className="absolute inset-0 bg-foreground/5" />
                         )}
                       </div>
                     </button>
 
-                    {/* Delete Button - Only visible on hover and for private assets */}
+                    {/* Delete Button */}
                     {!asset.isPublic && (
                       <button
                         onClick={(e) => handleDelete(e, asset.id)}
-                        className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground z-10"
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-red-500/90 hover:text-white transition-all z-10 backdrop-blur-sm"
                         title="Delete model"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -262,28 +249,28 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
                   type='button'
                   onClick={handleUploadClick}
                   disabled={loading}
-                  className="relative aspect-square rounded-xl border border-dashed border-violet-500/20 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all flex flex-col items-center justify-center gap-2 text-violet-600/60 hover:text-violet-600 group disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative aspect-[3/4] rounded-xl border border-dashed border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
-                    <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full"></div>
+                    <div className="animate-spin w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full"></div>
                   ) : (
                     <>
-                      <div className="w-8 h-8 rounded-full bg-violet-500/10 group-hover:bg-violet-500/20 flex items-center justify-center transition-colors text-violet-600">
-                        <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={1.5} />
+                      <div className="w-8 h-8 rounded-full bg-muted/50 group-hover:bg-foreground/5 flex items-center justify-center transition-colors text-muted-foreground group-hover:text-foreground">
+                        <Plus className="w-4 h-4" strokeWidth={1.5} />
                       </div>
-                      <span className="text-[10px] font-medium">New Model</span>
+                      <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">New Model</span>
                     </>
                   )}
                 </button>
               </div>
 
               {selectedAsset && (
-                <div className="px-1 pt-1 mt-1">
+                <div className="pt-4 mt-2 border-t border-border/10">
                   <Button
                     type='button'
                     variant='ghost'
                     size='sm'
-                    className='w-full h-8 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors'
+                    className='w-full h-10 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/5 transition-colors rounded-xl font-medium'
                     onClick={() => {
                       onClear()
                       onOpenChange?.(false)
@@ -295,8 +282,8 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
               )}
             </div>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

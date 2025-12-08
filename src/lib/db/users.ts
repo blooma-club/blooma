@@ -309,6 +309,17 @@ async function createD1User(
     values.push(nextMonth.toISOString())
   }
 
+  // Set default credits to 0 for new users
+  if (columns.has('credits')) {
+    insertColumns.push('credits')
+    values.push(0)
+  }
+
+  if (columns.has('credits_used')) {
+    insertColumns.push('credits_used')
+    values.push(0)
+  }
+
   const placeholders = insertColumns.map(() => '?').join(', ')
 
   try {

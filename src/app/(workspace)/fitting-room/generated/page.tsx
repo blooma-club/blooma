@@ -30,8 +30,8 @@ type GeneratedImage = {
     id: string
     image_url: string
     prompt?: string
-    model_images?: string[]
-    outfit_images?: string[]
+    source_model_url?: string
+    source_outfit_urls?: string[]
     created_at: string
 }
 
@@ -257,38 +257,34 @@ export default function GeneratedPage() {
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
 
-                            {/* Input Images */}
-                            {(selectedImage.model_images?.length || selectedImage.outfit_images?.length) && (
+                            {/* Model Image */}
+                            {selectedImage.source_model_url && (
+                                <div className="mb-6">
+                                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Model Photo</h4>
+                                    <div className="relative w-24 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-border/50">
+                                        <Image
+                                            src={selectedImage.source_model_url}
+                                            alt="Model"
+                                            fill
+                                            className="object-cover"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Outfit Images */}
+                            {selectedImage.source_outfit_urls && selectedImage.source_outfit_urls.length > 0 && (
                                 <div className="mb-8">
-                                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Inputs</h4>
-                                    <div className="flex gap-2">
-                                        {selectedImage.model_images?.map((img, idx) => (
-                                            <div key={`m-${idx}`} className="relative w-14 h-14 rounded-xl overflow-hidden ring-1 ring-border/50">
-                                                <Image src={img} alt="Model" fill className="object-cover" />
-                                            </div>
-                                        ))}
-                                        {selectedImage.outfit_images?.map((img, idx) => (
-                                            <div key={`o-${idx}`} className="relative w-14 h-14 rounded-xl overflow-hidden ring-1 ring-border/50">
+                                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Outfit Photos</h4>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {selectedImage.source_outfit_urls.map((img, idx) => (
+                                            <div key={`o-${idx}`} className="relative w-16 h-16 rounded-xl overflow-hidden ring-1 ring-border/50">
                                                 <Image src={img} alt="Outfit" fill className="object-cover" />
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
-
-                            {/* Prompt */}
-                            {selectedImage.prompt && (
-                                <div className="mb-8">
-                                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Prompt</h4>
-                                    <p className="text-sm leading-relaxed">{selectedImage.prompt}</p>
-                                </div>
-                            )}
-
-                            {/* Model */}
-                            <div className="mb-8">
-                                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Model</h4>
-                                <p className="text-sm font-medium">Seedream v4.5</p>
-                            </div>
 
                             {/* Date */}
                             <div className="mb-8">

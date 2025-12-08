@@ -30,7 +30,7 @@ export const cardInputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title must be 500 characters or less'),
   content: z.string().max(10000, 'Content must be 10000 characters or less'),
   user_input: z.string().max(5000, 'User input must be 5000 characters or less').optional(),
-  
+
   // 이미지 관련
   image_url: z.string().url().optional(),
   image_urls: z.array(z.string().url()).max(20, 'Maximum 20 image URLs allowed').optional(),
@@ -38,15 +38,15 @@ export const cardInputSchema = z.object({
   image_key: z.string().max(500).optional(),
   image_size: z.number().int().positive().optional(),
   image_type: z.enum(['uploaded', 'generated']).optional(),
-  
+
   // 순서 및 크기
   order_index: z.number().int().min(0).optional(),
   card_width: z.number().int().min(240).max(1104).optional(),
-  
+
   // 링크 관련
   next_card_id: z.string().uuid().nullable().optional(),
   prev_card_id: z.string().uuid().nullable().optional(),
-  
+
   // 스토리보드 메타데이터
   scene_number: z.number().int().positive().optional(),
   shot_type: z.string().max(100).optional(),
@@ -58,12 +58,12 @@ export const cardInputSchema = z.object({
   image_prompt: z.string().max(5000).optional(),
   storyboard_status: z.enum(['ready', 'pending', 'enhancing', 'prompted', 'generating', 'error']).optional(),
   shot_description: z.string().max(5000).optional(),
-  
+
   // 비디오 메타데이터
   video_url: z.string().url().optional(),
   video_key: z.string().max(500).nullable().optional(),
   video_prompt: z.string().max(5000).nullable().optional(),
-  
+
   // 확장 메타데이터
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
@@ -144,7 +144,11 @@ export const scriptGenerationSchema = z.object({
 
 /**
  * 이미지 생성 요청 스키마
+ * - image_url: 표준 URL만 허용
+ * - imageUrls: 다양한 URL 형식 허용 (http, https, blob, data, 상대경로 등)
  */
+const imageUrlSchema = z.string().min(1, 'URL cannot be empty')
+
 export const imageGenerationSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(10000, 'Prompt must be 10000 characters or less'),
   modelId: z.string().min(1).optional(),
@@ -153,7 +157,7 @@ export const imageGenerationSchema = z.object({
   width: z.number().int().min(128).max(4096).optional(),
   height: z.number().int().min(128).max(4096).optional(),
   image_url: z.string().url().optional(),
-  imageUrls: z.array(z.string().url()).max(10).optional(),
+  imageUrls: z.array(imageUrlSchema).max(10).optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
 })

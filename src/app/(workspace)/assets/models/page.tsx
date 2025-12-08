@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
 import { useToast } from '@/components/ui/toast'
+import { uploadFileToR2 } from '@/lib/imageUpload'
 
 type ModelAsset = {
   id: string
@@ -70,26 +71,12 @@ export default function ModelsPage() {
 
     try {
       setUploading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', 'model')
-      formData.append('assetId', `model-${Date.now()}`)
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
+      await uploadFileToR2(file, { type: 'model', assetId: `model-${Date.now()}` })
+      toast({
+        title: 'Success',
+        description: 'Model uploaded successfully.',
       })
-
-      if (!response.ok) throw new Error('Failed to upload model')
-
-      const result = await response.json()
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Model uploaded successfully.',
-        })
-        fetchModels() // Refresh list
-      }
+      fetchModels()
     } catch (error) {
       console.error('Error uploading model:', error)
       toast({
