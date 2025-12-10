@@ -16,7 +16,7 @@ const handleError = createErrorHandler('api/generate-image')
 // Analyzed style from user's reference image (High-end streetwear / Editorial)
 const FASHION_PROMPT_TEMPLATE = {
   "image_type": "commercial_fashion_photography",
-  "sub_type": "studio_lookbook, e-commerce_catalog, full_body_shot",
+  "sub_type": "fashion_studio_lookbook, e-commerce_catalog, full_body_shot",
   "subject": {
     "model_source": "Use the face and body of the model from the reference image",
     "expression": "neutral_expression, looking_straight_at_camera, confident",
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
 
-    // Seedream 모델 (fitting-room)에 JSON 템플릿 적용
+    // Seedream 모델 (Studio)에 JSON 템플릿 적용
     if (effectiveModelId === 'fal-ai/bytedance/seedream/v4.5/edit') {
       const userPrompt = validated.prompt?.trim() || ''
 

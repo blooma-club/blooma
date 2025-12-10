@@ -48,7 +48,7 @@ export default function GeneratedPage() {
         if (!user) return
         try {
             setLoading(true)
-            const response = await fetch('/api/fitting-room/generated')
+            const response = await fetch('/api/studio/generated')
             const result = await response.json()
 
             if (result.success && result.data) {
@@ -81,7 +81,7 @@ export default function GeneratedPage() {
         if (!confirm('Are you sure you want to delete this image?')) return
 
         try {
-            const response = await fetch('/api/fitting-room/generated', {
+            const response = await fetch('/api/studio/generated', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id }),
@@ -282,7 +282,7 @@ export default function GeneratedPage() {
                             Create your first AI-generated image
                         </p>
                         <Button
-                            onClick={() => window.location.href = '/fitting-room/create'}
+                            onClick={() => window.location.href = '/studio/create'}
                             variant="outline"
                             className="h-10 px-5 rounded-xl text-sm"
                         >

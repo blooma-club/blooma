@@ -41,7 +41,7 @@ export interface StoryboardPageData {
 export const saveProjectRatio = (projectId: string, ratio: string) => {
   try {
     localStorage.setItem(`ratio_${projectId}`, ratio)
-  } catch {}
+  } catch { }
 }
 
 export const loadProjectRatio = (projectId: string): string | null => {
@@ -61,7 +61,6 @@ export const saveDraftToLocal = (projectId: string, draft: Omit<StoryboardDraft,
       lastSaved: Date.now()
     }
     localStorage.setItem(`draft_${projectId}`, JSON.stringify(data))
-    console.log('Draft saved to localStorage:', data)
   } catch (error) {
     console.warn('Failed to save draft to localStorage:', error)
   }
@@ -71,14 +70,14 @@ export const loadDraftFromLocal = (projectId: string): StoryboardDraft | null =>
   try {
     const saved = localStorage.getItem(`draft_${projectId}`)
     if (!saved) return null
-    
+
     const data = JSON.parse(saved) as StoryboardDraft
     // 24시간 이상 된 데이터는 삭제
     if (Date.now() - data.lastSaved > 24 * 60 * 60 * 1000) {
       localStorage.removeItem(`draft_${projectId}`)
       return null
     }
-    
+
     return data
   } catch (error) {
     console.warn('Failed to load draft from localStorage:', error)
@@ -89,7 +88,6 @@ export const loadDraftFromLocal = (projectId: string): StoryboardDraft | null =>
 export const clearDraftFromLocal = (projectId: string) => {
   try {
     localStorage.removeItem(`draft_${projectId}`)
-    console.log('Draft cleared from localStorage for project:', projectId)
   } catch (error) {
     console.warn('Failed to clear draft from localStorage:', error)
   }
@@ -105,7 +103,6 @@ export const saveStoryboardPageData = (data: StoryboardPageData) => {
       lastSaved: Date.now()
     }
     localStorage.setItem(`storyboard_${data.storyboardId}`, JSON.stringify(dataWithTimestamp))
-    console.log('Storyboard page data saved:', data.storyboardId)
   } catch (error) {
     console.warn('Failed to save storyboard page data:', error)
   }
@@ -115,14 +112,14 @@ export const loadStoryboardPageData = (storyboardId: string): StoryboardPageData
   try {
     const saved = localStorage.getItem(`storyboard_${storyboardId}`)
     if (!saved) return null
-    
+
     const data = JSON.parse(saved) as StoryboardPageData
     // 1시간 이상 된 데이터는 삭제 (스토리보드는 더 자주 업데이트됨)
     if (Date.now() - data.lastSaved > 60 * 60 * 1000) {
       localStorage.removeItem(`storyboard_${storyboardId}`)
       return null
     }
-    
+
     return data
   } catch (error) {
     console.warn('Failed to load storyboard page data:', error)
@@ -133,7 +130,6 @@ export const loadStoryboardPageData = (storyboardId: string): StoryboardPageData
 export const clearStoryboardPageData = (storyboardId: string) => {
   try {
     localStorage.removeItem(`storyboard_${storyboardId}`)
-    console.log('Storyboard page data cleared:', storyboardId)
   } catch (error) {
     console.warn('Failed to clear storyboard page data:', error)
   }
@@ -144,7 +140,6 @@ export const cleanupProjectData = (projectId: string) => {
   try {
     clearDraftFromLocal(projectId)
     localStorage.removeItem(`ratio_${projectId}`)
-    console.log('All project data cleaned up:', projectId)
   } catch (error) {
     console.warn('Failed to cleanup project data:', error)
   }

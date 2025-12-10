@@ -60,13 +60,6 @@ export const createCard = async (
 
   const json = await response.json().catch(() => ({}))
 
-  console.log(`📡 [${context} ADD CARD] API response:`, {
-    status: response.status,
-    statusText: response.statusText,
-    data: json,
-    hasData: !!json?.data,
-  })
-
   if (!response.ok) {
     const msg = json?.error || json?.details || json?.message || `HTTP ${response.status}: ${response.statusText}`
     throw new Error(`카드 생성 실패: ${msg}`)

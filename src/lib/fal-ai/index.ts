@@ -147,7 +147,7 @@ export const FAL_AI_MODELS: FalAIModel[] = [
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/nano-banana-pro/edit'
+export const DEFAULT_MODEL = 'fal-ai/bytedance/seedream/v4.5/edit'
 
 export const IMAGE_TO_VIDEO_MODEL_IDS = [
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
@@ -526,7 +526,7 @@ function resolveSeedreamImageSizeForT2I(
 }
 
 /**
- * Seedream Edit 모델용 image_size 결정 (Fitting Room 전용)
+ * Seedream Edit 모델용 image_size 결정 (Studio 전용)
  * 
  * 항상 3:4 비율 커스텀 픽셀 사용:
  * - 2K: 1536 x 2048

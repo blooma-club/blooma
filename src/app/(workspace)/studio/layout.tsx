@@ -9,11 +9,11 @@ export default function FittingRoomLayout({ children }: { children: ReactNode })
     const pathname = usePathname()
 
     const tabs = [
-        { href: '/fitting-room/create', label: 'Create' },
-        { href: '/fitting-room/generated', label: 'Gallery' },
+        { href: '/studio/create', label: 'Create' },
+        { href: '/studio/generated', label: 'Gallery' },
     ] as const
 
-    const isRootPath = pathname === '/fitting-room'
+    const isRootPath = pathname === '/studio'
 
     return (
         <div className="relative w-full min-h-screen flex flex-col bg-background">
@@ -21,14 +21,14 @@ export default function FittingRoomLayout({ children }: { children: ReactNode })
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-14">
                         <h2 className="text-sm font-semibold tracking-tight text-muted-foreground">
-                            Fitting Room
+                            Studio
                         </h2>
                         <nav className="flex items-center gap-1">
                             {tabs.map(tab => {
                                 const isActive =
                                     pathname === tab.href ||
                                     pathname.startsWith(`${tab.href}/`) ||
-                                    (isRootPath && tab.href === '/fitting-room/create')
+                                    (isRootPath && tab.href === '/studio/create')
                                 return (
                                     <Link
                                         key={tab.href}

@@ -47,7 +47,7 @@ const useSidebar = () => {
 const navLinks = [
   { label: 'Projects', href: '/dashboard', icon: FolderOpen },
   { label: 'Assets', href: '/assets/models', icon: Box },
-  { label: 'Fitting Room', href: '/fitting-room', icon: Shirt },
+  { label: 'Studio', href: '/studio', icon: Shirt },
 ]
 
 // --- Main Component ---
@@ -228,16 +228,28 @@ const SidebarNavLink = memo(function SidebarNavLink({
     <Link
       href={link.href}
       className={cn(
-        "flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors",
+        // 기본: 높이 10 (40px) 고정, 부드러운 전환 효과
+        "flex items-center h-10 rounded-lg transition-all duration-300 ease-in-out relative overflow-hidden",
+        // 열림: 전체 너비 + 패딩 + 간격
+        // 닫힘: 40px 너비 (정사각형) + 중앙 정렬 + 패딩 0
+        open ? "w-full px-3 gap-3 justify-start" : "w-10 justify-center px-0",
         isActive
           ? "bg-foreground/10 dark:bg-white/10 text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
       )}
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      <Icon className="h-5 w-5 shrink-0 z-10" />
+
+      {/* 텍스트: AnimatePresence 없이 CSS/Motion으로 부드럽게 처리 */}
       <motion.span
-        animate={{ opacity: open ? 1 : 0, width: open ? 'auto' : 0 }}
-        className="text-sm whitespace-nowrap overflow-hidden"
+        initial={false}
+        animate={{
+          opacity: open ? 1 : 0,
+          width: open ? 'auto' : 0,
+          display: open ? 'block' : 'none'
+        }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="text-sm whitespace-nowrap overflow-hidden z-10"
       >
         {link.label}
       </motion.span>

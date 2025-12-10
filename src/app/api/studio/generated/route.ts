@@ -11,7 +11,7 @@ import { deleteImageFromR2 } from '@/lib/r2'
 export const runtime = 'nodejs'
 
 /**
- * GET /api/fitting-room/generated
+ * GET /api/studio/generated
  * 사용자의 생성 이미지 목록 조회
  */
 export async function GET(request: NextRequest) {
@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ success: true, data })
     } catch (error) {
-        console.error('[api/fitting-room/generated] GET error:', error)
+        console.error('[api/studio/generated] GET error:', error)
         return NextResponse.json({ error: 'Failed to list images' }, { status: 500 })
     }
 }
 
 /**
- * POST /api/fitting-room/generated
+ * POST /api/studio/generated
  * 새 생성 이미지 저장
  */
 export async function POST(request: NextRequest) {
@@ -88,13 +88,13 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, data: image })
     } catch (error) {
-        console.error('[api/fitting-room/generated] POST error:', error)
+        console.error('[api/studio/generated] POST error:', error)
         return NextResponse.json({ error: 'Failed to save image' }, { status: 500 })
     }
 }
 
 /**
- * DELETE /api/fitting-room/generated
+ * DELETE /api/studio/generated
  * 이미지 삭제
  */
 export async function DELETE(request: NextRequest) {
@@ -122,13 +122,13 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true })
     } catch (error) {
-        console.error('[api/fitting-room/generated] DELETE error:', error)
+        console.error('[api/studio/generated] DELETE error:', error)
         return NextResponse.json({ error: 'Failed to delete image' }, { status: 500 })
     }
 }
 
 /**
- * PATCH /api/fitting-room/generated
+ * PATCH /api/studio/generated
  * 즐겨찾기 토글
  */
 export async function PATCH(request: NextRequest) {
@@ -156,7 +156,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     } catch (error) {
-        console.error('[api/fitting-room/generated] PATCH error:', error)
+        console.error('[api/studio/generated] PATCH error:', error)
         return NextResponse.json({ error: 'Failed to update image' }, { status: 500 })
     }
 }

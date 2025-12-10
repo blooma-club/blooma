@@ -22,15 +22,11 @@ export default function StoryboardPage() {
 
   useEffect(() => {
     const checkStoryboard = async () => {
-      console.log('[STORYBOARD] Starting check:', { isLoaded, userId, projectId })
-      
       if (!isLoaded) {
-        console.log('[STORYBOARD] Clerk not loaded yet, waiting...')
         return
       }
 
       if (!projectId || !userId) {
-        console.log('[STORYBOARD] Missing projectId or userId:', { projectId, userId })
         setCheckingStoryboard(false)
         return
       }
@@ -38,13 +34,10 @@ export default function StoryboardPage() {
       try {
         // Check if there are any cards in this project
         // This indicates that there are storyboards for this project
-        console.log('[STORYBOARD] Checking for existing cards...')
         const cardsResponse = await fetch(
           `/api/cards?project_id=${encodeURIComponent(projectId)}`,
           { credentials: 'include' }
         )
-
-        console.log('[STORYBOARD] Cards API response status:', cardsResponse.status)
 
         if (!cardsResponse.ok) {
           console.error('[STORYBOARD CHECK] Failed to check cards', cardsResponse.status)
@@ -54,10 +47,8 @@ export default function StoryboardPage() {
         const cardsPayload: { data?: unknown[] } = await cardsResponse.json().catch(() => ({}))
 
         const count = Array.isArray(cardsPayload.data) ? cardsPayload.data.length : 0
-        console.log('[STORYBOARD CHECK] Found cards:', count)
 
         if (count > 0) {
-          console.log('[STORYBOARD CHECK] Navigating to project storyboard view')
           router.replace(`/project/${projectId}/storyboard`)
           // 리디렉션 중이므로 checkingStoryboard를 false로 설정하지 않음
           return
@@ -65,13 +56,11 @@ export default function StoryboardPage() {
 
         const savedDraft = loadDraftFromLocal(projectId)
         if (savedDraft) {
-          console.log('[STORYBOARD CHECK] Draft found, navigating to setup')
           router.replace(`/project/${projectId}/setup`)
           return
         }
 
         // 스토리보드가 없으면 Setup 페이지 표시
-        console.log('[STORYBOARD CHECK] No storyboards found, showing setup')
         setCheckingStoryboard(false)
       } catch (error) {
         console.error('Failed to check storyboards:', error)
@@ -224,16 +213,14 @@ export default function StoryboardPage() {
             <button
               onClick={navigateToStoryboard}
               disabled={creating}
-              className={`w-full p-8 border-2 rounded-2xl transition-all duration-300 text-left ${
-                creating
+              className={`w-full p-8 border-2 rounded-2xl transition-all duration-300 text-left ${creating
                   ? 'bg-neutral-900 border-neutral-800 cursor-not-allowed opacity-50'
                   : 'bg-neutral-900 border-neutral-800 hover:border-neutral-600 hover:bg-neutral-800 hover:scale-105'
-              }`}
+                }`}
             >
               <div
-                className={`flex items-center justify-center w-16 h-16 rounded-xl mb-6 transition-colors ${
-                  creating ? 'bg-neutral-800' : 'bg-neutral-800 group-hover:bg-neutral-700'
-                }`}
+                className={`flex items-center justify-center w-16 h-16 rounded-xl mb-6 transition-colors ${creating ? 'bg-neutral-800' : 'bg-neutral-800 group-hover:bg-neutral-700'
+                  }`}
               >
                 {creating ? (
                   <svg

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Upload, Image as ImageIcon, X, Plus, FolderOpen, Loader2, Sparkles } from "lucide-react";
+import { useUserCredits } from "@/hooks/useUserCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -10,6 +11,7 @@ import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/storyboard
 import { ensureR2Url } from "@/lib/imageUpload";
 
 export default function FittingRoomCreatePage() {
+    const { refresh: refreshCredits } = useUserCredits();
     const [selectedModels, setSelectedModels] = useState<ModelLibraryAsset[]>([]);
     const [referenceImages, setReferenceImages] = useState<string[]>([]); // blob URLs for preview
     const [prompt, setPrompt] = useState("");
@@ -65,16 +67,14 @@ export default function FittingRoomCreatePage() {
             ].filter(Boolean) as string[];
 
             // 모든 URL을 Fal AI가 접근 가능한 공개 URL로 변환
-            console.log('[FittingRoom] Processing images...');
-            const uploadOptions = { projectId: 'fitting-room', frameId: crypto.randomUUID() };
+            const uploadOptions = { projectId: 'studio', frameId: crypto.randomUUID() };
             const imageUrls = await Promise.all(
                 rawImageUrls.map(async (url) => {
-                    console.log('[FittingRoom] Processing URL:', url.slice(0, 50) + '...');
                     return await ensureR2Url(url, uploadOptions);
                 })
             );
 
-            console.log('[FittingRoom] Uploaded imageUrls:', imageUrls);
+
 
             // 프롬프트는 서버에서 프리셋으로 처리됨 - 사용자 추가 입력만 전송
             const userPrompt = prompt?.trim() || '';
@@ -92,7 +92,6 @@ export default function FittingRoomCreatePage() {
             });
 
             const result = await response.json();
-            console.log('[FittingRoom] API result:', result);
 
             // API 응답이 { success: true, data: { imageUrl, imageUrls, ... } } 형식
             const generatedImageUrls = result.data?.imageUrls || (result.data?.imageUrl ? [result.data.imageUrl] : []);
@@ -110,7 +109,7 @@ export default function FittingRoomCreatePage() {
                 const batchId = crypto.randomUUID();
 
                 for (const imgUrl of generatedImageUrls) {
-                    await fetch('/api/fitting-room/generated', {
+                    await fetch('/api/studio/generated', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -123,6 +122,9 @@ export default function FittingRoomCreatePage() {
                         }),
                     }).catch(console.error);
                 }
+
+                // 크레딧 UI 즉시 갱신
+                refreshCredits();
             } else {
                 // API 에러 응답이 객체일 수 있으므로 message 추출
                 const errorObj = result.error || result.data?.error;

@@ -12,7 +12,6 @@ export function useBackgrounds(backgrounds?: BackgroundCandidate[]) {
 
   useEffect(() => {
     if (backgrounds && backgrounds.length > 0) {
-      console.log('[useBackgrounds] Initializing backgrounds:', backgrounds.length)
       initializeBackgrounds(backgrounds)
     }
   }, [backgrounds, initializeBackgrounds])

@@ -36,6 +36,7 @@ import {
   type FrameCache,
 } from '@/lib/storyboard/frameCache'
 import { useHandleCreditError } from '@/hooks/useHandleCreditError'
+import { useUserCredits } from '@/hooks/useUserCredits'
 
 const FrameInfoModal = dynamic(() => import('@/components/storyboard/FrameInfoModal'), {
   loading: () => null,
@@ -151,6 +152,7 @@ export default function StoryboardPage() {
   }, [userId, cardsInitialLoading, cardsLoading])
 
   const { handleCreditError } = useHandleCreditError()
+  const { refresh: refreshCredits } = useUserCredits()
 
   // 안정적인 이미지 업데이트 콜백
   // 통일된 카드 패치 함수
@@ -203,15 +205,7 @@ export default function StoryboardPage() {
         patch.image_type = options.metadata.type
       }
 
-      console.log('[updateCardImages] Updating card with patch:', {
-        cardId,
-        imageUrl: imageUrl.substring(0, 100),
-        image_urls: patch.image_urls?.length || 0,
-      })
-
       await patchCards([patch])
-      
-      console.log('[updateCardImages] Card patch completed for:', cardId)
     },
     [patchCards, queryCards]
   )
@@ -222,16 +216,16 @@ export default function StoryboardPage() {
       const currentCard = Array.isArray(queryCards)
         ? queryCards.find((card: Card) => card.id === cardId)
         : undefined
-      
+
       if (!currentCard) return
 
       const existingHistory: string[] = Array.isArray(currentCard?.image_urls)
         ? currentCard.image_urls.filter((url: unknown): url is string => typeof url === 'string')
         : []
-      
+
       // 선택한 이미지가 히스토리에 있는지 확인
       const imageIndex = existingHistory.indexOf(imageUrl)
-      
+
       if (imageIndex === -1) {
         // 히스토리에 없으면 새 이미지로 추가
         await updateCardImages(cardId, imageUrl)
@@ -287,13 +281,6 @@ export default function StoryboardPage() {
           throw new Error('No image URL returned from server')
         }
 
-        console.log('[ImageUpload] Uploaded image URL:', {
-          frameId,
-          uploadedUrl: uploadedUrl.substring(0, 100),
-          hasPublicUrl: !!result.publicUrl,
-          hasSignedUrl: !!result.signedUrl,
-        })
-
         await updateCardImages(frameId, uploadedUrl, {
           metadata: {
             key: result.key || undefined,
@@ -301,8 +288,6 @@ export default function StoryboardPage() {
             type: result.type || undefined,
           },
         })
-
-        console.log('[ImageUpload] Card images updated, frameId:', frameId)
 
         setError(null)
       } catch (error) {
@@ -498,6 +483,9 @@ export default function StoryboardPage() {
         if (!updateResponse.ok) {
           throw new Error(updatePayload?.error || '생성된 이미지를 저장하지 못했습니다.')
         }
+
+        // 크레딧 UI 즉시 갱신
+        refreshCredits()
 
         // SWR로 카드가 업데이트되면 derived를 통해 반영됨
       } catch (error) {
@@ -726,11 +714,10 @@ export default function StoryboardPage() {
                   <div className="flex items-center gap-0.5">
                     <button
                       onClick={() => setStoryboardViewMode('grid')}
-                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${
-                        (isClient ? storyboardViewMode : 'grid') === 'grid'
-                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                      }`}
+                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${(isClient ? storyboardViewMode : 'grid') === 'grid'
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                        }`}
                       aria-label="Grid view"
                       title="Grid view"
                     >
@@ -750,11 +737,10 @@ export default function StoryboardPage() {
                     </button>
                     <button
                       onClick={() => setStoryboardViewMode('list')}
-                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${
-                        (isClient ? storyboardViewMode : 'grid') === 'list'
-                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                      }`}
+                      className={`h-[32px] w-[32px] rounded-md transition-all duration-200 flex items-center justify-center ${(isClient ? storyboardViewMode : 'grid') === 'list'
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                        }`}
                       aria-label="List view"
                       title="List view"
                     >
@@ -793,11 +779,10 @@ export default function StoryboardPage() {
                   <button
                     type="button"
                     onClick={() => setShowWidthControls(prev => !prev)}
-                    className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${
-                      showWidthControls
-                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                    }`}
+                    className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${showWidthControls
+                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                      }`}
                     aria-label={showWidthControls ? 'Hide layout controls' : 'Show layout controls'}
                     title="Card size"
                   >
@@ -831,11 +816,10 @@ export default function StoryboardPage() {
               <button
                 type="button"
                 onClick={() => setIsPromptDockVisible(prev => !prev)}
-                className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${
-                  !isPromptDockVisible
-                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
-                }`}
+                className={`h-[32px] w-[32px] flex items-center justify-center rounded-md transition-all duration-200 ${!isPromptDockVisible
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50'
+                  }`}
                 aria-label={isPromptDockVisible ? 'Hide PromptDock' : 'Show PromptDock'}
                 title={isPromptDockVisible ? 'Hide prompt dock' : 'Show prompt dock'}
               >
@@ -1055,7 +1039,7 @@ export default function StoryboardPage() {
             if (imageUrls.length > 0) {
               // 첫 번째 이미지를 메인으로, 나머지는 히스토리에 추가
               const [mainImage, ...historyImages] = imageUrls
-              
+
               // 기존 히스토리 가져오기
               const currentCard = Array.isArray(queryCards)
                 ? queryCards.find((card: Card) => card.id === frameId)
@@ -1063,12 +1047,12 @@ export default function StoryboardPage() {
               const existingHistory: string[] = Array.isArray(currentCard?.image_urls)
                 ? currentCard.image_urls.filter((url: unknown): url is string => typeof url === 'string')
                 : []
-              
+
               // 새 히스토리 = 나머지 이미지 + 기존 히스토리 (중복 제거)
               const newHistory = [...historyImages, ...existingHistory].filter(
                 (url, idx, arr) => arr.indexOf(url) === idx && url !== mainImage
               ).slice(0, 19) // 최대 20개 (mainImage 포함)
-              
+
               const patch: Partial<Card> = {
                 id: frameId,
                 image_url: mainImage,
@@ -1076,7 +1060,7 @@ export default function StoryboardPage() {
                 selected_image_url: 0,
                 storyboard_status: 'ready',
               }
-              
+
               await patchCards([patch])
             }
           }}

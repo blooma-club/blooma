@@ -1,7 +1,7 @@
 /**
  * Generated Images Database Layer
  * 
- * Fitting Room에서 생성된 이미지를 저장하고 관리합니다.
+ * Studio에서 생성된 이미지를 저장하고 관리합니다.
  */
 
 import { queryD1, queryD1Single } from './d1'

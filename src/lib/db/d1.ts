@@ -136,12 +136,12 @@ type D1BatchStatement = {
 
 type D1RequestPayload =
   | {
-      sql: string
-      params?: unknown[]
-    }
+    sql: string
+    params?: unknown[]
+  }
   | {
-      batch: D1BatchStatement[]
-    }
+    batch: D1BatchStatement[]
+  }
 
 function isBatchPayload(payload: D1RequestPayload): payload is { batch: D1BatchStatement[] } {
   return 'batch' in payload
@@ -252,14 +252,7 @@ async function executeD1Request<T>(
     }
     throw error
   } finally {
-    console.log('⏱️ [D1] query timing', {
-      fetchMs: formatDuration(fetchDurationMs),
-      statementMs: formatDuration(statementDurationMs),
-      rows: rowCount,
-      paramsCount: totalParams,
-      error: lastError,
-      sqlPreview,
-    })
+    // Timing logs removed for production
   }
 }
 

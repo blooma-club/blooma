@@ -7,6 +7,7 @@ import { cardToFrame, getImageUrlFromCard } from '@/lib/utils'
 import { clampCardWidth } from '@/lib/constants'
 import type { StoryboardFrame } from '@/types/storyboard'
 import { useCards } from '@/lib/api'
+import { useUserCredits } from '@/hooks/useUserCredits'
 import { Card } from '@/types'
 
 type ReindexedCard<T extends { id: string }> = T & {
@@ -37,6 +38,7 @@ export const useFrameManagement = (
   const [generatingImageIds, setGeneratingImageIds] = useState<Set<string>>(new Set())
 
   const { cards, updateCards, deleteCard, mutate } = useCards(projectId)
+  const { refresh: refreshCredits } = useUserCredits()
   const framesRef = useRef<StoryboardFrame[]>([])
 
   // 이미지 생성 상태 관리 함수
@@ -181,11 +183,11 @@ export const useFrameManagement = (
         const duplicatePatch =
           duplicateFields && insertedCardId
             ? [
-                {
-                  id: insertedCardId,
-                  ...duplicateFields,
-                },
-              ]
+              {
+                id: insertedCardId,
+                ...duplicateFields,
+              },
+            ]
             : []
 
         if (duplicatePatch.length > 0) {
@@ -222,13 +224,13 @@ export const useFrameManagement = (
       const reorderPatches =
         targetIndex >= 0
           ? cardsAfter.map((card, idx) => {
-              const newOrder = targetIndex + idx
-              return {
-                id: card.id,
-                order_index: newOrder,
-                scene_number: newOrder + 1,
-              }
-            })
+            const newOrder = targetIndex + idx
+            return {
+              id: card.id,
+              order_index: newOrder,
+              scene_number: newOrder + 1,
+            }
+          })
           : []
 
       const remainingCards = sortedCards.filter(card => card.id !== frameId)
@@ -389,6 +391,9 @@ export const useFrameManagement = (
         ])
 
         setVideoPreview({ frameId, url: videoUrl })
+
+        // 크레딧 UI 즉시 갱신
+        refreshCredits()
 
         return {
           videoUrl,

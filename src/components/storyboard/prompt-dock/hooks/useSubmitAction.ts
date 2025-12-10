@@ -1,6 +1,7 @@
 import React from 'react'
 import { useToast } from '@/components/ui/toast'
 import { useHandleCreditError } from '@/hooks/useHandleCreditError'
+import { useUserCredits } from '@/hooks/useUserCredits'
 import type { PromptDockProps } from '../types'
 import type { useDockState } from './useDockState'
 
@@ -40,6 +41,7 @@ export const useSubmitAction = (
     } = state
 
     const { handleCreditError } = useHandleCreditError()
+    const { refresh: refreshCredits } = useUserCredits()
     const { push: showToast } = useToast()
 
     // submitting은 Video 모드에서만 사용 (이미지는 비동기 처리)
@@ -237,6 +239,9 @@ export const useSubmitAction = (
             if (!json?.success || allImages.length === 0) {
                 throw new Error(json?.error || json?.data?.error || 'Failed to generate image')
             }
+
+            // 크레딧 UI 즉시 갱신
+            refreshCredits()
 
             // 비동기 콜백이 있으면 사용, 없으면 기존 방식 (첫 번째 이미지 적용)
             if (onImageGenerated && selectedFrameId) {
