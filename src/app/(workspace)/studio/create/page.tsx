@@ -148,7 +148,7 @@ export default function FittingRoomCreatePage() {
                     {/* Left: Preview */}
                     <div className="flex flex-col">
                         {/* Preview Area */}
-                        <div className="w-[420px] aspect-[3/4] bg-muted/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
+                        <div className="w-[620px] aspect-[3/4] bg-muted/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
                             {isGenerating ? (
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="w-12 h-12 rounded-full bg-foreground/5 flex items-center justify-center">

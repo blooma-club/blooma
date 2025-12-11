@@ -8,13 +8,14 @@
 
 /* Container utility from tailwind.config.ts */
 @utility container {
-  @apply max-w-none; /* Reset default container styles if any */
+  @apply max-w-none;
+  /* Reset default container styles if any */
   width: 100%;
   margin-left: auto;
   margin-right: auto;
   padding-left: 2rem;
   padding-right: 2rem;
-  
+
   @screen 2xl {
     max-width: 1400px;
   }
@@ -29,13 +30,23 @@
   /* Removed neo brutalism custom shadow token */
 
   @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
   }
 
   @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
   }
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -74,7 +85,7 @@
 @layer base {
   :root {
     /* 라이트 모드 색상 */
-    --background: 0 0% 100%;
+    --background: 0 0% 98%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 3.9%;
@@ -94,13 +105,13 @@
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
     --radius: 0.5rem;
-    
+
     /* Glow 효과 색상 (라이트 모드: 검정색) */
     --glow-bg: 0 0% 0%;
     --glow-bg-hover: 0 0% 5%;
     --glow-border: 0 0% 10%;
   }
- 
+
   .dark {
     --background: 0 0% 6%;
     --foreground: 0 0% 98%;
@@ -120,7 +131,7 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
-    
+
     /* Glow 효과 색상 (다크 모드: 흰색) */
     --glow-bg: 0 0% 100%;
     --glow-bg-hover: 0 0% 95%;
@@ -138,39 +149,42 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: var(--font-inter), sans-serif;
   }
+
   html {
     font-family: var(--font-inter), sans-serif;
   }
+
   .font-sans {
     font-family: var(--font-inter), sans-serif;
   }
-  }
-  .font-geist-sans {
-    font-family: var(--font-geist-sans), sans-serif;
-  }
+}
 
-  /* 🃏 향상된 카드 컴포넌트 */
-  .card {
-    background-color: var(--color-black);
-    border: 2px solid var(--color-white);
-    border-radius: 0.5rem;
-    overflow: hidden;
-  }
+.font-geist-sans {
+  font-family: var(--font-geist-sans), sans-serif;
+}
 
-  .card-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--color-border);
-  }
+/* 🃏 향상된 카드 컴포넌트 */
+.card {
+  background-color: var(--color-black);
+  border: 2px solid var(--color-white);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
 
-  .card-content {
-    padding: 1.5rem;
-  }
+.card-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
 
-  .card-footer {
-    padding: 1.5rem;
-    border-top: 1px solid var(--color-border);
-    background-color: var(--color-gray-900);
-  }
+.card-content {
+  padding: 1.5rem;
+}
+
+.card-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-gray-900);
+}
 
 
 /* Line clamp utilities for text truncation */

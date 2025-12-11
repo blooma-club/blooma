@@ -45,9 +45,9 @@ const useSidebar = () => {
 
 // --- Navigation Links ---
 const navLinks = [
+  { label: 'Studio', href: '/studio', icon: Shirt },
   { label: 'Projects', href: '/dashboard', icon: FolderOpen },
   { label: 'Assets', href: '/assets/models', icon: Box },
-  { label: 'Studio', href: '/studio', icon: Shirt },
 ]
 
 // --- Main Component ---

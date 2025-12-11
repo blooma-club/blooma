@@ -47,14 +47,6 @@ export async function ensureGeneratedImagesTable(): Promise<void> {
                 }
             }
 
-            // Migration: group_id column adding
-            try {
-                await queryD1(`ALTER TABLE generated_images ADD COLUMN group_id TEXT`)
-                console.log('[GeneratedImages] Added group_id column')
-            } catch (error) {
-                // Ignore error if column likely exists
-            }
-
             generatedImagesTableEnsured = true
             ensureGeneratedImagesTablePromise = null
         })().catch(error => {

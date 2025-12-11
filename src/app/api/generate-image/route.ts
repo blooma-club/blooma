@@ -16,30 +16,34 @@ const handleError = createErrorHandler('api/generate-image')
 // Analyzed style from user's reference image (High-end streetwear / Editorial)
 const FASHION_PROMPT_TEMPLATE = {
   "image_type": "commercial_fashion_photography",
-  "sub_type": "fashion_studio_lookbook, e-commerce_catalog, full_body_shot",
+  "sub_type": "fashion_studio_lookbook, e-commerce_catalog, MANDATORY_full_body_shot",
   "subject": {
     "model_source": "Use the face and body of the model from the reference image",
     "expression": "neutral_expression, looking_straight_at_camera, confident",
-    "pose": "standing_straight, front_view, arms_relaxed_at_sides",
-    "skin": "natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed"
+    "pose": "standing_straight, front_view, arms_relaxed_at_sides, feet_visible_on_floor",
+    "skin": "natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed",
+    "body_framing": "COMPLETE full body from head to toes, MUST include feet and shoes"
   },
   "apparel": {
     "instruction": "Wear the exact outfit provided in the reference image",
     "fit": "Maintain the original fit, silhouette, and volume of the reference outfit",
     "details": "Keep all details, materials, textures, and colors strictly from the reference outfit",
     "styling": "High-end streetwear, minimalist styling",
-    "realism": "natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body"
+    "realism": "natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body",
+    "footwear": "If no shoes provided, add clean minimal white sneakers"
   },
   "environment": {
     "background": "seamless_pure_white_studio_background, cyclorama_wall, infinite_white",
-    "props": "none, minimalist"
+    "props": "none, minimalist",
+    "floor": "visible_studio_floor, feet_touching_ground"
   },
   "technical_specs": {
     "lighting": "soft_even_studio_lighting, subtle_shadows_for_depth, cinematic_soft_light",
     "image_quality": "high_resolution, photorealistic, sharp_focus, 8k, masterpiece, raw_photo",
-    "composition": "centered_subject, full_body_frame",
+    "composition": "centered_subject, FULL_BODY_FRAME_from_head_to_feet, leave_space_above_head_and_below_feet",
     "finish": "natural_film_grain, no_plastic_skin, true_to_life_colors"
-  }
+  },
+  "negative_prompt": "cropped_body, partial_body, cut_off_legs, missing_feet, no_shoes, half_body, waist_up, torso_only"
 }
 
 export async function POST(request: NextRequest) {
