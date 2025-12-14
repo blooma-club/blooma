@@ -66,15 +66,54 @@ export class ProjectNotFoundError extends Error {
 
 export async function listProjectsForUser(userId: string): Promise<Project[]> {
   try {
-    const rows = await queryD1<ProjectRow>(
-      `SELECT id, user_id, title, description, is_public, created_at, updated_at
-       FROM projects
-       WHERE user_id = ?1
-       ORDER BY datetime(created_at) DESC`,
+    // Optimized: Single query with LEFT JOIN to avoid N+1 problem
+    // Fetches projects with their first card's preview image in one query
+    type ProjectWithPreviewRow = ProjectRow & {
+      card_image_url?: string | null
+      card_image_urls?: string | null
+      card_selected_image_url?: number | null
+      has_cards?: number | null
+    }
+
+    const rows = await queryD1<ProjectWithPreviewRow>(
+      `SELECT 
+         p.id, p.user_id, p.title, p.description, p.is_public, p.created_at, p.updated_at,
+         c.image_url as card_image_url,
+         c.image_urls as card_image_urls,
+         c.selected_image_url as card_selected_image_url,
+         CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END as has_cards
+       FROM projects p
+       LEFT JOIN (
+         SELECT project_id, id, image_url, image_urls, selected_image_url,
+                ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY datetime(created_at) ASC) as rn
+         FROM cards
+         WHERE user_id = ?1
+       ) c ON c.project_id = p.id AND c.rn = 1
+       WHERE p.user_id = ?1
+       ORDER BY datetime(p.created_at) DESC`,
       [userId],
     )
 
-    const projects = await Promise.all(rows.map(row => enrichProjectRow(row, userId)))
+    // Transform rows to Project objects without additional queries
+    const projects: Project[] = rows.map(row => {
+      const previewImage = resolvePreviewImageFromRow({
+        image_url: row.card_image_url,
+        image_urls: row.card_image_urls,
+        selected_image_url: row.card_selected_image_url,
+      })
+
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        title: row.title,
+        description: row.description ?? undefined,
+        created_at: row.created_at ?? undefined,
+        updated_at: row.updated_at ?? undefined,
+        has_cards: row.has_cards === 1,
+        preview_image: previewImage,
+      }
+    })
+
     return projects
   } catch (error) {
     if (error instanceof D1ProjectsTableError) {
@@ -83,6 +122,26 @@ export async function listProjectsForUser(userId: string): Promise<Project[]> {
     throw new D1ProjectsTableError('Unable to fetch projects from Cloudflare D1', error)
   }
 }
+
+// Helper to resolve preview image from JOIN result
+function resolvePreviewImageFromRow(card: {
+  image_url?: string | null
+  image_urls?: string | null
+  selected_image_url?: number | null
+}): string | null {
+  if (card.image_url && typeof card.image_url === 'string') {
+    return card.image_url
+  }
+
+  const urls = parseImageUrls(card.image_urls)
+  if (!urls || urls.length === 0) {
+    return null
+  }
+
+  const selectedIndex = parseSelectedIndex(card.selected_image_url)
+  return urls[selectedIndex] ?? urls[0]
+}
+
 
 export async function createProjectForUser(userId: string, input: ProjectInput): Promise<Project> {
   const now = new Date().toISOString()

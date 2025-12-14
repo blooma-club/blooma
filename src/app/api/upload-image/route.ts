@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { uploadImageToR2, uploadCharacterImageToR2, deleteImageFromR2 } from '@/lib/r2'
+import { uploadImageToR2, uploadModelImageToR2, deleteImageFromR2 } from '@/lib/r2'
 import { queryD1, queryD1Single, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
 import { insertUploadedAsset } from '@/lib/db/customAssets'
 
@@ -21,11 +21,11 @@ export async function POST(request: NextRequest) {
     const projectId = projectIdValue || storyboardIdValue
     const frameId = sanitizeOptionalString(formData.get('frameId'))
     const uploadType = sanitizeOptionalString(formData.get('type'))?.toLowerCase()
-    
+
     // Determine upload context
     const isModelUpload = uploadType === 'model'
     const isBackgroundUpload = uploadType === 'background'
-    
+
     const targetId = (isModelUpload || isBackgroundUpload) ? (formData.get('assetId') as string) : frameId
 
     if (!file || (!projectId && !isModelUpload && !isBackgroundUpload) || !targetId) {
@@ -42,12 +42,12 @@ export async function POST(request: NextRequest) {
     if (isModelUpload || isBackgroundUpload) {
       try {
         // Use R2 upload helper for custom assets (models/backgrounds)
-        // uploadCharacterImageToR2 creates a unique path structure by ID
-        const assetResult = await uploadCharacterImageToR2(targetId!, dataUrl, projectId || 'shared')
-        
+        // uploadModelImageToR2 creates a unique path structure by ID
+        const assetResult = await uploadModelImageToR2(targetId!, dataUrl, projectId || 'shared')
+
         const assetUrl = assetResult.publicUrl || assetResult.signedUrl
         if (!assetUrl) throw new Error('Failed to get uploaded asset URL')
-        
+
         const tableName = isModelUpload ? 'uploaded_models' : 'uploaded_backgrounds'
         const assetName = sanitizeOptionalString(formData.get('name')) || file.name.split('.')[0]
         const assetSubtitle = sanitizeOptionalString(formData.get('subtitle'))
@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         console.error(`Failed to upload ${uploadType}:`, error)
-        return NextResponse.json({ 
-          error: `Failed to upload ${uploadType}`, 
-          message: error instanceof Error ? error.message : 'Unknown error' 
+        return NextResponse.json({
+          error: `Failed to upload ${uploadType}`,
+          message: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 500 })
       }
     }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         `SELECT image_key FROM cards WHERE id = ?1 AND user_id = ?2`,
         [frameId, userId]
       )
-      
+
       if (existingCard?.image_key) {
         await deleteImageFromR2(existingCard.image_key)
       }

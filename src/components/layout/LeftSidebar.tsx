@@ -2,15 +2,14 @@
 
 import { useState, createContext, useContext, memo, useEffect } from 'react'
 import Image from 'next/image'
-import Link, { LinkProps } from 'next/link'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FolderOpen, Box, Shirt, Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
-import { useThemePreference } from '@/hooks/useThemePreference'
+
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
-import ThemeToggle from '@/components/ui/theme-toggle'
 import ProfileMenu from '@/components/layout/ProfileMenu'
 
 // --- Detect Mobile ---
@@ -55,16 +54,17 @@ export function LeftSidebar() {
   const [desktopOpen, setDesktopOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { user } = useUser()
-  const theme = useThemePreference()
   const isMobile = useIsMobile()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+
+  // Always use light mode black logo
+  const logoSrc = '/blooma_logo_black.webp'
 
   // Desktop Sidebar (rendered only on md+)
   if (!isMobile) {
     return (
       <SidebarContext.Provider value={{ open: desktopOpen, setOpen: setDesktopOpen }}>
         <motion.aside
-          className="flex flex-col bg-background/60 backdrop-blur-xl border-r border-border/40 h-screen sticky top-0 z-20 overflow-hidden"
+          className="flex flex-col h-screen sticky top-0 z-20 overflow-hidden"
           animate={{ width: desktopOpen ? 280 : 72 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
           onMouseEnter={() => setDesktopOpen(true)}
@@ -73,7 +73,7 @@ export function LeftSidebar() {
           <div className="flex flex-col h-full p-4 min-w-[260px]">
             {/* Logo */}
             <div className="pb-6 pt-1">
-              <SidebarLogo logoSrc={logoSrc} />
+              <SidebarLogo />
             </div>
 
             {/* Navigation */}
@@ -87,7 +87,7 @@ export function LeftSidebar() {
             <div className="pt-4 min-h-[120px] relative">
               {/* Expanded Card */}
               <motion.div
-                className="bg-foreground/[0.03] dark:bg-white/[0.03] rounded-xl p-3 flex flex-col gap-4 absolute inset-x-0 bottom-0"
+                className="bg-foreground/[0.03] rounded-xl p-3 flex flex-col gap-4 absolute inset-x-0 bottom-0"
                 animate={{ opacity: desktopOpen ? 1 : 0, scale: desktopOpen ? 1 : 0.95 }}
                 style={{ pointerEvents: desktopOpen ? 'auto' : 'none' }}
                 transition={{ duration: 0.2 }}
@@ -103,9 +103,6 @@ export function LeftSidebar() {
                         {user?.primaryEmailAddress?.emailAddress || ""}
                       </span>
                     </div>
-                  </div>
-                  <div className="shrink-0 opacity-50 hover:opacity-100 transition-opacity scale-90">
-                    <ThemeToggle />
                   </div>
                 </div>
                 <CreditsIndicator minimal />
@@ -131,7 +128,7 @@ export function LeftSidebar() {
   return (
     <SidebarContext.Provider value={{ open: mobileOpen, setOpen: setMobileOpen }}>
       {/* Mobile Header */}
-      <div className="flex items-center justify-between p-4 bg-background/60 backdrop-blur-xl border-b border-border/40 sticky top-0 z-20 w-full h-14">
+      <div className="flex items-center justify-between p-4 bg-transparent sticky top-0 z-20 w-full h-14">
         <Link href="/" className="flex items-center gap-2">
           <div className="relative h-7 w-7">
             <Image src={logoSrc} alt="Blooma" fill className="object-contain" />
@@ -181,7 +178,6 @@ export function LeftSidebar() {
                     <span className="text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</span>
                   </div>
                 </div>
-                <ThemeToggle />
               </div>
               <CreditsIndicator minimal />
             </div>
@@ -194,12 +190,12 @@ export function LeftSidebar() {
 
 // --- Sub Components ---
 
-const SidebarLogo = memo(function SidebarLogo({ logoSrc }: { logoSrc: string }) {
+const SidebarLogo = memo(function SidebarLogo() {
   const { open } = useSidebar()
   return (
     <Link href="/" className="flex items-center gap-3 px-1 group">
       <div className="relative h-8 w-8 shrink-0 transition-transform group-hover:scale-105">
-        <Image src={logoSrc} alt="Blooma" fill className="object-contain" draggable={false} />
+        <Image src="/blooma_logo_black.webp" alt="Blooma" fill className="object-contain" draggable={false} />
       </div>
       <motion.span
         animate={{ opacity: open ? 1 : 0, width: open ? 'auto' : 0 }}
@@ -234,7 +230,7 @@ const SidebarNavLink = memo(function SidebarNavLink({
         // 닫힘: 40px 너비 (정사각형) + 중앙 정렬 + 패딩 0
         open ? "w-full px-3 gap-3 justify-start" : "w-10 justify-center px-0",
         isActive
-          ? "bg-foreground/10 dark:bg-white/10 text-foreground font-medium"
+          ? "bg-foreground/10 text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
       )}
     >
@@ -278,7 +274,7 @@ const MobileNavLink = memo(function MobileNavLink({
       className={cn(
         "flex items-center gap-3 py-3 px-4 rounded-lg transition-colors",
         isActive
-          ? "bg-foreground/10 dark:bg-white/10 text-foreground font-medium"
+          ? "bg-foreground/10 text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
       )}
     >

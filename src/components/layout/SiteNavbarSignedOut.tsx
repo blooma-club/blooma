@@ -2,18 +2,30 @@
 
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import ThemeToggle from '@/components/ui/theme-toggle'
 import { useUser, SignInButton } from '@clerk/nextjs'
-import { useThemePreference } from '@/hooks/useThemePreference'
 import ProfileMenu from '@/components/layout/ProfileMenu'
+
+import { useState, useEffect } from 'react'
 
 export default function SiteNavbarSignedOut() {
   const { user } = useUser()
-  const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
+        ? 'bg-background/80 backdrop-blur-md border-b border-border/5'
+        : 'bg-transparent border-transparent'
+        }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
@@ -24,7 +36,7 @@ export default function SiteNavbarSignedOut() {
             tabIndex={0}
           >
             <Image
-              src={logoSrc}
+              src="/blooma_logo_black.webp"
               alt="Blooma"
               width={28}
               height={28}
@@ -35,12 +47,11 @@ export default function SiteNavbarSignedOut() {
 
           {/* Right Actions */}
           <div className="flex-shrink-0 flex items-center gap-4">
-            <ThemeToggle />
             {!user ? (
               <SignInButton mode="modal" signUpForceRedirectUrl="/dashboard">
                 <Button
                   variant="ghost"
-                  className="px-5 py-2 text-sm font-medium text-background bg-foreground hover:bg-foreground/90 transition-all rounded-full"
+                  className="px-6 py-2 h-9 text-sm font-medium text-background bg-foreground hover:bg-foreground/90 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-full"
                   aria-label="Login"
                   tabIndex={0}
                 >

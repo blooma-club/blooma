@@ -10,7 +10,6 @@ import dynamic from 'next/dynamic'
 import FrameGrid from '@/components/storyboard/viewer/FrameGrid'
 import FrameList from '@/components/storyboard/viewer/FrameList'
 import FloatingHeader from '@/components/storyboard/FloatingHeader'
-import ThemeToggle from '@/components/ui/theme-toggle'
 import VideoPreviewModal from '@/components/storyboard/VideoPreviewModal'
 import { SlidersHorizontal } from 'lucide-react'
 import { createCard } from '@/lib/cards'
@@ -764,11 +763,6 @@ export default function StoryboardPage() {
                   <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
                 </>
               )}
-
-              {/* Theme Toggle */}
-              <div className="flex items-center">
-                <ThemeToggle />
-              </div>
 
               {/* 구분선 */}
               <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />

@@ -165,108 +165,80 @@ export const ProjectCard = ({
       </div>
     )
 
-  // 그리드 뷰 렌더링 (미니멀 + 애니메이션)
+  // 그리드 뷰 렌더링 (미니멀 + 이미지 하단 텍스트 정보 + 4:5 세로형 비율)
   const renderGridView = () => {
-    const isActive = isHovered || isMenuOpen
+    // isActive가 true일 때만 메뉴가 보이도록 유지
+    const isMenuVisible = isMenuOpen || isHovered
+
     return (
       <div
-        className="relative mx-auto w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[440px] cursor-pointer group"
+        className={cn(
+          "group relative flex flex-col transition-all duration-500",
+          "w-full aspect-square", // Square aspect ratio for balanced look
+          "rounded-3xl bg-white border border-neutral-200/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] p-3",
+          "hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)]",
+          isMenuOpen ? "ring-1 ring-neutral-900 border-neutral-900" : ""
+        )}
         onClick={handleGoToProjectSetup}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Gradient Shadow Layer */}
-        {isActive && (
-          <div className="absolute -inset-4 -z-10 rounded-2xl bg-gradient-to-br from-violet-500/30 via-violet-400/15 to-purple-500/20 blur-2xl opacity-70 transition-opacity duration-500" />
-        )}
-        
+        {/* Deleting/Duplicating Overlay */}
         {(isDeleting || isDuplicating) && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 rounded-2xl bg-background/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-foreground"></div>
+          <div className="absolute inset-0 flex items-center justify-center z-50 rounded-3xl bg-white/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-neutral-900"></div>
           </div>
         )}
-        <div
-          className={cn(
-            'relative w-full aspect-[5/4] overflow-hidden rounded-2xl border border-border/40 bg-background/40 shadow-sm transition-all duration-500 ease-out',
-            isActive && '-translate-y-2 shadow-[0_20px_40px_-12px_rgba(139,92,246,0.15)] border-border/60'
-          )}
-        >
-          
-          {/* Preview media */}
-          <div className="absolute inset-0">
-            {project.preview_image ? (
-              <Image
-                src={project.preview_image}
-                alt={`${project.title} preview`}
-                fill
-                className={cn(
-                  'object-cover transition-transform duration-700 ease-out',
-                  isActive ? 'scale-110' : 'scale-100'
-                )}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground bg-muted/20">
-                <ImageIcon className="h-12 w-12 opacity-20" strokeWidth={1.5} />
-              </div>
-            )}
-            
-            {/* Gradient Overlay */}
-            <div className={cn(
-              "absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-all duration-500",
-              isActive ? "opacity-80" : "opacity-60"
-            )} />
-            
-            {/* Unfolding Shine Effect */}
-            <div className={cn(
-              "absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 skew-x-12 transition-transform duration-1000 ease-in-out",
-              isActive ? "translate-x-full" : "-translate-x-full"
-            )} />
-          </div>
 
-          {/* Content */}
-          <div className="relative z-10 flex h-full flex-col justify-end p-5">
-            <div className={cn(
-              "flex flex-col gap-1 transition-all duration-500 ease-out",
-              isActive ? "translate-y-0 opacity-100" : "translate-y-2 opacity-90"
-            )}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold tracking-tight line-clamp-1 text-white drop-shadow-md transition-colors duration-300">
-                    {project.title}
-                  </h3>
-                  <div className={cn(
-                    "overflow-hidden transition-all duration-500 ease-out",
-                    isActive ? "max-h-20 opacity-100 mt-2" : "max-h-0 opacity-0 mt-0"
-                  )}>
-                    <p className="text-xs text-white/80 line-clamp-2 font-light leading-relaxed">
-                      {project.description || "No description provided."}
-                    </p>
-                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/10">
-                      <button className="text-[10px] font-medium text-white/80 hover:text-white transition-colors flex items-center gap-1 bg-white/10 px-2 py-1 rounded-md backdrop-blur-sm hover:bg-white/20">
-                        <Edit3 className="h-3 w-3" />
-                        Edit Project
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className={cn(
-                "text-[11px] font-medium text-white/60 inline-flex items-center gap-1.5 mt-1 transition-all duration-300",
-                isActive ? "opacity-100" : "opacity-80"
-              )}>
-                <Calendar className="h-3 w-3" />
-                <span>{formatDate(project.created_at)}</span>
-              </div>
+        {/* 1. Image Container (Flex-1 to fill available space) */}
+        <div className="relative flex-1 w-full rounded-2xl overflow-hidden bg-neutral-100 min-h-0">
+          {project.preview_image ? (
+            <Image
+              src={project.preview_image}
+              alt={`${project.title} preview`}
+              fill
+              className={cn(
+                'object-cover transition-transform duration-700 ease-out',
+                isHovered ? 'scale-105' : 'scale-100'
+              )}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground bg-neutral-50">
+              <ImageIcon className="h-10 w-10 opacity-10" strokeWidth={1.5} />
             </div>
-            
+          )}
+
+          {/* Menu Button - Absolute top right of image */}
+          <div className={cn(
+            "absolute right-3 top-3 z-20 transition-all duration-300 ease-out",
+            isMenuVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
+          )}>
+            {renderMenuButton('grid')}
+            {renderMenu('grid')}
+          </div>
+        </div>
+
+        {/* 2. Content Below Image (Spacious) */}
+        <div className="flex flex-col pt-5 px-4 pb-2 shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-medium text-neutral-900 tracking-tight line-clamp-1 font-geist-sans mb-1">
+                {project.title}
+              </h3>
+              <p className="text-sm text-neutral-500 line-clamp-1">
+                {project.description || formatDate(project.created_at)}
+              </p>
+            </div>
+
+            {/* Hover Action */}
             <div className={cn(
-              "absolute right-3 top-3 z-20 transition-all duration-300 ease-out",
-              isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
+              "shrink-0 opacity-0 transition-opacity duration-300 translate-x-[-10px]",
+              isHovered ? "opacity-100 translate-x-0" : ""
             )}>
-              {renderMenuButton('grid')}
-              {renderMenu('grid')}
+              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-neutral-100 text-neutral-900 hover:bg-neutral-200 transition-colors">
+                <span className="text-lg leading-none mb-0.5">→</span>
+              </div>
             </div>
           </div>
         </div>

@@ -31,6 +31,58 @@ export function isExternalUrl(url: string): boolean {
 }
 
 // ============================================================================
+// R2 Key Utilities
+// ============================================================================
+
+/**
+ * R2 공개 URL에서 키(경로)만 추출합니다.
+ * 예: https://pub-xxx.r2.dev/studio/abc/def.jpg -> studio/abc/def.jpg
+ */
+export function extractR2Key(url: string): string {
+    if (!url) return url
+
+    // Check if URL starts with R2 base URL patterns
+    const r2Patterns = [
+        /^https?:\/\/pub-[a-z0-9]+\.r2\.dev\//,
+        /^https?:\/\/[a-z0-9-]+\.r2\.cloudflarestorage\.com\//,
+    ]
+
+    for (const pattern of r2Patterns) {
+        if (pattern.test(url)) {
+            return url.replace(pattern, '')
+        }
+    }
+
+    // If it's already a key (no protocol), return as-is
+    if (!url.startsWith('http')) {
+        return url
+    }
+
+    return url // Return original if not an R2 URL
+}
+
+/**
+ * R2 키에서 전체 공개 URL을 재구성합니다.
+ * 서버 사이드에서만 사용 (R2_PUBLIC_BASE_URL 환경변수 필요)
+ */
+export function reconstructR2Url(key: string): string {
+    if (!key) return key
+
+    // Already a full URL
+    if (key.startsWith('http')) {
+        return key
+    }
+
+    const baseUrl = process.env.R2_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL
+    if (!baseUrl) {
+        console.warn('[R2] No R2_PUBLIC_BASE_URL configured, returning key as-is')
+        return key
+    }
+
+    return `${baseUrl.replace(/\/$/, '')}/${key}`
+}
+
+// ============================================================================
 // Upload Options
 // ============================================================================
 

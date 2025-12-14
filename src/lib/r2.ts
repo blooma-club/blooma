@@ -191,7 +191,7 @@ export async function deleteImagesFromR2(keys: string[]): Promise<{ success: str
   if (!bucket) throw new Error('R2_BUCKET_NAME must be set')
 
   const results = await Promise.allSettled(
-    keys.map(key => 
+    keys.map(key =>
       r2Client.send(new DeleteObjectCommand({
         Bucket: bucket,
         Key: key
@@ -214,14 +214,14 @@ export async function deleteImagesFromR2(keys: string[]): Promise<{ success: str
 }
 
 /**
- * Upload character image to R2 with proper directory structure
- * @param characterId - Unique character identifier
+ * Upload model image to R2 with proper directory structure
+ * @param modelId - Unique model identifier
  * @param src - Image source (URL or data URL)
  * @param projectId - Optional project ID for organization
  */
-export async function uploadCharacterImageToR2(
-  characterId: string, 
-  src: string, 
+export async function uploadModelImageToR2(
+  modelId: string,
+  src: string,
   projectId?: string
 ): Promise<UploadResult> {
   const bucket = process.env.R2_BUCKET_NAME
@@ -243,7 +243,7 @@ export async function uploadCharacterImageToR2(
         const b = Buffer.from(m[2], 'base64')
         buffer = new Uint8Array(b)
       } else {
-        console.log(`[R2] Attempting to download character image (attempt ${attempt}/${maxRetries}): ${src.substring(0, 100)}...`)
+        console.log(`[R2] Attempting to download model image (attempt ${attempt}/${maxRetries}): ${src.substring(0, 100)}...`)
 
         const res = await fetch(src, {
           signal: AbortSignal.timeout(30000), // 30 second timeout
@@ -253,8 +253,8 @@ export async function uploadCharacterImageToR2(
         })
 
         if (!res.ok) {
-          const errorMsg = `Failed to download character image: ${res.status} ${res.statusText}`
-          console.warn(`[R2] Character image download failed (attempt ${attempt}): ${errorMsg}`)
+          const errorMsg = `Failed to download model image: ${res.status} ${res.statusText}`
+          console.warn(`[R2] Model image download failed (attempt ${attempt}): ${errorMsg}`)
 
           if (res.status === 409 && attempt < maxRetries) {
             const delay = Math.pow(2, attempt) * 1000 // exponential backoff
@@ -269,17 +269,17 @@ export async function uploadCharacterImageToR2(
         contentType = res.headers.get('content-type')
         const ab = await res.arrayBuffer()
         buffer = new Uint8Array(ab)
-        console.log(`[R2] Successfully downloaded character image (${buffer.length} bytes)`)
+        console.log(`[R2] Successfully downloaded model image (${buffer.length} bytes)`)
       }
 
-      if (!buffer) throw new Error('No character image data')
+      if (!buffer) throw new Error('No model image data')
 
       const ext = extFromContentType(contentType)
-      // Use characters directory with optional project organization
-      const basePath = projectId ? `characters/${projectId}` : 'characters'
-      const key = `${basePath}/${characterId}_${Date.now()}.${ext}`
+      // Use models directory with optional project organization
+      const basePath = projectId ? `models/${projectId}` : 'models'
+      const key = `${basePath}/${modelId}_${Date.now()}.${ext}`
 
-      console.log(`[R2] Uploading character image to R2: ${key} ${projectId ? `(organized by project: ${projectId})` : '(global characters folder)'}`)
+      console.log(`[R2] Uploading model image to R2: ${key} ${projectId ? `(organized by project: ${projectId})` : '(global models folder)'}`)
 
       await r2Client.send(new PutObjectCommand({
         Bucket: bucket,
@@ -301,12 +301,12 @@ export async function uploadCharacterImageToR2(
         signedUrl = null
       }
 
-      console.log(`[R2] Successfully uploaded character image to R2: ${key}`)
+      console.log(`[R2] Successfully uploaded model image to R2: ${key}`)
       return { publicUrl, key, signedUrl, contentType, size: buffer?.length || null }
 
     } catch (error) {
       lastError = error as Error
-      console.error(`[R2] Character image upload attempt ${attempt} failed:`, error)
+      console.error(`[R2] Model image upload attempt ${attempt} failed:`, error)
 
       if (attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 1000 // exponential backoff
@@ -317,7 +317,7 @@ export async function uploadCharacterImageToR2(
   }
 
   // All retries failed
-  throw lastError || new Error('Character image upload failed after all retries')
+  throw lastError || new Error('Model image upload failed after all retries')
 }
 
 export async function uploadAudioToR2({

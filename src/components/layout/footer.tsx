@@ -1,11 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useThemePreference } from '@/hooks/useThemePreference'
 
 export default function SiteFooter() {
-  const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+  const logoSrc = '/blooma_logo_black.webp'
 
   return (
     <footer className="relative border-t border-border/50 dark:border-white/5 py-12 px-4">

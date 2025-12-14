@@ -3,17 +3,13 @@
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
-import ThemeToggle from '@/components/ui/theme-toggle'
-import { useThemePreference } from '@/hooks/useThemePreference'
 import ProfileMenu from '@/components/layout/ProfileMenu'
 
 export default function SiteNavbarSignedIn() {
   const router = useRouter()
-  const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
 
   return (
-    <header className="w-full border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+    <header className="w-full bg-transparent sticky top-0 z-40">
       <div className="h-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         <button
           onClick={() => router.push('/')}
@@ -22,7 +18,7 @@ export default function SiteNavbarSignedIn() {
           tabIndex={0}
         >
           <Image
-            src={logoSrc}
+            src="/blooma_logo_black.webp"
             alt="Blooma Logo"
             width={28}
             height={28}
@@ -37,7 +33,6 @@ export default function SiteNavbarSignedIn() {
           <div className="hidden sm:block">
             <CreditsIndicator />
           </div>
-          <ThemeToggle />
           <ProfileMenu />
         </div>
       </div>

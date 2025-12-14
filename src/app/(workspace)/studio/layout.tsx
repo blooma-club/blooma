@@ -17,7 +17,7 @@ export default function FittingRoomLayout({ children }: { children: ReactNode })
 
     return (
         <div className="relative w-full min-h-screen flex flex-col bg-background">
-            <div className="w-full border-b border-border/40 bg-background/60 backdrop-blur-xl">
+            <div className="w-full bg-transparent">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-14">
                         <h2 className="text-sm font-semibold tracking-tight text-muted-foreground">

@@ -7,6 +7,7 @@ import {
     toggleFavorite
 } from '@/lib/db/generatedImages'
 import { deleteImageFromR2 } from '@/lib/r2'
+import { reconstructR2Url } from '@/lib/imageUpload'
 
 export const runtime = 'nodejs'
 
@@ -28,12 +29,17 @@ export async function GET(request: NextRequest) {
 
         const images = await listGeneratedImages(userId, { limit, offset, favoritesOnly })
 
-        // Parse JSON fields for response
-        const data = images.map(img => ({
-            ...img,
-            source_outfit_urls: img.source_outfit_urls ? JSON.parse(img.source_outfit_urls) : null,
-            generation_params: img.generation_params ? JSON.parse(img.generation_params) : null,
-        }))
+        // Parse JSON fields and reconstruct R2 URLs from keys
+        const data = images.map(img => {
+            const outfitKeys = img.source_outfit_urls ? JSON.parse(img.source_outfit_urls) : null
+            return {
+                ...img,
+                // Reconstruct full URLs from stored keys
+                source_model_url: img.source_model_url ? reconstructR2Url(img.source_model_url) : null,
+                source_outfit_urls: outfitKeys ? outfitKeys.map((key: string) => reconstructR2Url(key)) : null,
+                generation_params: img.generation_params ? JSON.parse(img.generation_params) : null,
+            }
+        })
 
         return NextResponse.json({ success: true, data })
     } catch (error) {

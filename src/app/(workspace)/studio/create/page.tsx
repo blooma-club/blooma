@@ -8,10 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/storyboard/libraries/ModelLibraryDropdown";
-import { ensureR2Url } from "@/lib/imageUpload";
+import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
+import Image from "next/image";
+import { useToast } from "@/components/ui/toast";
+
+// Maximum total images allowed (model + reference images)
+const MAX_TOTAL_IMAGES = 6;
 
 export default function FittingRoomCreatePage() {
     const { refresh: refreshCredits } = useUserCredits();
+    const { push: toast } = useToast();
     const [selectedModels, setSelectedModels] = useState<ModelLibraryAsset[]>([]);
     const [referenceImages, setReferenceImages] = useState<string[]>([]); // blob URLs for preview
     const [prompt, setPrompt] = useState("");
@@ -31,10 +37,21 @@ export default function FittingRoomCreatePage() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files) {
-            const newImages = Array.from(files).map((file) =>
-                URL.createObjectURL(file)
-            );
+            const currentCount = selectedModels.length + referenceImages.length;
+            const remainingSlots = MAX_TOTAL_IMAGES - currentCount;
+
+            if (remainingSlots <= 0) {
+                toast({ title: 'Limit reached', description: `Maximum ${MAX_TOTAL_IMAGES} images allowed` });
+                return;
+            }
+
+            const filesToAdd = Array.from(files).slice(0, remainingSlots);
+            const newImages = filesToAdd.map((file) => URL.createObjectURL(file));
             setReferenceImages((prev) => [...prev, ...newImages]);
+
+            if (files.length > remainingSlots) {
+                toast({ title: 'Some images skipped', description: `Only ${remainingSlots} more image(s) could be added` });
+            }
         }
     };
 
@@ -117,8 +134,8 @@ export default function FittingRoomCreatePage() {
                             group_id: batchId,
                             prompt: userPrompt,
                             model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
-                            source_model_url: uploadedModelUrl,
-                            source_outfit_urls: uploadedOutfitUrls.length > 0 ? uploadedOutfitUrls : null,
+                            // Removed source_model_url and source_outfit_urls to avoid SQLITE_TOOBIG
+                            // These are optional metadata fields that can cause DB size issues
                         }),
                     }).catch(console.error);
                 }
@@ -148,7 +165,7 @@ export default function FittingRoomCreatePage() {
                     {/* Left: Preview */}
                     <div className="flex flex-col">
                         {/* Preview Area */}
-                        <div className="w-[620px] aspect-[3/4] bg-muted/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
+                        <div className="w-[480px] aspect-[3/4] bg-muted/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
                             {isGenerating ? (
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="w-12 h-12 rounded-full bg-foreground/5 flex items-center justify-center">
@@ -157,11 +174,17 @@ export default function FittingRoomCreatePage() {
                                     <p className="text-sm text-muted-foreground">Generating...</p>
                                 </div>
                             ) : previewImage ? (
-                                <img
-                                    src={previewImage}
-                                    alt="Generated"
-                                    className="w-full h-full object-contain"
-                                />
+                                <div className="relative w-full h-full">
+                                    <Image
+                                        src={previewImage}
+                                        alt="Generated"
+                                        fill
+                                        className="object-contain"
+                                        sizes="620px"
+                                        quality={90}
+                                        priority
+                                    />
+                                </div>
                             ) : (
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center">
@@ -192,10 +215,14 @@ export default function FittingRoomCreatePage() {
                                                     : "opacity-60 hover:opacity-100"
                                             )}
                                         >
-                                            <img
+                                            <Image
                                                 src={img}
                                                 alt={`Generated ${idx + 1}`}
-                                                className="w-full h-full object-cover"
+                                                fill
+                                                className="object-cover"
+                                                sizes="64px"
+                                                quality={60}
+                                                loading="lazy"
                                             />
                                         </button>
                                     ))}
@@ -218,10 +245,14 @@ export default function FittingRoomCreatePage() {
                                         key={model.id}
                                         className="relative w-20 aspect-[3/4] rounded-xl overflow-hidden group ring-1 ring-border/50"
                                     >
-                                        <img
+                                        <Image
                                             src={model.imageUrl}
                                             alt={model.name}
-                                            className="w-full h-full object-cover"
+                                            fill
+                                            className="object-cover"
+                                            sizes="80px"
+                                            quality={75}
+                                            loading="lazy"
                                         />
                                         <button
                                             onClick={() => removeModel(model.id)}
@@ -305,10 +336,14 @@ export default function FittingRoomCreatePage() {
                                         key={idx}
                                         className="relative w-20 aspect-[3/4] rounded-xl overflow-hidden group ring-1 ring-border/50"
                                     >
-                                        <img
+                                        <Image
                                             src={img}
                                             alt={`Outfit ${idx + 1}`}
-                                            className="w-full h-full object-cover"
+                                            fill
+                                            className="object-cover"
+                                            sizes="80px"
+                                            quality={75}
+                                            loading="lazy"
                                         />
                                         <button
                                             onClick={() => removeReferenceImage(idx)}
@@ -318,23 +353,26 @@ export default function FittingRoomCreatePage() {
                                         </button>
                                     </div>
                                 ))}
-                                <label className="w-20 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all">
-                                    <Plus className="w-5 h-5 text-muted-foreground" />
-                                    <span className="text-[10px] text-muted-foreground font-medium">Add</span>
-                                    <input
-                                        type="file"
-                                        multiple
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleImageUpload}
-                                    />
-                                </label>
+                                {/* Only show Add button if under limit */}
+                                {(selectedModels.length + referenceImages.length) < MAX_TOTAL_IMAGES && (
+                                    <label className="w-20 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all">
+                                        <Plus className="w-5 h-5 text-muted-foreground" />
+                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleImageUpload}
+                                        />
+                                    </label>
+                                )}
                             </div>
                         </div>
 
                         {/* Prompt */}
                         <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Prompt</h3>
+                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Detail</h3>
                             {!isPromptOpen && !prompt ? (
                                 <button
                                     onClick={() => setIsPromptOpen(true)}
@@ -345,7 +383,7 @@ export default function FittingRoomCreatePage() {
                                 </button>
                             ) : (
                                 <Textarea
-                                    placeholder="Describe the style, pose, or details..."
+                                    placeholder="Describe outfit fit, fabric, or styling details..."
                                     className="min-h-[100px] resize-none bg-muted/30 border-0 focus-visible:ring-1 focus-visible:ring-foreground/20 rounded-xl text-sm placeholder:text-muted-foreground/50"
                                     value={prompt}
                                     onChange={(e) => setPrompt(e.target.value)}

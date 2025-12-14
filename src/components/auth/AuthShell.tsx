@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useThemePreference } from '@/hooks/useThemePreference'
 import React, { type ReactNode } from 'react'
 
 export type AuthShellProps = {
@@ -11,8 +10,7 @@ export type AuthShellProps = {
 
 export default function AuthShell({ children }: AuthShellProps) {
   const router = useRouter()
-  const theme = useThemePreference()
-  const logoSrc = theme === 'dark' ? '/blooma_logo_white.webp' : '/blooma_logo_black.webp'
+  const logoSrc = '/blooma_logo_black.webp'
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-10 text-black sm:px-6 lg:px-8" style={{ backgroundColor: 'hsl(var(--background))' }}>

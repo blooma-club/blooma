@@ -200,6 +200,8 @@ export default function ModelsPage() {
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                   sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
+                  quality={75}
+                  loading="lazy"
                 />
 
                 {/* Overlay */}

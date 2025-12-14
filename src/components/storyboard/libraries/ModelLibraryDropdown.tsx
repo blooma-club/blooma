@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { uploadFileToR2 } from '@/lib/imageUpload'
 import { Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
+import Image from 'next/image'
 
 export type ModelLibraryAsset = {
   id: string
@@ -140,7 +141,7 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
             {selectedAsset ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-border/20 shadow-sm">
-                  <img src={selectedAsset.imageUrl} className="w-full h-full object-cover" alt="" />
+                  <Image src={selectedAsset.imageUrl} alt="" fill className="object-cover" sizes="16px" />
                 </div>
                 <span className="truncate max-w-[100px] font-medium">{selectedAsset.name}</span>
               </div>
@@ -209,13 +210,17 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
                       aria-label={`Select ${asset.name} model reference`}
                     >
                       <div className='relative w-full h-full overflow-hidden bg-muted/10'>
-                        <img
+                        <Image
                           src={asset.imageUrl}
                           alt={asset.name}
+                          fill
                           className={clsx(
-                            'h-full w-full object-cover transition-transform duration-500 will-change-transform',
+                            'object-cover transition-transform duration-500 will-change-transform',
                             selectedAsset?.id === asset.id ? 'scale-105' : 'group-hover:scale-105'
                           )}
+                          sizes="(max-width: 640px) 33vw, 120px"
+                          quality={75}
+                          loading="lazy"
                         />
 
                         {/* Hover Overlay */}

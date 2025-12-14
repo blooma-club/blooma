@@ -55,10 +55,10 @@ export default function Home() {
   // Showcase Viewer State
   const [currentViewIndex, setCurrentViewIndex] = useState(0)
   const views = [
-    { label: 'Front', src: '/front-view.png' },
-    { label: 'Side', src: '/side-view.png' },
-    { label: '45° Angle', src: '/front-side view.png' },
-    { label: 'Back', src: '/behind-view.png' }
+    { label: 'Front', src: '/front-view-v2.png' },
+    { label: 'Side', src: '/side-view-v2.png' },
+    { label: '45° Angle', src: '/front-side-view-v2.png' },
+    { label: 'Back', src: '/behind-view-v2.png' }
   ]
 
   // Auto-rotate viewer (optional, pauses on hover could be added later)
@@ -196,7 +196,7 @@ export default function Home() {
         --- HERO SECTION ---
         Minimal, Impactful, Carousel focused
       */}
-      <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+      <section className="relative pt-20 pb-12 px-4 overflow-hidden">
         {/* Subtle Background Effects */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-neutral-950/[0.03] to-transparent pointer-events-none" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-black/5 blur-[120px] rounded-full opacity-20 pointer-events-none" />
@@ -219,7 +219,7 @@ export default function Home() {
             {/* Image */}
             <div className="relative aspect-[3/4] w-full rounded-sm overflow-hidden mb-8">
               <Image
-                src="/front-view.png"
+                src="/front-view-v2.png"
                 alt="Fashion Lookbook Style"
                 fill
                 className="object-cover"
@@ -236,19 +236,13 @@ export default function Home() {
                 {modelImage ? (
                   <div className="group relative">
                     <div className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden ring-1 ring-border/50">
-                      <img src={modelImage} alt="Model" className="w-full h-full object-cover" />
+                      <Image src={modelImage} alt="Model" fill className="object-cover" sizes="64px" />
                       <button
                         onClick={() => { setModelImage(null); setSelectedModel(null); }}
                         className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <X className="w-5 h-5 text-white" />
                       </button>
-                    </div>
-                    {/* Model Label */}
-                    <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                      <span className="text-[10px] text-muted-foreground font-medium bg-background/80 backdrop-blur px-1.5 py-0.5 rounded border border-border/50">
-                        Model 247
-                      </span>
                     </div>
                   </div>
                 ) : (
@@ -306,7 +300,7 @@ export default function Home() {
                 <div className="flex gap-2">
                   {outfitImages.map((img, idx) => (
                     <div key={idx} className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden group ring-1 ring-border/50">
-                      <img src={img} alt={`Outfit ${idx + 1}`} className="w-full h-full object-cover" />
+                      <Image src={img} alt={`Outfit ${idx + 1}`} fill className="object-cover" sizes="64px" />
                       <button
                         onClick={() => {
                           setOutfitImages(prev => prev.filter((_, i) => i !== idx))
@@ -395,31 +389,41 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Card 1 - Consistent Views (Navigation) */}
-          <div className="relative rounded-3xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/50 border border-border/50 p-8 min-h-[500px] flex flex-col group hover:border-border/80 transition-colors">
+          <div className="relative rounded-3xl bg-white border border-neutral-200/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] p-8 flex flex-col transition-all duration-500 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)]">
             <div className="mb-8">
-              <h3 className="text-2xl font-medium mb-3">Consistent Views</h3>
-              <p className="text-muted-foreground leading-relaxed">
+              <h3 className="text-2xl font-medium mb-3 text-neutral-900 font-geist-sans">Consistent Views</h3>
+              <p className="text-neutral-500 leading-relaxed">
                 Generate perfect front, side, and 45° angles. Maintain total consistency across every shot for your PDPs.
               </p>
             </div>
 
             {/* View Grid Visual (Clickable) */}
-            <div className="flex-1 grid grid-cols-2 gap-3 relative">
+            <div className="flex-1 grid grid-cols-2 gap-4 relative">
               {views.map((view, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentViewIndex(index)}
-                  className={`relative rounded-lg overflow-hidden border bg-background aspect-[3/4] group/item transition-all duration-300 ${index === currentViewIndex ? 'border-foreground shadow-sm' : 'border-border/40 hover:border-foreground/50'
+                  className={`relative rounded-2xl overflow-hidden border aspect-[3/4] group/item transition-all duration-300 ${index === currentViewIndex
+                    ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md'
+                    : 'border-neutral-200 hover:border-neutral-400'
                     }`}
                 >
-                  <div className={`absolute top-2 left-2 z-10 px-2 py-0.5 backdrop-blur rounded text-[10px] font-medium transition-colors ${index === currentViewIndex ? 'bg-foreground text-background font-bold' : 'bg-black/50 text-white'
+                  <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 backdrop-blur-md rounded-md text-[10px] font-medium transition-colors ${index === currentViewIndex
+                    ? 'bg-neutral-900/90 text-white'
+                    : 'bg-black/40 text-white'
                     }`}>
                     {view.label}
                   </div>
-                  <Image src={view.src} alt={view.label} fill className="object-cover transition-transform duration-500 group-hover/item:scale-105" />
+                  <Image
+                    src={view.src}
+                    alt={view.label}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover/item:scale-105"
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                  />
                   {/* Active Indicator Overlay */}
                   {index !== currentViewIndex && (
-                    <div className="absolute inset-0 bg-black/20 group-hover/item:bg-transparent transition-colors" />
+                    <div className="absolute inset-0 bg-white/10 group-hover/item:bg-transparent transition-colors" />
                   )}
                 </button>
               ))}
@@ -427,9 +431,10 @@ export default function Home() {
           </div>
 
           {/* Card 2 - Main Viewer (Dynamic Image) */}
-          <div className="relative rounded-3xl overflow-hidden bg-neutral-900 border border-border/50 min-h-[500px] flex flex-col group hover:border-border/80 transition-colors shadow-2xl">
-            {/* Dynamic Large Image */}
-            <div className="absolute inset-0 overflow-hidden">
+          <div className="relative rounded-3xl bg-white border border-neutral-200/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] p-3 flex flex-col group transition-all duration-500 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)]">
+
+            {/* Image Container with Padding */}
+            <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-neutral-100">
               {views.map((view, index) => (
                 <div
                   key={index}
@@ -441,28 +446,33 @@ export default function Home() {
                     fill
                     className="object-cover"
                     priority={index === 0}
+                    sizes="(max-width: 768px) 100vw, 50vw"
                   />
                 </div>
               ))}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-20 pointer-events-none" />
             </div>
 
             {/* Viewer Info */}
-            <div className="relative z-30 mt-auto p-10">
-              <div className="inline-flex items-center mb-4 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white">
-                <span className="text-xs font-medium tracking-wide">Studio Quality</span>
+            <div className="flex flex-col justify-between flex-1 px-5 pt-8 pb-6">
+              <div>
+                <h3 className="text-3xl font-medium mb-3 text-neutral-900 tracking-tight font-geist-sans">
+                  {views[currentViewIndex].label}
+                </h3>
+                <p className="text-neutral-500 leading-relaxed text-base">
+                  High-resolution, detail-rich generation ready for your catalog.
+                </p>
               </div>
-              <h3 className="text-3xl font-medium mb-2 text-white tracking-tight">{views[currentViewIndex].label}</h3>
-              <p className="text-white/80 leading-relaxed max-w-sm text-base font-light">
-                High-resolution, detail-rich generation ready for your catalog.
-              </p>
 
-              {/* Progress Indicators */}
-              <div className="mt-8 flex gap-2">
+              <div className="flex gap-2 mt-8">
                 {views.map((_, i) => (
-                  <div
+                  <button
                     key={i}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === currentViewIndex ? 'bg-white w-8' : 'bg-white/30 w-1.5'}`}
+                    onClick={() => setCurrentViewIndex(i)}
+                    className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === currentViewIndex
+                      ? 'bg-neutral-900 w-12'
+                      : 'bg-neutral-200 w-2 hover:bg-neutral-400'
+                      }`}
+                    aria-label={`Go to view ${i + 1}`}
                   />
                 ))}
               </div>
