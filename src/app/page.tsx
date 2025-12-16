@@ -27,7 +27,7 @@ import { useUserCredits } from '@/hooks/useUserCredits'
 import { useState, useRef, useEffect } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import ModelLibraryDropdown, { ModelLibraryAsset } from '@/components/storyboard/libraries/ModelLibraryDropdown'
+import ModelLibraryDropdown, { ModelLibraryAsset } from '@/components/libraries/ModelLibraryDropdown'
 
 export default function Home() {
   const router = useRouter()
@@ -114,77 +114,6 @@ export default function Home() {
     router.push('/studio/create')
   }
 
-  // Create a new project and navigate to its storyboard
-  const createProjectAndNavigate = async (promptText?: string) => {
-    if (!user?.id) {
-      // This should be handled by handleBeforeSubmit, but double check
-      return null
-    }
-
-    try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'New Project',
-          description: '',
-          is_public: false,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error?.error?.message || 'Unable to create project.')
-      }
-
-      const result = await response.json()
-      const projectId = result?.data?.id
-
-      if (!projectId) {
-        throw new Error('Missing project identifier.')
-      }
-
-      // Navigate to storyboard page with optional prompt parameter
-      const url = promptText
-        ? `/project/${projectId}/storyboard?autoGenerate=true&prompt=${encodeURIComponent(promptText)}`
-        : `/project/${projectId}/storyboard`
-      router.push(url)
-      return projectId
-    } catch (error) {
-      console.error('[Landing] Failed to create project:', error)
-      showToast({
-        title: 'Project creation failed',
-        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
-      })
-      return null
-    }
-  }
-
-  // Handle landing prompt submission before image generation
-  const handleBeforeSubmit = async (promptText: string): Promise<boolean> => {
-    if (!isLoaded) return false
-
-    if (!user) {
-      showToast({
-        title: 'Sign in required',
-        description: 'Please sign in to generate storyboard images.',
-      })
-      // Open sign in modal and redirect back to home (or dashboard after login)
-      // Since we can&apos;t easily persist the prompt across redirect without URL params or local storage,
-      // for now we just ask them to login.
-      // Ideally: Redirect to dashboard or save prompt to localStorage.
-      openSignIn({
-        forceRedirectUrl: '/dashboard',
-      })
-      return false
-    }
-
-    // Create project and navigate (actual generation happens on storyboard page)
-    await createProjectAndNavigate(promptText)
-    return false
-  }
-
-  const handleCreateFrame = async () => { }
 
 
 

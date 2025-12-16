@@ -91,20 +91,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 기존 이미지가 있다면 삭제
-    try {
-      const existingCard = await queryD1Single<{ image_key?: string | null }>(
-        `SELECT image_key FROM cards WHERE id = ?1 AND user_id = ?2`,
-        [frameId, userId]
-      )
-
-      if (existingCard?.image_key) {
-        await deleteImageFromR2(existingCard.image_key)
-      }
-    } catch (error) {
-      // 기존 이미지 삭제 실패는 무시하고 계속 진행
-      console.warn('Failed to delete existing image:', error)
-    }
+    // NOTE: cards table removed - image cleanup logic removed with storyboard feature
 
     const result = await uploadImageToR2(projectId, frameId!, dataUrl)
 

@@ -46,6 +46,26 @@ const FASHION_PROMPT_TEMPLATE = {
   "negative_prompt": "cropped_body, partial_body, cut_off_legs, missing_feet, no_shoes, half_body, waist_up, torso_only"
 }
 
+// View type settings for pose and expression
+const VIEW_SETTINGS: Record<string, { pose: string; expression: string }> = {
+  front: {
+    pose: 'standing_straight, front_view, arms_relaxed_at_sides, feet_visible_on_floor',
+    expression: 'neutral_expression, looking_straight_at_camera, confident'
+  },
+  behind: {
+    pose: 'standing_straight, back_view, arms_relaxed_at_sides, feet_visible_on_floor',
+    expression: 'back_of_head_visible'
+  },
+  side: {
+    pose: 'standing_straight, side_view, profile_pose, arms_relaxed_at_sides, feet_visible_on_floor',
+    expression: 'neutral_expression, profile_view, confident'
+  },
+  quarter: {
+    pose: 'standing_straight, three_quarter_view, slight_angle, arms_relaxed_at_sides, feet_visible_on_floor',
+    expression: 'neutral_expression, looking_away_from_camera, not_making_eye_contact, gaze_toward_body_direction, confident'
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
@@ -102,14 +122,26 @@ export async function POST(request: NextRequest) {
       const userPrompt = validated.prompt?.trim() || ''
 
       // 1. 템플릿 복사
-      const promptObj: Record<string, any> = { ...FASHION_PROMPT_TEMPLATE }
+      const promptObj: Record<string, any> = JSON.parse(JSON.stringify(FASHION_PROMPT_TEMPLATE))
 
-      // 2. 사용자 프롬프트가 있다면 맨 마지막에 추가
+      // 2. viewType에 따른 pose와 expression 적용
+      const viewType = validated.viewType || 'front'
+      const viewSettings = VIEW_SETTINGS[viewType] || VIEW_SETTINGS.front
+      promptObj.subject.pose = viewSettings.pose
+      promptObj.subject.expression = viewSettings.expression
+
+      // Quarter view의 경우 negative prompt에 카메라 시선 방지 추가
+      if (viewType === 'quarter') {
+        const baseNegative = promptObj.negative_prompt || ''
+        promptObj.negative_prompt = `${baseNegative}, looking_at_camera, eye_contact_with_camera, staring_at_camera, facing_camera_directly`
+      }
+
+      // 3. 사용자 프롬프트가 있다면 맨 마지막에 추가
       if (userPrompt) {
         promptObj["user_add_prompt"] = userPrompt
       }
 
-      // 3. JSON 구조를 문자열로 변환하여 프롬프트로 사용
+      // 4. JSON 구조를 문자열로 변환하여 프롬프트로 사용
       // 대부분의 최신 모델은 구조화된 텍스트(JSON 형태)를 잘 이해합니다.
       // 콤마로 구분된 key: value 형태로 변환하여 토큰 절약 및 가독성 확보
       const formattedPrompt = Object.entries(promptObj).map(([key, value]) => {
@@ -121,7 +153,7 @@ export async function POST(request: NextRequest) {
 
       validated.prompt = formattedPrompt
 
-      console.log(`[API] Applied JSON Template prompt:`, validated.prompt)
+      console.log(`[API] Applied JSON Template prompt (viewType: ${viewType}):`, validated.prompt)
     }
 
     if (effectiveModelId !== modelId) {

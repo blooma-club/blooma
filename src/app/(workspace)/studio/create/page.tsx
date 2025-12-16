@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/storyboard/libraries/ModelLibraryDropdown";
+import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/libraries/ModelLibraryDropdown";
 import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
@@ -26,7 +26,16 @@ export default function FittingRoomCreatePage() {
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
     const [resolution, setResolution] = useState<'2K' | '4K'>('2K'); // 해상도 선택
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
+    const [viewType, setViewType] = useState<'front' | 'behind' | 'side' | 'quarter'>('front'); // 뷰 타입 선택
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
+
+    // View type options with images
+    const VIEW_OPTIONS = [
+        { id: 'front' as const, label: 'Front', image: '/front-view-v2.png' },
+        { id: 'behind' as const, label: 'Behind', image: '/behind-view-v2.png' },
+        { id: 'side' as const, label: 'Side', image: '/side-view-v2.png' },
+        { id: 'quarter' as const, label: 'Quarter', image: '/front-side-view-v2.png' },
+    ];
 
     // Image generation state
     const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -105,6 +114,7 @@ export default function FittingRoomCreatePage() {
                     imageUrls,
                     resolution, // 사용자가 선택한 해상도 (2K 또는 4K)
                     numImages,  // 생성 개수 (2 또는 4)
+                    viewType,   // 뷰 타입 (front, behind, side, quarter)
                 }),
             });
 
@@ -370,6 +380,37 @@ export default function FittingRoomCreatePage() {
                             </div>
                         </div>
 
+                        {/* View */}
+                        <div>
+                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">View</h3>
+                            <div className="flex gap-3 flex-wrap">
+                                {VIEW_OPTIONS.map((view) => (
+                                    <button
+                                        key={view.id}
+                                        onClick={() => setViewType(view.id)}
+                                        className={cn(
+                                            "relative w-20 aspect-[3/4] rounded-xl overflow-hidden transition-all",
+                                            viewType === view.id
+                                                ? "ring-2 ring-foreground"
+                                                : "ring-1 ring-border/50 hover:ring-foreground/30"
+                                        )}
+                                    >
+                                        <Image
+                                            src={view.image}
+                                            alt={view.label}
+                                            fill
+                                            className="object-cover"
+                                            sizes="80px"
+                                            quality={75}
+                                            loading="lazy"
+                                        />
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                                            <span className="text-[10px] font-medium text-white">{view.label}</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         {/* Prompt */}
                         <div>
                             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Detail</h3>

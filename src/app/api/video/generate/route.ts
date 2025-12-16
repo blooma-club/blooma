@@ -4,8 +4,7 @@ import { ApiError } from '@/lib/errors/api'
 import { videoGenerationSchema } from '@/lib/validation/schemas'
 import { generateVideoFromImage } from '@/lib/videoProviders'
 import { START_TO_END_FRAME_MODEL_IDS, getModelInfo } from '@/lib/fal-ai'
-import { queryD1 } from '@/lib/db/d1'
-import { getCreditCostForModel, InsufficientCreditsError } from '@/lib/credits-utils'
+import { getCreditCostForModel } from '@/lib/credits-utils'
 import { consumeCredits, refundCredits } from '@/lib/credits'
 import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/lib/ratelimit'
 import { isQStashConfigured, enqueueVideoJob, VideoJobPayload } from '@/lib/queue/qstash'
@@ -20,13 +19,13 @@ const USE_QUEUE = isQStashConfigured()
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await requireAuth()
-    
+
     // Rate Limit 확인
     const rateLimitResult = await checkRateLimit(userId, 'videoGeneration')
     if (!rateLimitResult.success) {
       return NextResponse.json(
         createRateLimitError(rateLimitResult),
-        { 
+        {
           status: 429,
           headers: createRateLimitHeaders(rateLimitResult),
         }
@@ -56,29 +55,8 @@ export async function POST(request: NextRequest) {
       throw ApiError.badRequest('Selected model requires both start and end image URLs.')
     }
 
-    type CardRow = {
-      id: string
-      project_id: string
-      user_id: string
-      image_url?: string | null
-    }
-
-    const fetchCard = async (id: string): Promise<CardRow | null> => {
-      const rows = await queryD1<CardRow>(
-        `SELECT id, project_id, user_id, image_url FROM cards WHERE id = ?1`,
-        [id]
-      )
-      return rows.length > 0 ? rows[0] : null
-    }
-
-    const primaryCard = await fetchCard(validated.frameId)
-    if (!primaryCard) {
-      throw ApiError.notFound('Frame not found')
-    }
-
-    if (primaryCard.user_id !== userId || primaryCard.project_id !== validated.projectId) {
-      throw ApiError.forbidden('Access denied for this frame')
-    }
+    // NOTE: Card-based validation removed since cards table was deleted
+    // Video generation now works with just frameId, projectId, and imageUrl from request
 
     // 이미 진행 중인 작업이 있는지 확인
     const pendingJob = await getPendingVideoJobForFrame(validated.frameId)
@@ -91,24 +69,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let verifiedEndCard: CardRow | null = null
-    if (validated.endFrameId) {
-      verifiedEndCard = await fetchCard(validated.endFrameId)
-      if (!verifiedEndCard) {
-        throw ApiError.notFound('End frame not found')
-      }
-      if (verifiedEndCard.user_id !== userId || verifiedEndCard.project_id !== validated.projectId) {
-        throw ApiError.forbidden('Access denied for the selected end frame')
-      }
-    }
-
     const videoPrompt: string = validated.prompt && validated.prompt.trim().length > 0
       ? validated.prompt.trim()
-      : 'Animate this storyboard frame as a short cinematic clip'
+      : 'Animate this image as a short cinematic clip'
 
-    const resolvedStartImageUrl =
-      normalizedStartImageUrl ?? effectiveImageUrl ?? primaryCard.image_url ?? null
-    const resolvedEndImageUrl = normalizedEndImageUrl ?? verifiedEndCard?.image_url ?? null
+    const resolvedStartImageUrl = normalizedStartImageUrl ?? effectiveImageUrl
+    const resolvedEndImageUrl = normalizedEndImageUrl ?? null
 
     // 모델 검증 및 크레딧 계산
     const modelInfo = getModelInfo(validated.modelId)
@@ -128,7 +94,7 @@ export async function POST(request: NextRequest) {
     // QStash가 설정되어 있으면 큐 사용
     if (USE_QUEUE) {
       const jobId = randomUUID()
-      
+
       // 작업 데이터 생성
       const jobPayload: VideoJobPayload = {
         jobId,
@@ -162,10 +128,10 @@ export async function POST(request: NextRequest) {
       // 큐에 작업 추가
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
       const webhookUrl = `${baseUrl}/api/video/queue`
-      
+
       try {
         const messageId = await enqueueVideoJob(jobPayload, webhookUrl)
-        
+
         if (messageId) {
           console.log('[VideoGenerate] Job queued:', { jobId, messageId })
         }

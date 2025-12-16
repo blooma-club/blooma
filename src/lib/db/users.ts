@@ -12,6 +12,13 @@ export type D1UserRecord = {
   credits?: number | null
   credits_used?: number | null
   credits_reset_date?: string | null
+  // Subscription metadata (from Polar)
+  polar_customer_id?: string | null
+  polar_subscription_id?: string | null
+  subscription_status?: string | null
+  current_period_start?: string | null
+  current_period_end?: string | null
+  cancel_at_period_end?: boolean | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -395,6 +402,109 @@ export async function updateUserSubscriptionTier(
   )
 }
 
+/**
+ * Subscription data from Polar webhook events
+ */
+export type SubscriptionUpdateData = {
+  /** Polar's internal subscription ID */
+  polarSubscriptionId?: string | null
+  /** Polar's internal customer ID */
+  polarCustomerId?: string | null
+  /** Subscription status (active, trialing, past_due, canceled, etc.) */
+  subscriptionStatus?: string | null
+  /** Plan tier (Starter, Pro, Studio) */
+  subscriptionTier?: string | null
+  /** Current billing period start (ISO 8601) */
+  currentPeriodStart?: string | null
+  /** Current billing period end (ISO 8601) */
+  currentPeriodEnd?: string | null
+  /** Whether subscription will be canceled at period end */
+  cancelAtPeriodEnd?: boolean
+}
+
+/**
+ * Updates user's subscription data from Polar webhook events.
+ * This is the comprehensive update function that saves all subscription metadata.
+ * 
+ * @param userId Clerk user ID (external_id from Polar)
+ * @param data Subscription data from webhook event
+ */
+export async function updateUserSubscription(
+  userId: string,
+  data: SubscriptionUpdateData
+): Promise<void> {
+  const metadata = await getUsersTableMetadata()
+  const columns = metadata.columns
+
+  const assignments: string[] = []
+  const values: unknown[] = []
+
+  // Subscription tier (Starter/Pro/Studio/null)
+  if (data.subscriptionTier !== undefined && columns.has('subscription_tier')) {
+    assignments.push('subscription_tier = ?')
+    values.push(data.subscriptionTier)
+  }
+
+  // Polar subscription ID
+  if (data.polarSubscriptionId !== undefined && columns.has('polar_subscription_id')) {
+    assignments.push('polar_subscription_id = ?')
+    values.push(data.polarSubscriptionId)
+  }
+
+  // Polar customer ID
+  if (data.polarCustomerId !== undefined && columns.has('polar_customer_id')) {
+    assignments.push('polar_customer_id = ?')
+    values.push(data.polarCustomerId)
+  }
+
+  // Subscription status
+  if (data.subscriptionStatus !== undefined && columns.has('subscription_status')) {
+    assignments.push('subscription_status = ?')
+    values.push(data.subscriptionStatus)
+  }
+
+  // Current period start
+  if (data.currentPeriodStart !== undefined && columns.has('current_period_start')) {
+    assignments.push('current_period_start = ?')
+    values.push(data.currentPeriodStart)
+  }
+
+  // Current period end
+  if (data.currentPeriodEnd !== undefined && columns.has('current_period_end')) {
+    assignments.push('current_period_end = ?')
+    values.push(data.currentPeriodEnd)
+  }
+
+  // Cancel at period end flag
+  if (data.cancelAtPeriodEnd !== undefined && columns.has('cancel_at_period_end')) {
+    assignments.push('cancel_at_period_end = ?')
+    values.push(data.cancelAtPeriodEnd ? 1 : 0)
+  }
+
+  // Always update updated_at
+  if (columns.has('updated_at')) {
+    assignments.push('updated_at = ?')
+    values.push(new Date().toISOString())
+  }
+
+  if (assignments.length === 0) {
+    return
+  }
+
+  values.push(userId)
+
+  await queryD1(
+    `UPDATE users SET ${assignments.join(', ')} WHERE ${metadata.idColumn} = ?`,
+    values,
+  )
+
+  console.log(`[updateUserSubscription] Updated subscription for user ${userId}`, {
+    status: data.subscriptionStatus,
+    tier: data.subscriptionTier,
+    periodEnd: data.currentPeriodEnd,
+  })
+}
+
 function buildUserSelectColumns(metadata: UsersTableMetadata): string {
   const selectColumns: string[] = [`${metadata.idColumn} as id`]
   const columns = metadata.columns
@@ -433,6 +543,31 @@ function buildUserSelectColumns(metadata: UsersTableMetadata): string {
     selectColumns.push('credits_reset_date')
   }
 
+  // Subscription metadata columns
+  if (columns.has('polar_customer_id')) {
+    selectColumns.push('polar_customer_id')
+  }
+
+  if (columns.has('polar_subscription_id')) {
+    selectColumns.push('polar_subscription_id')
+  }
+
+  if (columns.has('subscription_status')) {
+    selectColumns.push('subscription_status')
+  }
+
+  if (columns.has('current_period_start')) {
+    selectColumns.push('current_period_start')
+  }
+
+  if (columns.has('current_period_end')) {
+    selectColumns.push('current_period_end')
+  }
+
+  if (columns.has('cancel_at_period_end')) {
+    selectColumns.push('cancel_at_period_end')
+  }
+
   if (columns.has('created_at')) {
     selectColumns.push('created_at')
   }
@@ -459,6 +594,13 @@ function normaliseUserRecord(row: Record<string, unknown>): D1UserRecord {
     credits: toNullableNumber(record.credits),
     credits_used: toNullableNumber(record.credits_used),
     credits_reset_date: toNullableString(record.credits_reset_date),
+    // Subscription metadata
+    polar_customer_id: toNullableString(record.polar_customer_id),
+    polar_subscription_id: toNullableString(record.polar_subscription_id),
+    subscription_status: toNullableString(record.subscription_status),
+    current_period_start: toNullableString(record.current_period_start),
+    current_period_end: toNullableString(record.current_period_end),
+    cancel_at_period_end: toNullableBoolean(record.cancel_at_period_end),
     created_at: toNullableString(record.created_at),
     updated_at: toNullableString(record.updated_at),
   }
@@ -493,6 +635,19 @@ function toNullableNumber(value: unknown): number | null {
   return null
 }
 
+function toNullableBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  if (value === null || typeof value === 'undefined') return null
+  // SQLite stores booleans as integers (0/1)
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase()
+    if (lower === 'true' || lower === '1') return true
+    if (lower === 'false' || lower === '0') return false
+  }
+  return null
+}
+
 export async function deleteUser(userId: string): Promise<void> {
   console.log(`[deleteUser] Starting cascading deletion for user ${userId}`)
 
@@ -506,9 +661,7 @@ export async function deleteUser(userId: string): Promise<void> {
     { sql: 'PRAGMA foreign_keys = OFF' },
 
     // 2. Delete from all dependent tables
-    { sql: 'DELETE FROM cards WHERE user_id = ?', params: [userId] },
-    { sql: 'DELETE FROM ai_usage WHERE user_id = ?', params: [userId] },
-    { sql: 'DELETE FROM projects WHERE user_id = ?', params: [userId] },
+    // NOTE: cards and projects tables removed with storyboard feature
     { sql: 'DELETE FROM camera_presets WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM uploaded_models WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM uploaded_backgrounds WHERE user_id = ?', params: [userId] },
@@ -536,8 +689,7 @@ export async function mergeUsers(targetUserId: string, sourceUserId: string): Pr
   console.log(`[mergeUsers] Merging data from ${sourceUserId} to ${targetUserId}`)
 
   const tablesToUpdate = [
-    'projects',
-    'cards',
+    // NOTE: 'projects' and 'cards' removed with storyboard feature
     'camera_presets',
     'uploaded_models',
     'uploaded_backgrounds',
@@ -575,8 +727,7 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
   console.log(`[migrateUser] Migrating user data from ${oldId} to ${newId}`)
 
   const tablesToUpdate = [
-    'projects',
-    'cards',
+    // NOTE: 'projects' and 'cards' removed with storyboard feature
     'camera_presets',
     'uploaded_models',
     'uploaded_backgrounds',

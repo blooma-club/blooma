@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     // 요청 본문 읽기
     const body = await request.text()
-    
+
     // QStash 서명 검증
     const signature = request.headers.get('upstash-signature')
     if (signature) {
@@ -63,13 +63,7 @@ export async function POST(request: NextRequest) {
         video_key: videoResult.key,
       })
 
-      // 카드에도 비디오 URL 업데이트
-      await queryD1(
-        `UPDATE cards 
-         SET video_url = ?1, video_key = ?2, video_prompt = ?3, updated_at = ?4
-         WHERE id = ?5`,
-        [videoResult.videoUrl, videoResult.key, prompt, new Date().toISOString(), frameId]
-      )
+      // NOTE: cards table removed - video results stored in video_jobs table only
 
       console.log('[VideoQueue] Video job completed:', { jobId, frameId, videoUrl: videoResult.videoUrl })
 

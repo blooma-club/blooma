@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import { Loader2, Plus, Trash2, Camera, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { CameraPreset } from '@/components/storyboard/libraries/CameraLibrary'
+import type { CameraPreset } from '@/components/libraries/CameraLibrary'
 import {
   CAMERA_PRESETS,
   fetchCustomCameraPresets,
   createCustomCameraPreset,
   deleteCustomCameraPresetApi,
   deleteCustomCameraPreset,
-} from '@/components/storyboard/libraries/CameraLibrary'
+} from '@/components/libraries/CameraLibrary'
 import { cn } from '@/lib/utils'
 
 type PresetFormState = {
@@ -84,10 +84,10 @@ export default function CameraSettingsPage() {
 
   const handleDeletePreset = async (presetId: string) => {
     if (!window.confirm('Delete this preset?')) return
-    
+
     // 먼저 UI에서 제거
     setCustomPresets(previous => previous.filter(p => p.id !== presetId))
-    
+
     // API 호출 + localStorage 삭제
     await deleteCustomCameraPresetApi(presetId)
     deleteCustomCameraPreset(presetId)
@@ -110,7 +110,7 @@ export default function CameraSettingsPage() {
               >
                 <Info className="w-4 h-4" />
               </button>
-              
+
               {showTooltip && (
                 <div
                   className={cn(

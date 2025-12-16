@@ -1,7 +1,10 @@
-import type { StoryboardAspectRatio } from '@/types/storyboard'
+// UI constants
+// Note: StoryboardAspectRatio type removed - using string for flexibility
 
-// Storyboard aspect ratio mappings
-export const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
+type AspectRatio = '16:9' | '4:3' | '3:2' | '1:1' | '2:3' | '3:4' | '9:16'
+
+// Aspect ratio mappings
+export const RATIO_TO_CSS: Record<AspectRatio, string> = {
   '16:9': '16 / 9',
   '4:3': '4 / 3',
   '3:2': '3 / 2',
@@ -12,7 +15,7 @@ export const RATIO_TO_CSS: Record<StoryboardAspectRatio, string> = {
 }
 
 // Default values
-export const DEFAULT_RATIO: StoryboardAspectRatio = '16:9'
+export const DEFAULT_RATIO: AspectRatio = '16:9'
 export const DEFAULT_CARD_WIDTH = 400
 
 // Card width constraints

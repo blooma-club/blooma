@@ -160,6 +160,7 @@ export const imageGenerationSchema = z.object({
   imageUrls: z.array(imageUrlSchema).max(10).optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
+  viewType: z.enum(['front', 'behind', 'side', 'quarter']).optional().default('front'),
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

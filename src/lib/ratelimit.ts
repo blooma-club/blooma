@@ -17,7 +17,7 @@ let redis: Redis | null = null
 
 function getRedis(): Redis | null {
   if (redis) return redis
-  
+
   if (!UPSTASH_REDIS_REST_URL || !UPSTASH_REDIS_REST_TOKEN) {
     console.warn('[RateLimit] Upstash Redis not configured. Rate limiting disabled.')
     return null
@@ -70,7 +70,7 @@ function getRateLimiter(type: RateLimitType, configIndex: number): Ratelimit | n
   if (!config) return null
 
   const key = `${type}-${configIndex}`
-  
+
   if (rateLimiters.has(key)) {
     return rateLimiters.get(key)!
   }
@@ -113,15 +113,16 @@ export async function checkRateLimit(
   type: RateLimitType
 ): Promise<RateLimitResult> {
   const configs = RATE_LIMIT_CONFIGS[type]
-  
-  // Redis가 설정되지 않은 경우 항상 성공
+
+  // Redis가 설정되지 않은 경우 우회 (크레딧 시스템으로 보호됨)
   const redisClient = getRedis()
   if (!redisClient) {
+    console.warn('[RateLimit] Redis not available - allowing request (protected by credit system)')
     return {
       success: true,
-      remaining: Number.MAX_SAFE_INTEGER,
+      remaining: 999,
       reset: Date.now() + 60000,
-      limit: Number.MAX_SAFE_INTEGER,
+      limit: 999,
     }
   }
 
@@ -139,7 +140,7 @@ export async function checkRateLimit(
 
     try {
       const result = await limiter.limit(userId)
-      
+
       if (!result.success) {
         return {
           success: false,
@@ -159,9 +160,14 @@ export async function checkRateLimit(
         }
       }
     } catch (error) {
-      console.error(`[RateLimit] Error checking ${type} limit:`, error)
-      // Rate limit 확인 실패 시 요청 허용 (fail-open)
-      continue
+      console.error(`[RateLimit] Error checking ${type} limit - blocking request:`, error)
+      // Rate limit 확인 실패 시 요청 거부 (fail-closed)
+      return {
+        success: false,
+        remaining: 0,
+        reset: Date.now() + 60000,
+        limit: configs[i].requests,
+      }
     }
   }
 

@@ -5,9 +5,11 @@
 import { NextResponse } from 'next/server'
 import { ApiError, StandardApiResponse, ErrorCodes } from './api'
 import { D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
-import { D1ProjectsTableError, ProjectNotFoundError } from '@/lib/db/projects'
 import { ZodError } from 'zod'
 import { InsufficientCreditsError } from '@/lib/credits-utils'
+
+// 프로덕션 환경 확인
+const isProduction = process.env.NODE_ENV === 'production'
 
 /**
  * 에러 핸들러 옵션
@@ -105,27 +107,25 @@ export function createErrorHandler(
       const zodIssues = error.issues || []
       const issues = zodIssues.length > 0
         ? zodIssues.map((err) => ({
-            path: Array.isArray(err.path) ? err.path.map(String).join('.') : String(err.path || ''),
-            message: err.message || 'Validation error',
-          }))
+          path: Array.isArray(err.path) ? err.path.map(String).join('.') : String(err.path || ''),
+          message: err.message || 'Validation error',
+        }))
         : [{ path: '', message: 'Validation failed' }]
-      
-      const apiError = ApiError.unprocessableEntity('Validation failed', {
-        issues,
-      })
+
+      const apiErr = ApiError.unprocessableEntity('Validation failed', { issues })
       if (context) {
         console.error(`[${context}] Validation error:`, zodIssues)
       }
-      return createErrorResponse(apiError, { context, requestId, ...options })
+      return createErrorResponse(apiErr, { context, requestId, ...options })
     }
 
     // InsufficientCreditsError 처리
     if (error instanceof InsufficientCreditsError) {
-      const apiError = new ApiError(402, 'Not enough credits', 'INSUFFICIENT_CREDITS')
+      const creditErr = new ApiError(402, 'Not enough credits', 'INSUFFICIENT_CREDITS')
       if (context) {
         console.error(`[${context}] Insufficient credits error`)
       }
-      return createErrorResponse(apiError, { context, requestId, ...options })
+      return createErrorResponse(creditErr, { context, requestId, ...options })
     }
 
     // ApiError는 직접 처리
@@ -141,55 +141,36 @@ export function createErrorHandler(
       return createErrorResponse(error, { context, requestId, ...options })
     }
 
-    // 데이터베이스 에러 처리
+    // 데이터베이스 에러 처리 (프로덕션에서는 상세정보 숨김)
     if (error instanceof D1ConfigurationError) {
-      const apiError = ApiError.internal('Database configuration error', {
-        message: error.message,
-      })
       if (context) {
         console.error(`[${context}] D1 configuration error:`, error)
       }
-      return createErrorResponse(apiError, { context, requestId, ...options })
+      const dbErr = ApiError.internal(
+        isProduction ? 'Database error' : 'Database configuration error'
+      )
+      return createErrorResponse(dbErr, { context, requestId, ...options })
     }
 
     if (error instanceof D1QueryError) {
-      const apiError = ApiError.internal('Database query failed', {
-        details: error.details,
-      })
       if (context) {
+        // 로그에만 상세 정보 기록 (프로덕션에서도 서버 로그에는 남김)
         console.error(`[${context}] D1 query failed:`, {
           message: error.message,
           details: error.details,
         })
       }
-      return createErrorResponse(apiError, { context, requestId, ...options })
+      // 응답에서는 상세 정보 제거
+      const queryErr = ApiError.internal(
+        isProduction ? 'Database error' : 'Database query failed'
+      )
+      return createErrorResponse(queryErr, { context, requestId, ...options })
     }
 
-    // 도메인 에러 처리
-    if (error instanceof ProjectNotFoundError) {
-      const apiError = ApiError.notFound(error.message)
-      if (context) {
-        console.error(`[${context}] Project not found:`, error.message)
-      }
-      return createErrorResponse(apiError, { context, requestId, ...options })
-    }
 
-    if (error instanceof D1ProjectsTableError) {
-      const apiError = ApiError.internal('Database table operation failed', {
-        details: error.details,
-      })
-      if (context) {
-        console.error(`[${context}] Projects table operation failed:`, error.details)
-      }
-      return createErrorResponse(apiError, { context, requestId, ...options })
-    }
 
-    // 일반 에러 처리
+    // 일반 에러 처리 (프로덕션에서는 상세정보 숨김)
     if (error instanceof Error) {
-      const apiError = ApiError.internal(error.message, {
-        name: error.name,
-        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
-      })
       if (context) {
         console.error(`[${context}] Unexpected error:`, {
           name: error.name,
@@ -197,17 +178,21 @@ export function createErrorHandler(
           stack: error.stack,
         })
       }
-      return createErrorResponse(apiError, { context, requestId, ...options })
+      const generalErr = ApiError.internal(
+        isProduction ? 'An error occurred' : error.message
+      )
+      return createErrorResponse(generalErr, { context, requestId, ...options })
     }
 
     // 알 수 없는 에러
-    const apiError = ApiError.internal('An unknown error occurred')
     if (context) {
       console.error(`[${context}] Unknown error:`, error)
     }
-    return createErrorResponse(apiError, { context, requestId, ...options })
+    const unknownErr = ApiError.internal('An error occurred')
+    return createErrorResponse(unknownErr, { context, requestId, ...options })
   }
 }
+
 
 /**
  * 요청 ID 생성 (간단한 UUID v4 기반)
@@ -222,11 +207,11 @@ function generateRequestId(): string {
 export async function requireAuth(): Promise<{ userId: string }> {
   const { auth } = await import('@clerk/nextjs/server')
   const { userId } = await auth()
-  
+
   if (!userId) {
     throw ApiError.unauthorized()
   }
-  
+
   return { userId }
 }
 
@@ -239,3 +224,4 @@ export function requireUserId(userId: string | null | undefined): string {
   }
   return userId
 }
+

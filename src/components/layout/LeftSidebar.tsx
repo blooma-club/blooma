@@ -45,7 +45,6 @@ const useSidebar = () => {
 // --- Navigation Links ---
 const navLinks = [
   { label: 'Studio', href: '/studio', icon: Shirt },
-  { label: 'Projects', href: '/dashboard', icon: FolderOpen },
   { label: 'Assets', href: '/assets/models', icon: Box },
 ]
 
@@ -216,9 +215,7 @@ const SidebarNavLink = memo(function SidebarNavLink({
   const pathname = usePathname()
   const Icon = link.icon
 
-  const isActive = link.href === '/dashboard'
-    ? pathname === '/dashboard' || pathname?.startsWith('/project')
-    : pathname?.startsWith(link.href)
+  const isActive = pathname?.startsWith(link.href)
 
   return (
     <Link
@@ -263,9 +260,7 @@ const MobileNavLink = memo(function MobileNavLink({
   const pathname = usePathname()
   const Icon = link.icon
 
-  const isActive = link.href === '/dashboard'
-    ? pathname === '/dashboard' || pathname?.startsWith('/project')
-    : pathname?.startsWith(link.href)
+  const isActive = pathname?.startsWith(link.href)
 
   return (
     <Link

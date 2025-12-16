@@ -64,8 +64,7 @@ export async function GET(req: Request) {
             const usersTable = await queryD1("PRAGMA table_info(users)")
             results.db.usersTableSchema = usersTable
 
-            const projectsTable = await queryD1("PRAGMA table_info(projects)")
-            results.db.projectsTableSchema = projectsTable
+            // NOTE: projects table removed with storyboard feature
         } catch (e: any) {
             results.db.error = e.message
         }
@@ -127,11 +126,9 @@ export async function GET(req: Request) {
         // 5. Foreign Key Integrity Check
         try {
             const userId = authUser.userId
-            const projectCount = await queryD1<{ count: number }>("SELECT COUNT(*) as count FROM projects WHERE user_id = ?1", [userId])
+            // NOTE: projects table removed - integrity check simplified
             results.integrity = {
-                projectsFound: projectCount[0].count,
-                userExistsInD1: !!results.db.userRecord && results.db.userRecord !== 'NOT_FOUND',
-                orphanRisk: projectCount[0].count > 0 && (!results.db.userRecord || results.db.userRecord === 'NOT_FOUND')
+                userExistsInD1: !!results.db.userRecord && results.db.userRecord !== 'NOT_FOUND'
             }
         } catch (e: any) {
             results.integrity = { error: e.message }
