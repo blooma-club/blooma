@@ -1,14 +1,12 @@
-'use client'
-
 import { ReactNode } from 'react'
-import { LeftSidebar } from '@/components/layout/LeftSidebar'
+import { Header } from '@/components/layout/Header'
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-neutral-100">
-      <LeftSidebar />
-      <div className="flex-1 flex flex-col min-w-0 p-2 md:p-2 transition-all duration-300">
-        <main className="relative flex-1 flex flex-col bg-white rounded-3xl shadow-sm overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-white">
+      <Header />
+      <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex flex-col">
+        <main className="flex-1 flex flex-col py-6">
           {children}
         </main>
       </div>

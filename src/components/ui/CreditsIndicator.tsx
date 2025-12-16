@@ -10,9 +10,10 @@ import { cn } from '@/lib/utils'
 type CreditsIndicatorProps = {
   className?: string
   minimal?: boolean
+  placement?: 'top' | 'bottom'
 }
 
-export default function CreditsIndicator({ className, minimal = false }: CreditsIndicatorProps) {
+export default function CreditsIndicator({ className, minimal = false, placement = 'top' }: CreditsIndicatorProps) {
   const { total, remaining, percentage, isLoading, isAvailable, subscriptionTier } = useUserCredits()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -73,21 +74,21 @@ export default function CreditsIndicator({ className, minimal = false }: Credits
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         className={cn(
-          "h-9 px-3 text-sm font-medium transition-colors hover:bg-muted/50",
-          open && "bg-muted/50"
+          "h-9 px-2 text-sm font-medium transition-colors hover:bg-muted/50 text-black hover:text-black/70",
+          open && "bg-muted/50 text-foreground"
         )}
         onClick={() => setOpen(prev => !prev)}
       >
-        <Sparkles className="mr-2 h-4 w-4 text-primary" />
-        <span className="hidden sm:inline">Credits</span>
-        <span className="ml-1.5 text-muted-foreground">{displayRemaining}</span>
+        <span className="text-sm">{displayRemaining}</span>
       </Button>
 
       {open && (
         <div
-          className="absolute right-0 bottom-full mb-2 z-50 w-72 rounded-xl border bg-popover/95 backdrop-blur-sm p-4 text-popover-foreground shadow-xl ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95"
+          className={cn(
+            "absolute right-0 z-50 w-72 rounded-xl border bg-popover/95 backdrop-blur-sm p-4 text-popover-foreground shadow-xl ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
+            placement === 'top' ? "bottom-full mb-2" : "top-full mt-2"
+          )}
           onClick={e => e.stopPropagation()}
         >
           <div className="flex flex-col gap-4">

@@ -11,6 +11,7 @@ import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/libraries/
 import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 // Maximum total images allowed (model + reference images)
 const MAX_TOTAL_IMAGES = 6;
@@ -29,6 +30,14 @@ export default function FittingRoomCreatePage() {
     const [viewType, setViewType] = useState<'front' | 'behind' | 'side' | 'quarter'>('front'); // 뷰 타입 선택
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
 
+    // Fix hydration mismatch
+    const [isMounted, setIsMounted] = useState(false);
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+
+
     // View type options with images
     const VIEW_OPTIONS = [
         { id: 'front' as const, label: 'Front', image: '/front-view-v2.png' },
@@ -42,6 +51,10 @@ export default function FittingRoomCreatePage() {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    if (!isMounted) {
+        return null;
+    }
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -142,10 +155,10 @@ export default function FittingRoomCreatePage() {
                         body: JSON.stringify({
                             image_url: imgUrl,
                             group_id: batchId,
-                            prompt: userPrompt,
+                            // 사용자 입력만 저장 (템플릿 제외) - SQLITE_TOOBIG 방지
+                            prompt: userPrompt ? `user:${userPrompt}` : null,
                             model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
-                            // Removed source_model_url and source_outfit_urls to avoid SQLITE_TOOBIG
-                            // These are optional metadata fields that can cause DB size issues
+                            generation_params: null, // 완전히 제거
                         }),
                     }).catch(console.error);
                 }
@@ -245,262 +258,266 @@ export default function FittingRoomCreatePage() {
                     </div>
 
                     {/* Right: Controls */}
-                    <div className="w-72 flex flex-col gap-8">
-                        {/* Model */}
-                        <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Model</h3>
-                            <div className="flex gap-3">
-                                {selectedModels.map((model) => (
-                                    <div
-                                        key={model.id}
-                                        className="relative w-20 aspect-[3/4] rounded-xl overflow-hidden group ring-1 ring-border/50"
-                                    >
-                                        <Image
-                                            src={model.imageUrl}
-                                            alt={model.name}
-                                            fill
-                                            className="object-cover"
-                                            sizes="80px"
-                                            quality={75}
-                                            loading="lazy"
-                                        />
-                                        <button
-                                            onClick={() => removeModel(model.id)}
-                                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X className="w-5 h-5 text-white" />
-                                        </button>
-                                    </div>
-                                ))}
-
-                                {selectedModels.length === 0 && (
-                                    <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-                                        <PopoverTrigger asChild>
-                                            <button className="w-20 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
-                                                <Plus className="w-5 h-5 text-muted-foreground" />
-                                                <span className="text-[10px] text-muted-foreground font-medium">Add</span>
-                                            </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
-                                            <button
-                                                onClick={() => {
-                                                    modelFileInputRef.current?.click();
-                                                    setIsAddMenuOpen(false);
-                                                }}
-                                                className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                    <div className="w-full lg:w-72 flex flex-col gap-4">
+                        <Accordion type="multiple" defaultValue={['model', 'outfit']} className="w-full pl-1 -ml-1">
+                            {/* Model */}
+                            <AccordionItem value="model" className="border-b border-border/40">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    Model
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <div className="flex gap-3">
+                                        {selectedModels.map((model) => (
+                                            <div
+                                                key={model.id}
+                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
                                             >
-                                                <Upload className="w-4 h-4 text-muted-foreground" />
-                                                <span>Upload</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setIsLibraryOpen(true);
-                                                    setIsAddMenuOpen(false);
-                                                }}
-                                                className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
-                                            >
-                                                <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                                                <span>Library</span>
-                                            </button>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
+                                                <Image
+                                                    src={model.imageUrl}
+                                                    alt={model.name}
+                                                    fill
+                                                    className="object-cover object-center"
+                                                    sizes="80px"
+                                                    quality={75}
+                                                    loading="lazy"
+                                                />
+                                                <button
+                                                    onClick={() => removeModel(model.id)}
+                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-5 h-5 text-white" />
+                                                </button>
+                                            </div>
+                                        ))}
 
-                                <input
-                                    ref={modelFileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const tempModel: ModelLibraryAsset = {
-                                            id: `temp-${Date.now()}`,
-                                            name: file.name.split('.')[0],
-                                            subtitle: 'Uploaded',
-                                            imageUrl: URL.createObjectURL(file),
-                                        };
-                                        setSelectedModels([tempModel]);
-                                        e.target.value = '';
-                                    }}
-                                />
+                                        {selectedModels.length === 0 && (
+                                            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
+                                                        <Plus className="w-5 h-5 text-muted-foreground" />
+                                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                                    </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
+                                                    <button
+                                                        onClick={() => {
+                                                            modelFileInputRef.current?.click();
+                                                            setIsAddMenuOpen(false);
+                                                        }}
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                    >
+                                                        <Upload className="w-4 h-4 text-muted-foreground" />
+                                                        <span>Upload</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsLibraryOpen(true);
+                                                            setIsAddMenuOpen(false);
+                                                        }}
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                    >
+                                                        <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                                                        <span>Library</span>
+                                                    </button>
+                                                </PopoverContent>
+                                            </Popover>
+                                        )}
 
-                                <div className="hidden">
-                                    <ModelLibraryDropdown
-                                        selectedAsset={selectedModels[0] || null}
-                                        onSelect={handleModelSelect}
-                                        onClear={() => setSelectedModels([])}
-                                        open={isLibraryOpen}
-                                        onOpenChange={setIsLibraryOpen}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Outfit */}
-                        <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Outfit</h3>
-                            <div className="flex gap-3 flex-wrap">
-                                {referenceImages.map((img, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="relative w-20 aspect-[3/4] rounded-xl overflow-hidden group ring-1 ring-border/50"
-                                    >
-                                        <Image
-                                            src={img}
-                                            alt={`Outfit ${idx + 1}`}
-                                            fill
-                                            className="object-cover"
-                                            sizes="80px"
-                                            quality={75}
-                                            loading="lazy"
-                                        />
-                                        <button
-                                            onClick={() => removeReferenceImage(idx)}
-                                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X className="w-5 h-5 text-white" />
-                                        </button>
-                                    </div>
-                                ))}
-                                {/* Only show Add button if under limit */}
-                                {(selectedModels.length + referenceImages.length) < MAX_TOTAL_IMAGES && (
-                                    <label className="w-20 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all">
-                                        <Plus className="w-5 h-5 text-muted-foreground" />
-                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
                                         <input
+                                            ref={modelFileInputRef}
                                             type="file"
-                                            multiple
                                             accept="image/*"
                                             className="hidden"
-                                            onChange={handleImageUpload}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const tempModel: ModelLibraryAsset = {
+                                                    id: `temp-${Date.now()}`,
+                                                    name: file.name.split('.')[0],
+                                                    subtitle: 'Uploaded',
+                                                    imageUrl: URL.createObjectURL(file),
+                                                };
+                                                setSelectedModels([tempModel]);
+                                                e.target.value = '';
+                                            }}
                                         />
-                                    </label>
-                                )}
-                            </div>
-                        </div>
 
-                        {/* View */}
-                        <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">View</h3>
-                            <div className="flex gap-3 flex-wrap">
-                                {VIEW_OPTIONS.map((view) => (
-                                    <button
-                                        key={view.id}
-                                        onClick={() => setViewType(view.id)}
-                                        className={cn(
-                                            "relative w-20 aspect-[3/4] rounded-xl overflow-hidden transition-all",
-                                            viewType === view.id
-                                                ? "ring-2 ring-foreground"
-                                                : "ring-1 ring-border/50 hover:ring-foreground/30"
-                                        )}
-                                    >
-                                        <Image
-                                            src={view.image}
-                                            alt={view.label}
-                                            fill
-                                            className="object-cover"
-                                            sizes="80px"
-                                            quality={75}
-                                            loading="lazy"
-                                        />
-                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                                            <span className="text-[10px] font-medium text-white">{view.label}</span>
+                                        <div className="hidden">
+                                            <ModelLibraryDropdown
+                                                selectedAsset={selectedModels[0] || null}
+                                                onSelect={handleModelSelect}
+                                                onClear={() => setSelectedModels([])}
+                                                open={isLibraryOpen}
+                                                onOpenChange={setIsLibraryOpen}
+                                            />
                                         </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        {/* Prompt */}
-                        <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">Detail</h3>
-                            {!isPromptOpen && !prompt ? (
-                                <button
-                                    onClick={() => setIsPromptOpen(true)}
-                                    className="w-full h-10 rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-all"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Add Detail
-                                </button>
-                            ) : (
-                                <Textarea
-                                    placeholder="Describe outfit fit, fabric, or styling details..."
-                                    className="min-h-[100px] resize-none bg-muted/30 border-0 focus-visible:ring-1 focus-visible:ring-foreground/20 rounded-xl text-sm placeholder:text-muted-foreground/50"
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    autoFocus
-                                    onBlur={() => !prompt && setIsPromptOpen(false)}
-                                />
-                            )}
-                        </div>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
 
-                        {/* Error */}
-                        {error && (
-                            <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-xl">
-                                {error}
-                            </div>
-                        )}
+                            {/* Outfit */}
+                            <AccordionItem value="outfit" className="border-b border-border/40">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    Outfit
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <div className="flex gap-3 flex-wrap">
+                                        {referenceImages.map((img, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
+                                            >
+                                                <Image
+                                                    src={img}
+                                                    alt={`Outfit ${idx + 1}`}
+                                                    fill
+                                                    className="object-cover object-center"
+                                                    sizes="80px"
+                                                    quality={75}
+                                                    loading="lazy"
+                                                />
+                                                <button
+                                                    onClick={() => removeReferenceImage(idx)}
+                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-5 h-5 text-white" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {/* Only show Add button if under limit */}
+                                        {(selectedModels.length + referenceImages.length) < MAX_TOTAL_IMAGES && (
+                                            <label className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all">
+                                                <Plus className="w-5 h-5 text-muted-foreground" />
+                                                <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={handleImageUpload}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
 
-                        {/* Settings: Resolution + Count */}
-                        <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Settings</h3>
-                            <div className="flex items-center gap-4">
-                                {/* Resolution */}
-                                <div className="flex gap-1">
-                                    <button
-                                        onClick={() => setResolution('2K')}
-                                        className={cn(
-                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                            resolution === '2K'
-                                                ? "border-foreground bg-foreground text-background"
-                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                        )}
-                                    >
-                                        2K
-                                    </button>
-                                    <button
-                                        onClick={() => setResolution('4K')}
-                                        className={cn(
-                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                            resolution === '4K'
-                                                ? "border-foreground bg-foreground text-background"
-                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                        )}
-                                    >
-                                        4K
-                                    </button>
-                                </div>
+                            {/* View */}
+                            <AccordionItem value="view" className="border-b border-border/40">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    View
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <div className="flex gap-2">
+                                        {VIEW_OPTIONS.map((view) => (
+                                            <button
+                                                key={view.id}
+                                                onClick={() => setViewType(view.id)}
+                                                className={cn(
+                                                    "relative w-16 aspect-[3/4] rounded-xl overflow-hidden transition-all",
+                                                    viewType === view.id
+                                                        ? "border-[1.5px] border-foreground"
+                                                        : "border border-border/50 hover:border-foreground/30"
+                                                )}
+                                            >
+                                                <Image
+                                                    src={view.image}
+                                                    alt={view.label}
+                                                    fill
+                                                    className="object-cover object-center"
+                                                    sizes="80px"
+                                                    quality={75}
+                                                    loading="lazy"
+                                                />
+                                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                                                    <span className="text-[10px] font-medium text-white">{view.label}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
 
-                                {/* Divider */}
-                                <div className="w-px h-5 bg-border" />
+                            {/* Detail */}
+                            <AccordionItem value="detail" className="border-b border-border/40">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    Detail
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <Textarea
+                                        placeholder="Describe outfit fit, fabric, or styling details..."
+                                        className="min-h-[80px] resize-none bg-muted/30 border-1 rounded-xl text-sm placeholder:text-muted-foreground/50"
+                                        value={prompt}
+                                        onChange={(e) => setPrompt(e.target.value)}
+                                    />
+                                </AccordionContent>
+                            </AccordionItem>
 
-                                {/* Count */}
-                                <div className="flex gap-1">
-                                    <button
-                                        onClick={() => setNumImages(2)}
-                                        className={cn(
-                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                            numImages === 2
-                                                ? "border-foreground bg-foreground text-background"
-                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                        )}
-                                    >
-                                        ×2
-                                    </button>
-                                    <button
-                                        onClick={() => setNumImages(4)}
-                                        className={cn(
-                                            "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                            numImages === 4
-                                                ? "border-foreground bg-foreground text-background"
-                                                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                        )}
-                                    >
-                                        ×4
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                            {/* Settings */}
+                            <AccordionItem value="settings" className="border-b-0">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    Settings
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <div className="flex items-center gap-4">
+                                        {/* Resolution */}
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setResolution('2K')}
+                                                className={cn(
+                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                                    resolution === '2K'
+                                                        ? "border-foreground bg-foreground text-background"
+                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                                )}
+                                            >
+                                                2K
+                                            </button>
+                                            <button
+                                                onClick={() => setResolution('4K')}
+                                                className={cn(
+                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                                    resolution === '4K'
+                                                        ? "border-foreground bg-foreground text-background"
+                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                                )}
+                                            >
+                                                4K
+                                            </button>
+                                        </div>
+
+                                        {/* Divider */}
+                                        <div className="w-px h-5 bg-border" />
+
+                                        {/* Count */}
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setNumImages(2)}
+                                                className={cn(
+                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                                    numImages === 2
+                                                        ? "border-foreground bg-foreground text-background"
+                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                                )}
+                                            >
+                                                ×2
+                                            </button>
+                                            <button
+                                                onClick={() => setNumImages(4)}
+                                                className={cn(
+                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
+                                                    numImages === 4
+                                                        ? "border-foreground bg-foreground text-background"
+                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                                                )}
+                                            >
+                                                ×4
+                                            </button>
+                                        </div>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
 
                         {/* Generate */}
                         <Button

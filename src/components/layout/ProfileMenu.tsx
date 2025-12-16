@@ -44,25 +44,12 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
           type="button"
           variant="ghost"
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-full p-0 text-xs text-foreground transition hover:opacity-80 focus-visible:outline-none',
+            'flex h-auto items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-black transition hover:text-black/70 focus-visible:outline-none',
             className
           )}
           aria-label="Open user menu"
         >
-          {user.imageUrl ? (
-            <Image
-              src={user.imageUrl}
-              alt="User avatar"
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-full object-cover"
-              unoptimized
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background text-sm font-semibold">
-              {profileInitial}
-            </div>
-          )}
+          {displayName}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
