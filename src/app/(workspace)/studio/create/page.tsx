@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, Image as ImageIcon, X, Plus, FolderOpen, Loader2, Sparkles } from "lucide-react";
+import { Upload, Image as ImageIcon, X, Plus, FolderOpen, Loader2, Sparkles, Coins, Camera } from "lucide-react";
 import { useUserCredits } from "@/hooks/useUserCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/libraries/ModelLibraryDropdown";
+import { CAMERA_PRESETS, CameraPreset } from "@/components/libraries/CameraLibrary";
 import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
@@ -27,7 +28,8 @@ export default function FittingRoomCreatePage() {
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
     const [resolution, setResolution] = useState<'2K' | '4K'>('2K'); // 해상도 선택
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
-    const [viewType, setViewType] = useState<'front' | 'behind' | 'side' | 'quarter'>('front'); // 뷰 타입 선택
+    const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]); // 카메라 프리셋
+    const [modelTier, setModelTier] = useState<'basic' | 'pro'>('basic'); // 모델 티어 선택
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Fix hydration mismatch
@@ -38,13 +40,7 @@ export default function FittingRoomCreatePage() {
 
 
 
-    // View type options with images
-    const VIEW_OPTIONS = [
-        { id: 'front' as const, label: 'Front', image: '/front-view-v2.png' },
-        { id: 'behind' as const, label: 'Behind', image: '/behind-view-v2.png' },
-        { id: 'side' as const, label: 'Side', image: '/side-view-v2.png' },
-        { id: 'quarter' as const, label: 'Quarter', image: '/front-side-view-v2.png' },
-    ];
+
 
     // Image generation state
     const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -78,6 +74,10 @@ export default function FittingRoomCreatePage() {
     };
 
     const removeReferenceImage = (index: number) => {
+        const urlToRevoke = referenceImages[index];
+        if (urlToRevoke?.startsWith('blob:')) {
+            URL.revokeObjectURL(urlToRevoke);
+        }
         setReferenceImages((prev) => prev.filter((_, i) => i !== index));
     };
 
@@ -86,6 +86,10 @@ export default function FittingRoomCreatePage() {
     };
 
     const removeModel = (modelId: string) => {
+        const modelToRemove = selectedModels.find(m => m.id === modelId);
+        if (modelToRemove?.imageUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(modelToRemove.imageUrl);
+        }
         setSelectedModels((prev) => prev.filter(m => m.id !== modelId));
     };
 
@@ -118,16 +122,21 @@ export default function FittingRoomCreatePage() {
             // 프롬프트는 서버에서 프리셋으로 처리됨 - 사용자 추가 입력만 전송
             const userPrompt = prompt?.trim() || '';
 
+            // 모델 티어에 따라 모델 ID 선택
+            const selectedModelId = modelTier === 'pro'
+                ? 'fal-ai/nano-banana-pro/edit'
+                : 'fal-ai/bytedance/seedream/v4.5/edit';
+
             const response = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    modelId: 'fal-ai/bytedance/seedream/v4.5/edit',
+                    modelId: selectedModelId,
                     prompt: userPrompt,
                     imageUrls,
                     resolution, // 사용자가 선택한 해상도 (2K 또는 4K)
                     numImages,  // 생성 개수 (2 또는 4)
-                    viewType,   // 뷰 타입 (front, behind, side, quarter)
+                    cameraPrompt: selectedCameraPreset.prompt,   // 카메라 프리셋 프롬프트
                 }),
             });
 
@@ -143,9 +152,6 @@ export default function FittingRoomCreatePage() {
                 setPreviewImage(firstImageUrl);
 
                 // Save each image to database
-                // imageUrls[0]은 모델, 나머지는 의상
-                const uploadedModelUrl = imageUrls[0];
-                const uploadedOutfitUrls = imageUrls.slice(1);
                 const batchId = crypto.randomUUID();
 
                 for (const imgUrl of generatedImageUrls) {
@@ -156,8 +162,8 @@ export default function FittingRoomCreatePage() {
                             image_url: imgUrl,
                             group_id: batchId,
                             // 사용자 입력만 저장 (템플릿 제외) - SQLITE_TOOBIG 방지
-                            prompt: userPrompt ? `user:${userPrompt}` : null,
-                            model_id: 'fal-ai/bytedance/seedream/v4.5/edit',
+                            prompt: userPrompt || null,
+                            model_id: selectedModelId,
                             generation_params: null, // 완전히 제거
                         }),
                     }).catch(console.error);
@@ -188,7 +194,7 @@ export default function FittingRoomCreatePage() {
                     {/* Left: Preview */}
                     <div className="flex flex-col">
                         {/* Preview Area */}
-                        <div className="w-[480px] aspect-[3/4] bg-muted/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
+                        <div className="w-[480px] aspect-[3/4] bg-secondary/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
                             {isGenerating ? (
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="w-12 h-12 rounded-full bg-foreground/5 flex items-center justify-center">
@@ -409,28 +415,34 @@ export default function FittingRoomCreatePage() {
                                 </AccordionTrigger>
                                 <AccordionContent className="pt-2 pb-6">
                                     <div className="flex gap-2">
-                                        {VIEW_OPTIONS.map((view) => (
+                                        {CAMERA_PRESETS.map((preset) => (
                                             <button
-                                                key={view.id}
-                                                onClick={() => setViewType(view.id)}
+                                                key={preset.id}
+                                                onClick={() => setSelectedCameraPreset(preset)}
                                                 className={cn(
                                                     "relative w-16 aspect-[3/4] rounded-xl overflow-hidden transition-all",
-                                                    viewType === view.id
+                                                    selectedCameraPreset.id === preset.id
                                                         ? "border-[1.5px] border-foreground"
                                                         : "border border-border/50 hover:border-foreground/30"
                                                 )}
                                             >
-                                                <Image
-                                                    src={view.image}
-                                                    alt={view.label}
-                                                    fill
-                                                    className="object-cover object-center"
-                                                    sizes="80px"
-                                                    quality={75}
-                                                    loading="lazy"
-                                                />
+                                                {preset.image ? (
+                                                    <Image
+                                                        src={preset.image}
+                                                        alt={preset.title}
+                                                        fill
+                                                        className="object-cover object-center"
+                                                        sizes="80px"
+                                                        quality={75}
+                                                        loading="lazy"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-muted/30">
+                                                        <Camera className="w-5 h-5 text-muted-foreground" />
+                                                    </div>
+                                                )}
                                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                                                    <span className="text-[10px] font-medium text-white">{view.label}</span>
+                                                    <span className="text-[10px] font-medium text-white">{preset.title}</span>
                                                 </div>
                                             </button>
                                         ))}
@@ -455,65 +467,128 @@ export default function FittingRoomCreatePage() {
 
                             {/* Settings */}
                             <AccordionItem value="settings" className="border-b-0">
-                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-4">
                                     Settings
                                 </AccordionTrigger>
-                                <AccordionContent className="pt-2 pb-6">
-                                    <div className="flex items-center gap-4">
-                                        {/* Resolution */}
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={() => setResolution('2K')}
-                                                className={cn(
-                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                                    resolution === '2K'
-                                                        ? "border-foreground bg-foreground text-background"
-                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                                )}
-                                            >
-                                                2K
-                                            </button>
-                                            <button
-                                                onClick={() => setResolution('4K')}
-                                                className={cn(
-                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                                    resolution === '4K'
-                                                        ? "border-foreground bg-foreground text-background"
-                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                                )}
-                                            >
-                                                4K
-                                            </button>
+                                <AccordionContent className="pt-2 pb-8">
+                                    <div className="flex flex-col gap-6">
+
+                                        {/* Row 1: Resolution & Count */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {/* Resolution */}
+                                            <div className="space-y-2.5">
+                                                <div className="flex items-center gap-1.5 px-0.5">
+                                                    <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Resolution</span>
+                                                </div>
+                                                <div className="flex p-1 bg-muted rounded-xl border border-border/40">
+                                                    <button
+                                                        onClick={() => setResolution('2K')}
+                                                        className={cn(
+                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                            resolution === '2K'
+                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                        )}
+                                                    >
+                                                        2K
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setResolution('4K')}
+                                                        className={cn(
+                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                            resolution === '4K'
+                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                        )}
+                                                    >
+                                                        4K
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Count */}
+                                            <div className="space-y-2.5">
+                                                <div className="flex items-center gap-1.5 px-0.5">
+                                                    <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Count</span>
+                                                </div>
+                                                <div className="flex p-1 bg-muted rounded-xl border border-border/40">
+                                                    <button
+                                                        onClick={() => setNumImages(2)}
+                                                        className={cn(
+                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                            numImages === 2
+                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                        )}
+                                                    >
+                                                        2
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setNumImages(4)}
+                                                        className={cn(
+                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                            numImages === 4
+                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                        )}
+                                                    >
+                                                        4
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        {/* Divider */}
-                                        <div className="w-px h-5 bg-border" />
+                                        {/* Row 2: Mode */}
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center gap-1.5 px-0.5">
+                                                <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Quality Mode</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => setModelTier('basic')}
+                                                    className={cn(
+                                                        "relative group flex flex-col items-start gap-1 p-3 rounded-xl border transition-all duration-200 text-left h-[72px]",
+                                                        modelTier === 'basic'
+                                                            ? "bg-background border-foreground text-foreground shadow-sm"
+                                                            : "bg-muted/10 border-border/60 text-muted-foreground hover:bg-muted/30 hover:border-foreground/20"
+                                                    )}
+                                                >
+                                                    <div className="w-full flex items-start justify-between">
+                                                        <span className="text-xs font-semibold mt-0.5">Standard</span>
+                                                        <div className="px-1.5 py-0.5 rounded-md bg-muted/50 border border-border/50 text-[10px] font-medium text-muted-foreground group-hover:bg-muted group-hover:text-foreground/80 transition-colors">
+                                                            <Coins className="w-2.5 h-2.5 inline mr-1 -mt-0.5" />
+                                                            {15 * numImages}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-[10px] opacity-60 font-medium">Balanced quality</p>
+                                                </button>
 
-                                        {/* Count */}
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={() => setNumImages(2)}
-                                                className={cn(
-                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                                    numImages === 2
-                                                        ? "border-foreground bg-foreground text-background"
-                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                                )}
-                                            >
-                                                ×2
-                                            </button>
-                                            <button
-                                                onClick={() => setNumImages(4)}
-                                                className={cn(
-                                                    "py-1.5 px-3 rounded-lg border text-xs font-medium transition-all",
-                                                    numImages === 4
-                                                        ? "border-foreground bg-foreground text-background"
-                                                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                                                )}
-                                            >
-                                                ×4
-                                            </button>
+                                                <button
+                                                    onClick={() => setModelTier('pro')}
+                                                    className={cn(
+                                                        "relative group flex flex-col items-start gap-1 p-3 rounded-xl border transition-all duration-200 text-left h-[72px]",
+                                                        modelTier === 'pro'
+                                                            ? "bg-foreground border-foreground text-background shadow-md"
+                                                            : "bg-muted/10 border-border/60 text-muted-foreground hover:bg-muted/30 hover:border-foreground/20"
+                                                    )}
+                                                >
+                                                    <div className="w-full flex items-start justify-between">
+                                                        <span className="text-xs font-semibold mt-0.5">Pro</span>
+                                                        <div className={cn(
+                                                            "px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-colors border",
+                                                            modelTier === 'pro'
+                                                                ? "bg-white/20 border-white/20 text-white/90"
+                                                                : "bg-muted/50 border-border/50 text-muted-foreground group-hover:bg-muted group-hover:text-foreground/80"
+                                                        )}>
+                                                            <Coins className="w-2.5 h-2.5 inline mr-1 -mt-0.5" />
+                                                            {(resolution === '4K' ? 100 : 50) * numImages}
+                                                        </div>
+                                                    </div>
+                                                    <p className={cn("text-[10px] font-medium", modelTier === 'pro' ? "text-white/60" : "opacity-60")}>Highest detail</p>
+                                                </button>
+                                            </div>
                                         </div>
+
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>

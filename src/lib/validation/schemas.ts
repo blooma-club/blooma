@@ -160,7 +160,8 @@ export const imageGenerationSchema = z.object({
   imageUrls: z.array(imageUrlSchema).max(10).optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
-  viewType: z.enum(['front', 'behind', 'side', 'quarter']).optional().default('front'),
+  viewType: z.enum(['front', 'behind', 'side', 'quarter']).optional().default('front'), // deprecated, kept for backward compatibility
+  cameraPrompt: z.string().max(1000, 'Camera prompt must be 1000 characters or less').optional(),
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

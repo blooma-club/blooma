@@ -15,50 +15,37 @@ export type CameraPreset = {
   id: string
   title: string
   prompt: string
+  image?: string  // 썸네일 이미지 (Built-in만 해당, 커스텀은 없을 수 있음)
   isBuiltIn?: boolean
 }
 
 export const CAMERA_PRESETS: CameraPreset[] = [
   {
-    id: 'front-view',
-    title: 'Front view',
-    prompt: 'front view, eye-level shot, 50mm lens, centered composition, natural lighting, clear subject focus, clean background',
+    id: 'front',
+    title: 'Front',
+    prompt: 'front view, eye-level shot, 50mm lens, centered composition, natural lighting, clear subject focus',
+    image: '/front-view-v2.png',
     isBuiltIn: true,
   },
   {
-    id: 'side-view',
-    title: 'Side view',
+    id: 'behind',
+    title: 'Behind',
+    prompt: 'back view from behind, centered composition, 50mm lens, clear posture, natural lighting',
+    image: '/behind-view-v2.png',
+    isBuiltIn: true,
+  },
+  {
+    id: 'side',
+    title: 'Side',
     prompt: 'side view profile shot, 35mm lens, clear silhouette, simple background, minimalist framing',
+    image: '/side-view-v2.png',
     isBuiltIn: true,
   },
   {
-    id: 'three-quarter',
-    title: '3/4 view',
+    id: 'quarter',
+    title: 'Quarter',
     prompt: '3/4 view angle, subject slightly turned, 35mm lens, soft background blur, natural pose',
-    isBuiltIn: true,
-  },
-  {
-    id: 'close-up',
-    title: 'Close-up',
-    prompt: 'close-up shot, 85mm portrait lens, shallow depth of field, strong bokeh, emphasis on details',
-    isBuiltIn: true,
-  },
-  {
-    id: 'low-angle',
-    title: 'Low angle',
-    prompt: 'low angle shot from below, 24mm wide lens, subject appears powerful, dramatic perspective',
-    isBuiltIn: true,
-  },
-  {
-    id: 'high-angle',
-    title: 'High angle',
-    prompt: 'high angle shot from above, 35mm lens, subject framed in environment, soft shadows',
-    isBuiltIn: true,
-  },
-  {
-    id: 'top-view',
-    title: 'Top-down view',
-    prompt: 'top-down flat lay view, overhead shot, 24mm wide lens, clean arrangement, graphic composition',
+    image: '/front-side-view-v2.png',
     isBuiltIn: true,
   },
 ]
@@ -224,18 +211,18 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
   const handleDeletePreset = async (presetId: string, event: React.MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
-    
+
     if (!window.confirm('Delete this preset?')) return
-    
+
     // 먼저 UI에서 제거
     setCustomPresets(previous => previous.filter(p => p.id !== presetId))
-    
+
     // API 호출 (실패해도 localStorage 폴백)
     await deleteCustomCameraPresetApi(presetId)
-    
+
     // localStorage에서도 삭제
     deleteCustomCameraPreset(presetId)
-    
+
     // Clear selection if deleted preset was selected
     if (selectedPreset?.id === presetId) {
       onClear()

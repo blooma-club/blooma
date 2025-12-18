@@ -144,13 +144,16 @@ export async function uploadFileToR2(
         body: formData,
     })
 
-    const result: UploadResult = await response.json()
+    const result = await response.json()
 
     if (!result.success) {
         throw new Error(result.error || 'Failed to upload image')
     }
 
-    const publicUrl = result.publicUrl || result.signedUrl
+    // Handle different response formats:
+    // - Model/background uploads return { data: { image_url: '...' } }
+    // - Regular uploads return { publicUrl: '...' }
+    const publicUrl = result.publicUrl || result.signedUrl || result.data?.image_url
     if (!publicUrl) {
         throw new Error('No image URL returned from server')
     }

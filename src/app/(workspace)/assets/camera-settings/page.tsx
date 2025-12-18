@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Loader2, Plus, Trash2, Camera, Info } from 'lucide-react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { CameraPreset } from '@/components/libraries/CameraLibrary'
@@ -214,12 +215,30 @@ export default function CameraSettingsPage() {
               return (
                 <div
                   key={preset.id}
-                  className="group rounded-xl border border-border/50 bg-card hover:bg-muted/30 transition-colors px-4 py-3"
+                  className="group rounded-xl border border-border/50 bg-card hover:bg-muted/30 transition-colors p-2"
                 >
                   <div className="flex items-start justify-between gap-3">
+                    {/* Thumbnail */}
+                    <div className="shrink-0">
+                      {preset.image ? (
+                        <div className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden">
+                          <Image
+                            src={preset.image}
+                            alt={preset.title}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 aspect-[3/4] rounded-lg bg-muted/50 flex items-center justify-center">
+                          <Camera className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <Camera className="w-4 h-4 text-muted-foreground shrink-0" />
                         <p className="text-sm font-medium text-foreground truncate">{preset.title}</p>
                         {isCustom ? (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
@@ -231,7 +250,7 @@ export default function CameraSettingsPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 pl-6">{preset.prompt}</p>
+                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{preset.prompt}</p>
                     </div>
 
                     {isCustom && (

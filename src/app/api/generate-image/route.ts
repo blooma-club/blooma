@@ -124,16 +124,24 @@ export async function POST(request: NextRequest) {
       // 1. 템플릿 복사
       const promptObj: Record<string, any> = JSON.parse(JSON.stringify(FASHION_PROMPT_TEMPLATE))
 
-      // 2. viewType에 따른 pose와 expression 적용
-      const viewType = validated.viewType || 'front'
-      const viewSettings = VIEW_SETTINGS[viewType] || VIEW_SETTINGS.front
-      promptObj.subject.pose = viewSettings.pose
-      promptObj.subject.expression = viewSettings.expression
+      // 2. cameraPrompt가 있으면 직접 사용, 없으면 viewType으로 폴백 (하위 호환성)
+      if (validated.cameraPrompt) {
+        // 카메라 프리셋 프롬프트를 직접 적용
+        promptObj['camera'] = validated.cameraPrompt
+        console.log(`[API] Using cameraPrompt:`, validated.cameraPrompt)
+      } else {
+        // 레거시: viewType 기반 설정
+        const viewType = validated.viewType || 'front'
+        const viewSettings = VIEW_SETTINGS[viewType] || VIEW_SETTINGS.front
+        promptObj.subject.pose = viewSettings.pose
+        promptObj.subject.expression = viewSettings.expression
 
-      // Quarter view의 경우 negative prompt에 카메라 시선 방지 추가
-      if (viewType === 'quarter') {
-        const baseNegative = promptObj.negative_prompt || ''
-        promptObj.negative_prompt = `${baseNegative}, looking_at_camera, eye_contact_with_camera, staring_at_camera, facing_camera_directly`
+        // Quarter view의 경우 negative prompt에 카메라 시선 방지 추가
+        if (viewType === 'quarter') {
+          const baseNegative = promptObj.negative_prompt || ''
+          promptObj.negative_prompt = `${baseNegative}, looking_at_camera, eye_contact_with_camera, staring_at_camera, facing_camera_directly`
+        }
+        console.log(`[API] Using legacy viewType: ${viewType}`)
       }
 
       // 3. 사용자 프롬프트가 있다면 맨 마지막에 추가
@@ -142,8 +150,6 @@ export async function POST(request: NextRequest) {
       }
 
       // 4. JSON 구조를 문자열로 변환하여 프롬프트로 사용
-      // 대부분의 최신 모델은 구조화된 텍스트(JSON 형태)를 잘 이해합니다.
-      // 콤마로 구분된 key: value 형태로 변환하여 토큰 절약 및 가독성 확보
       const formattedPrompt = Object.entries(promptObj).map(([key, value]) => {
         if (typeof value === 'object') {
           return `${key}: { ${Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(', ')} }`
@@ -153,7 +159,7 @@ export async function POST(request: NextRequest) {
 
       validated.prompt = formattedPrompt
 
-      console.log(`[API] Applied JSON Template prompt (viewType: ${viewType}):`, validated.prompt)
+      console.log(`[API] Applied JSON Template prompt:`, validated.prompt.substring(0, 200) + '...')
     }
 
     if (effectiveModelId !== modelId) {

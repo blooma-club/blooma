@@ -146,9 +146,12 @@ const HeaderNavLink = memo(function HeaderNavLink({
     link: { label: string; href: string }
 }) {
     const pathname = usePathname()
-    // Simple active check: exact match or starts with for strict sub-paths if needed
-    // For Studio/Gallery which are siblings, we might want exact match or careful startsWith
-    const isActive = pathname === link.href || (link.href !== '/studio/create' && pathname?.startsWith(link.href))
+
+    // Special handling for Assets: match any /assets/* path
+    const isAssetsLink = link.href === '/assets/models'
+    const isActive = pathname === link.href ||
+        (isAssetsLink && pathname?.startsWith('/assets')) ||
+        (link.href !== '/studio/create' && !isAssetsLink && pathname?.startsWith(link.href))
 
     return (
         <Link
