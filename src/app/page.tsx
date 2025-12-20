@@ -37,12 +37,12 @@ export default function Home() {
   const { remaining: creditsRemaining, isLoading: creditsLoading } = useUserCredits()
 
   // Landing page interactive state
-  const [modelImage, setModelImage] = useState<string | null>('/system-models/default_model_01.jpg')
+  const [modelImage, setModelImage] = useState<string | null>('/system-models/model_247.png')
   const [selectedModel, setSelectedModel] = useState<ModelLibraryAsset | null>({
     id: 'model-247',
     name: 'Model 247',
     subtitle: 'Virtual Face',
-    imageUrl: '/system-models/default_model_01.jpg'
+    imageUrl: '/system-models/model_247.png'
   })
   const [outfitImages, setOutfitImages] = useState<string[]>(['/bomber_jacket.png', '/pants.png'])
   const [detail, setDetail] = useState('')

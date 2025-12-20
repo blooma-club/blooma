@@ -103,7 +103,7 @@ function extractMetaDuration(meta: unknown): number | null {
 
 function buildSqlPreview(sql: string, maxLength = 160): string {
   const compact = sql.replace(/\s+/g, ' ').trim()
-  return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact
+  return compact.length > maxLength ? `${compact.slice(0, maxLength)}...` : compact
 }
 
 function formatDuration(ms: number | null): number | null {

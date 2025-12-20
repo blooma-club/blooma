@@ -24,11 +24,11 @@ export async function POST(request: NextRequest) {
 
     // Determine upload context
     const isModelUpload = uploadType === 'model'
-    const isBackgroundUpload = uploadType === 'background'
+    const isLocationUpload = uploadType === 'location'
 
-    const targetId = (isModelUpload || isBackgroundUpload) ? (formData.get('assetId') as string) : frameId
+    const targetId = (isModelUpload || isLocationUpload) ? (formData.get('assetId') as string) : frameId
 
-    if (!file || (!projectId && !isModelUpload && !isBackgroundUpload) || !targetId) {
+    if (!file || (!projectId && !isModelUpload && !isLocationUpload) || !targetId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -38,17 +38,17 @@ export async function POST(request: NextRequest) {
     const base64 = buffer.toString('base64')
     const dataUrl = `data:${file.type};base64,${base64}`
 
-    // Special handling for 'model' and 'background' types
-    if (isModelUpload || isBackgroundUpload) {
+    // Special handling for 'model' and 'location' types
+    if (isModelUpload || isLocationUpload) {
       try {
-        // Use R2 upload helper for custom assets (models/backgrounds)
+        // Use R2 upload helper for custom assets (models/locations)
         // uploadModelImageToR2 creates a unique path structure by ID
         const assetResult = await uploadModelImageToR2(targetId!, dataUrl, projectId || 'shared')
 
         const assetUrl = assetResult.publicUrl || assetResult.signedUrl
         if (!assetUrl) throw new Error('Failed to get uploaded asset URL')
 
-        const tableName = isModelUpload ? 'uploaded_models' : 'uploaded_backgrounds'
+        const tableName = isModelUpload ? 'uploaded_models' : 'uploaded_locations'
         const assetName = sanitizeOptionalString(formData.get('name')) || file.name.split('.')[0]
         const assetSubtitle = sanitizeOptionalString(formData.get('subtitle'))
 

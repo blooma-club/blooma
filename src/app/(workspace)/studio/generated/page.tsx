@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import useSWRInfinite from 'swr/infinite'
 import { useUser } from '@clerk/nextjs'
-import { Search, MoreHorizontal, Trash2, Image as ImageIcon, RefreshCw, Eye, X, Download } from 'lucide-react'
+import { Search, MoreHorizontal, Trash2, Image as ImageIcon, RefreshCw, Eye, X, Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,59 +26,125 @@ const formatDate = (dateString: string, style: 'short' | 'long' = 'short') => {
     }).replace(/\. /g, '-').replace('.', '') + ' KST'
 }
 
-type GeneratedImage = {
+// 슬림 이미지 타입 (그리드용)
+type GeneratedImageSlim = {
     id: string
     group_id?: string
     image_url: string
     prompt?: string
+    created_at: string
+}
+
+// 상세 이미지 타입 (모달용)
+type GeneratedImageDetail = GeneratedImageSlim & {
     source_model_url?: string
     source_outfit_urls?: string[]
-    created_at: string
+    generation_params?: Record<string, unknown>
+}
+
+const PAGE_SIZE = 24
+
+// 간단한 blur placeholder (동적 생성 불필요 시 사용)
+const BLUR_DATA_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAPEAAB/cAf/Z'
+
+// SWR fetcher with error handling
+const fetcher = async (url: string) => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return res.json()
 }
 
 export default function GeneratedPage() {
     const { user, isLoaded } = useUser()
-    const [images, setImages] = useState<GeneratedImage[]>([])
-    const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
+    const [selectedImage, setSelectedImage] = useState<GeneratedImageSlim | null>(null)
+    const [imageDetail, setImageDetail] = useState<GeneratedImageDetail | null>(null)
+    const [loadingDetail, setLoadingDetail] = useState(false)
     const { push: toast } = useToast()
+    const loadMoreRef = useRef<HTMLDivElement>(null)
 
-    const fetchImages = async () => {
-        if (!user) return
+    // SWR Infinite for pagination
+    const getKey = (pageIndex: number, previousPageData: { data: GeneratedImageSlim[], hasMore: boolean } | null) => {
+        if (!user) return null
+        if (previousPageData && !previousPageData.hasMore) return null
+        return `/api/studio/generated?limit=${PAGE_SIZE}&offset=${pageIndex * PAGE_SIZE}`
+    }
+
+    const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite<{
+        success: boolean
+        data: GeneratedImageSlim[]
+        hasMore: boolean
+    }>(getKey, fetcher, {
+        revalidateOnFocus: false,
+        revalidateFirstPage: false,
+    })
+
+    // Flatten all pages into a single array
+    const images = data ? data.flatMap(page => page.data || []) : []
+    const isLoading = !data && !error
+    const isLoadingMore = isValidating && data && size > 0
+    const hasMore = data ? data[data.length - 1]?.hasMore : false
+
+    // IntersectionObserver for infinite scroll
+    useEffect(() => {
+        if (!loadMoreRef.current) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isValidating) {
+                    setSize(size + 1)
+                }
+            },
+            { threshold: 0.1 }
+        )
+
+        observer.observe(loadMoreRef.current)
+        return () => observer.disconnect()
+    }, [hasMore, isValidating, setSize, size])
+
+    // Fetch image detail when modal opens
+    const handleOpenModal = async (image: GeneratedImageSlim) => {
+        setSelectedImage(image)
+        setLoadingDetail(true)
+
         try {
-            setLoading(true)
-            const response = await fetch('/api/studio/generated')
+            const response = await fetch(`/api/studio/generated/${image.id}`)
             const result = await response.json()
-
             if (result.success && result.data) {
-                setImages(result.data)
-            } else {
-                console.error('Failed to fetch images:', result.error)
-                setImages([])
+                setImageDetail(result.data)
             }
         } catch (error) {
-            console.error('Error fetching images:', error)
-            toast({
-                title: 'Error',
-                description: 'Failed to load generated images.',
-            })
-            setImages([])
+            console.error('Error fetching image detail:', error)
         } finally {
-            setLoading(false)
+            setLoadingDetail(false)
         }
     }
 
-    useEffect(() => {
-        if (isLoaded && user) {
-            fetchImages()
-        } else if (isLoaded && !user) {
-            setLoading(false)
-        }
-    }, [isLoaded, user])
+    const handleCloseModal = () => {
+        setSelectedImage(null)
+        setImageDetail(null)
+    }
 
+    // Optimistic Delete: UI 즉시 반영 후 서버 처리
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this image?')) return
+
+        // 현재 데이터 백업 (롤백용)
+        const previousData = data
+
+        // Optimistic update: 즉시 UI에서 제거
+        mutate(
+            data?.map(page => ({
+                ...page,
+                data: page.data.filter(img => img.id !== id)
+            })),
+            false // revalidate 하지 않음
+        )
+        handleCloseModal()
+        toast({
+            title: 'Deleted',
+            description: 'Image has been removed.',
+        })
 
         try {
             const response = await fetch('/api/studio/generated', {
@@ -88,21 +155,16 @@ export default function GeneratedPage() {
 
             const result = await response.json()
 
-            if (result.success) {
-                setImages(prev => prev.filter(img => img.id !== id))
-                setSelectedImage(null)
-                toast({
-                    title: 'Deleted',
-                    description: 'Image has been removed.',
-                })
-            } else {
+            if (!result.success) {
                 throw new Error(result.error)
             }
         } catch (error) {
             console.error('Error deleting image:', error)
+            // 롤백: 원래 데이터 복원
+            mutate(previousData, false)
             toast({
                 title: 'Error',
-                description: 'Failed to delete image.',
+                description: 'Failed to delete image. Restored.',
             })
         }
     }
@@ -136,7 +198,7 @@ export default function GeneratedPage() {
     )
 
     // 그룹별 대표 이미지만 표시 (group_id가 같은 이미지 중 첫 번째만)
-    const displayImages = filteredImages.reduce<GeneratedImage[]>((acc, img) => {
+    const displayImages = filteredImages.reduce<GeneratedImageSlim[]>((acc, img) => {
         // group_id가 없으면 개별 이미지로 표시
         if (!img.group_id) {
             acc.push(img)
@@ -154,6 +216,42 @@ export default function GeneratedPage() {
     const getGroupCount = (groupId?: string): number => {
         if (!groupId) return 1
         return images.filter(img => img.group_id === groupId).length
+    }
+
+    // Get siblings for variations in modal
+    const getSiblings = (groupId?: string) => {
+        if (!groupId) return []
+        return images.filter(img => img.group_id === groupId)
+    }
+
+    if (!isLoaded) {
+        return (
+            <div className="min-h-[calc(100vh-7rem)] bg-background flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+        )
+    }
+
+    // Error state with retry
+    if (error) {
+        return (
+            <div className="min-h-[calc(100vh-7rem)] bg-background flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                    <X className="w-7 h-7 text-destructive" />
+                </div>
+                <h3 className="text-sm font-medium mb-1">Failed to load images</h3>
+                <p className="text-xs text-muted-foreground mb-6">
+                    Please check your connection and try again
+                </p>
+                <Button
+                    onClick={() => mutate()}
+                    variant="outline"
+                    className="h-10 px-5 rounded-xl text-sm"
+                >
+                    Try Again
+                </Button>
+            </div>
+        )
     }
 
     return (
@@ -179,98 +277,109 @@ export default function GeneratedPage() {
                 </div>
 
                 {/* Gallery Grid */}
-                {loading ? (
+                {isLoading ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {[...Array(8)].map((_, i) => (
                             <div key={i} className="aspect-[3/4] rounded-2xl bg-muted/30 animate-pulse" />
                         ))}
                     </div>
                 ) : displayImages.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {displayImages.map((image) => (
-                            <div
-                                key={image.id}
-                                className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted/30 cursor-pointer ring-1 ring-border/30 hover:ring-border transition-all"
-                                onClick={() => setSelectedImage(image)}
-                            >
-                                {/* Optimized Thumbnail Image */}
-                                <Image
-                                    src={image.image_url}
-                                    alt={image.prompt || 'Generated image'}
-                                    fill
-                                    className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                                    quality={75}
-                                    loading="lazy"
-                                />
+                    <>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {displayImages.map((image) => (
+                                <div
+                                    key={image.id}
+                                    className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted/30 cursor-pointer ring-1 ring-border/30 hover:ring-border transition-all"
+                                    onClick={() => handleOpenModal(image)}
+                                >
+                                    {/* Optimized Thumbnail with Blur Placeholder */}
+                                    <Image
+                                        src={image.image_url}
+                                        alt={image.prompt || 'Generated image'}
+                                        fill
+                                        className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                                        quality={75}
+                                        loading="lazy"
+                                        placeholder="blur"
+                                        blurDataURL={BLUR_DATA_URL}
+                                    />
 
-                                {/* Group count badge */}
-                                {getGroupCount(image.group_id) > 1 && (
-                                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-lg">
-                                        {getGroupCount(image.group_id)} images
+                                    {/* Group count badge */}
+                                    {getGroupCount(image.group_id) > 1 && (
+                                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-lg">
+                                            {getGroupCount(image.group_id)} images
+                                        </div>
+                                    )}
+
+                                    {/* Hover overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                                    {/* Info on hover */}
+                                    <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
+                                        <p className="text-white text-sm font-medium truncate">{image.prompt || 'Untitled'}</p>
+                                        <p className="text-white/60 text-xs mt-0.5">
+                                            {formatDate(image.created_at, 'short')}
+                                        </p>
                                     </div>
-                                )}
 
-                                {/* Hover overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                                {/* Info on hover */}
-                                <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
-                                    <p className="text-white text-sm font-medium truncate">{image.prompt || 'Untitled'}</p>
-                                    <p className="text-white/60 text-xs mt-0.5">
-                                        {formatDate(image.created_at, 'short')}
-                                    </p>
+                                    {/* Menu */}
+                                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="icon"
+                                                    className="h-8 w-8 rounded-full bg-black/40 hover:bg-black/60 text-white border-0 backdrop-blur-sm"
+                                                >
+                                                    <MoreHorizontal className="w-4 h-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                                                <DropdownMenuItem
+                                                    className="rounded-lg text-xs"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleOpenModal(image)
+                                                    }}
+                                                >
+                                                    <Eye className="w-3.5 h-3.5 mr-2" />
+                                                    View
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="rounded-lg text-xs"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleDownload(image.image_url, `blooma-${image.id}.png`)
+                                                    }}
+                                                >
+                                                    <Download className="w-3.5 h-3.5 mr-2" />
+                                                    Download
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="rounded-lg text-xs text-destructive focus:text-destructive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleDelete(image.id)
+                                                    }}
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </div>
+                            ))}
+                        </div>
 
-                                {/* Menu */}
-                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                            <Button
-                                                variant="secondary"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-full bg-black/40 hover:bg-black/60 text-white border-0 backdrop-blur-sm"
-                                            >
-                                                <MoreHorizontal className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                                            <DropdownMenuItem
-                                                className="rounded-lg text-xs"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setSelectedImage(image)
-                                                }}
-                                            >
-                                                <Eye className="w-3.5 h-3.5 mr-2" />
-                                                View
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                className="rounded-lg text-xs"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDownload(image.image_url, `blooma-${image.id}.png`)
-                                                }}
-                                            >
-                                                <Download className="w-3.5 h-3.5 mr-2" />
-                                                Download
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                className="rounded-lg text-xs text-destructive focus:text-destructive"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDelete(image.id)
-                                                }}
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5 mr-2" />
-                                                Delete
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                        {/* Load More Trigger */}
+                        <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-4">
+                            {isLoadingMore && (
+                                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            )}
+                        </div>
+                    </>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-32">
                         <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
@@ -295,7 +404,7 @@ export default function GeneratedPage() {
             {selectedImage && (
                 <div
                     className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
-                    onClick={() => setSelectedImage(null)}
+                    onClick={handleCloseModal}
                 >
                     <div
                         className="bg-background rounded-3xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex"
@@ -319,54 +428,57 @@ export default function GeneratedPage() {
                         {/* Details */}
                         <div className="w-80 p-8 flex flex-col relative overflow-y-auto">
                             <button
-                                onClick={() => setSelectedImage(null)}
+                                onClick={handleCloseModal}
                                 className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors z-10"
                             >
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
 
+                            {/* Loading indicator for detail */}
+                            {loadingDetail && (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                </div>
+                            )}
+
                             {/* Variations Loop */}
-                            {selectedImage && selectedImage.group_id && (
+                            {selectedImage.group_id && (
                                 <div className="mb-8 mt-4">
                                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Variations</h4>
                                     <div className="flex gap-2 flex-wrap">
-                                        <div className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden ring-2 ring-foreground">
-                                            <Image
-                                                src={selectedImage.image_url}
-                                                alt="Current"
-                                                fill
-                                                className="object-cover"
-                                                sizes="64px"
-                                            />
-                                        </div>
-                                        {images
-                                            .filter(img => img.group_id === selectedImage.group_id && img.id !== selectedImage.id)
-                                            .map((sibling) => (
-                                                <div
-                                                    key={sibling.id}
-                                                    className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-border/50 cursor-pointer hover:ring-foreground/50 transition-all opacity-70 hover:opacity-100"
-                                                    onClick={() => setSelectedImage(sibling)}
-                                                >
-                                                    <Image
-                                                        src={sibling.image_url}
-                                                        alt="Variation"
-                                                        fill
-                                                        className="object-cover"
-                                                        sizes="64px"
-                                                    />
-                                                </div>
-                                            ))}
+                                        {getSiblings(selectedImage.group_id).map((sibling) => (
+                                            <div
+                                                key={sibling.id}
+                                                className={`relative w-16 aspect-[3/4] rounded-xl overflow-hidden cursor-pointer transition-all ${sibling.id === selectedImage.id
+                                                    ? 'ring-2 ring-foreground'
+                                                    : 'ring-1 ring-border/50 opacity-70 hover:opacity-100 hover:ring-foreground/50'
+                                                    }`}
+                                                onClick={() => {
+                                                    setSelectedImage(sibling)
+                                                    // Fetch detail for new selection
+                                                    handleOpenModal(sibling)
+                                                }}
+                                            >
+                                                <Image
+                                                    src={sibling.image_url}
+                                                    alt="Variation"
+                                                    fill
+                                                    className="object-cover"
+                                                    sizes="64px"
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Model Image */}
-                            {selectedImage.source_model_url && (
+                            {/* Model Image (from detail API) */}
+                            {imageDetail?.source_model_url && (
                                 <div className="mb-6">
                                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Model Photo</h4>
                                     <div className="relative w-24 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-border/50">
                                         <Image
-                                            src={selectedImage.source_model_url}
+                                            src={imageDetail.source_model_url}
                                             alt="Model"
                                             fill
                                             className="object-cover"
@@ -377,12 +489,12 @@ export default function GeneratedPage() {
                                 </div>
                             )}
 
-                            {/* Outfit Images */}
-                            {selectedImage.source_outfit_urls && selectedImage.source_outfit_urls.length > 0 && (
+                            {/* Outfit Images (from detail API) */}
+                            {imageDetail?.source_outfit_urls && imageDetail.source_outfit_urls.length > 0 && (
                                 <div className="mb-8">
                                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Outfit Photos</h4>
                                     <div className="flex gap-2 flex-wrap">
-                                        {selectedImage.source_outfit_urls.map((img, idx) => (
+                                        {imageDetail.source_outfit_urls.map((img, idx) => (
                                             <div key={`o-${idx}`} className="relative w-16 h-16 rounded-xl overflow-hidden ring-1 ring-border/50">
                                                 <Image
                                                     src={img}

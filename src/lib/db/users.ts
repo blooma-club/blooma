@@ -664,7 +664,7 @@ export async function deleteUser(userId: string): Promise<void> {
     // NOTE: cards and projects tables removed with storyboard feature
     { sql: 'DELETE FROM camera_presets WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM uploaded_models WHERE user_id = ?', params: [userId] },
-    { sql: 'DELETE FROM uploaded_backgrounds WHERE user_id = ?', params: [userId] },
+    { sql: 'DELETE FROM uploaded_locations WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM video_jobs WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM credit_transactions WHERE user_id = ?', params: [userId] },
 
@@ -692,7 +692,7 @@ export async function mergeUsers(targetUserId: string, sourceUserId: string): Pr
     // NOTE: 'projects' and 'cards' removed with storyboard feature
     'camera_presets',
     'uploaded_models',
-    'uploaded_backgrounds',
+    'uploaded_locations',
     'video_jobs',
     'credit_transactions'
   ]
@@ -730,7 +730,7 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
     // NOTE: 'projects' and 'cards' removed with storyboard feature
     'camera_presets',
     'uploaded_models',
-    'uploaded_backgrounds',
+    'uploaded_locations',
     'video_jobs',
     'credit_transactions'
   ]

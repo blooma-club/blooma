@@ -21,7 +21,7 @@ const ASSET_TABLE_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS uploaded_models_user_id_idx ON uploaded_models(user_id)`,
   `CREATE INDEX IF NOT EXISTS uploaded_models_project_id_idx ON uploaded_models(project_id)`,
 
-  `CREATE TABLE IF NOT EXISTS uploaded_backgrounds (
+  `CREATE TABLE IF NOT EXISTS uploaded_locations (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     project_id TEXT,
@@ -35,8 +35,8 @@ const ASSET_TABLE_STATEMENTS = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS uploaded_backgrounds_user_id_idx ON uploaded_backgrounds(user_id)`,
-  `CREATE INDEX IF NOT EXISTS uploaded_backgrounds_project_id_idx ON uploaded_backgrounds(project_id)`
+  `CREATE INDEX IF NOT EXISTS uploaded_locations_user_id_idx ON uploaded_locations(user_id)`,
+  `CREATE INDEX IF NOT EXISTS uploaded_locations_project_id_idx ON uploaded_locations(project_id)`
 ]
 
 export async function ensureAssetsTables(): Promise<void> {
@@ -71,7 +71,7 @@ export type UploadedAsset = {
 }
 
 export async function insertUploadedAsset(
-  table: 'uploaded_models' | 'uploaded_backgrounds',
+  table: 'uploaded_models' | 'uploaded_locations',
   asset: Omit<UploadedAsset, 'created_at' | 'updated_at'> & {
     image_size?: number | null
     image_content_type?: string | null
@@ -108,7 +108,7 @@ export async function insertUploadedAsset(
 }
 
 export async function listUploadedAssets(
-  table: 'uploaded_models' | 'uploaded_backgrounds',
+  table: 'uploaded_models' | 'uploaded_locations',
   userId: string,
   projectId?: string
 ): Promise<UploadedAsset[]> {
@@ -139,7 +139,7 @@ export async function listUploadedAssets(
 }
 
 export async function deleteUploadedAsset(
-  table: 'uploaded_models' | 'uploaded_backgrounds',
+  table: 'uploaded_models' | 'uploaded_locations',
   id: string,
   userId: string
 ) {

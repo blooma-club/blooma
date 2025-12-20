@@ -4,7 +4,7 @@
  * Studio에서 생성된 이미지를 저장하고 관리합니다.
  */
 
-import { queryD1, queryD1Single } from './d1'
+import { queryD1, queryD1Single, queryD1Batch } from './d1'
 
 let generatedImagesTableEnsured = false
 let ensureGeneratedImagesTablePromise: Promise<void> | null = null
@@ -29,34 +29,36 @@ const GENERATED_IMAGES_TABLE_STATEMENTS = [
     `CREATE INDEX IF NOT EXISTS generated_images_user_id_idx ON generated_images(user_id)`,
     `CREATE INDEX IF NOT EXISTS generated_images_created_at_idx ON generated_images(created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS generated_images_group_id_idx ON generated_images(group_id)`,
+    // 복합 인덱스: 쿼리 패턴 (user_id, created_at DESC)에 최적화
+    `CREATE INDEX IF NOT EXISTS generated_images_user_created_idx ON generated_images(user_id, created_at DESC)`,
 ]
 
 /**
  * 테이블 생성 보장
+ * queryD1Batch를 사용하여 모든 CREATE 문을 1회 HTTP 요청으로 실행
  */
 export async function ensureGeneratedImagesTable(): Promise<void> {
     if (generatedImagesTableEnsured) return
 
     if (!ensureGeneratedImagesTablePromise) {
         ensureGeneratedImagesTablePromise = (async () => {
-            for (const statement of GENERATED_IMAGES_TABLE_STATEMENTS) {
-                try {
-                    await queryD1(statement)
-                } catch (error) {
-                    console.warn('[GeneratedImages] Failed to execute:', statement, error)
-                }
+            try {
+                // 모든 statement를 batch로 한 번에 실행 (4회 HTTP → 1회)
+                await queryD1Batch(
+                    GENERATED_IMAGES_TABLE_STATEMENTS.map(sql => ({ sql, params: [] }))
+                )
+                generatedImagesTableEnsured = true
+            } catch (error) {
+                console.warn('[GeneratedImages] Failed to ensure table (batch):', error)
+            } finally {
+                ensureGeneratedImagesTablePromise = null
             }
-
-            generatedImagesTableEnsured = true
-            ensureGeneratedImagesTablePromise = null
-        })().catch(error => {
-            ensureGeneratedImagesTablePromise = null
-            console.error('[GeneratedImages] Error ensuring table:', error)
-        })
+        })()
     }
 
     return ensureGeneratedImagesTablePromise
 }
+
 
 export interface GeneratedImage {
     id: string
@@ -148,19 +150,31 @@ export async function createGeneratedImage(input: CreateGeneratedImageInput): Pr
 }
 
 /**
- * 사용자의 생성 이미지 목록 조회
+ * 그리드용 슬림 이미지 타입
+ */
+export interface GeneratedImageSlim {
+    id: string
+    group_id: string | null
+    image_url: string
+    prompt: string | null
+    created_at: string
+}
+
+/**
+ * 사용자의 생성 이미지 목록 조회 (그리드용 슬림 응답)
  */
 export async function listGeneratedImages(
     userId: string,
     options?: { limit?: number; offset?: number; favoritesOnly?: boolean }
-): Promise<GeneratedImage[]> {
+): Promise<GeneratedImageSlim[]> {
     await ensureGeneratedImagesTable()
 
-    const limit = options?.limit ?? 50
+    const limit = options?.limit ?? 24
     const offset = options?.offset ?? 0
     const favoritesOnly = options?.favoritesOnly ?? false
 
-    let sql = `SELECT * FROM generated_images WHERE user_id = ?1`
+    // 그리드에 필요한 필드만 조회 (응답 크기 감소)
+    let sql = `SELECT id, group_id, image_url, prompt, created_at FROM generated_images WHERE user_id = ?1`
 
     if (favoritesOnly) {
         sql += ` AND is_favorite = 1`
@@ -168,7 +182,7 @@ export async function listGeneratedImages(
 
     sql += ` ORDER BY created_at DESC LIMIT ?2 OFFSET ?3`
 
-    return queryD1<GeneratedImage>(sql, [userId, limit, offset])
+    return queryD1<GeneratedImageSlim>(sql, [userId, limit, offset])
 }
 
 /**

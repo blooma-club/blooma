@@ -87,8 +87,8 @@ export function reconstructR2Url(key: string): string {
 // ============================================================================
 
 export interface UploadOptions {
-    /** 에셋 타입 (model, background) */
-    type?: 'model' | 'background'
+    /** 에셋 타입 (model, location) */
+    type?: 'model' | 'location'
     /** 프로젝트 ID */
     projectId?: string
     /** 프레임 ID */
@@ -151,7 +151,7 @@ export async function uploadFileToR2(
     }
 
     // Handle different response formats:
-    // - Model/background uploads return { data: { image_url: '...' } }
+    // - Model/location uploads return { data: { image_url: '...' } }
     // - Regular uploads return { publicUrl: '...' }
     const publicUrl = result.publicUrl || result.signedUrl || result.data?.image_url
     if (!publicUrl) {
