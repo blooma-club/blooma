@@ -4,9 +4,9 @@ import { useCallback, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
-import type { LucideIcon } from 'lucide-react'
-import { Star, Zap, Crown, CheckCircle2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
 import {
   Card,
   CardContent,
@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
-export type PlanId = 'Starter' | 'Pro' | 'Studio'
+export type PlanId = 'Small Brands' | 'Agency' | 'Studio'
 
 export type PlanOption = {
   id: PlanId
@@ -24,39 +24,20 @@ export type PlanOption = {
   price: string
   priceNote: string
   tagline: string
-  ctaLabel?: string
   features: string[]
 }
 
-type PlanVisualMeta = {
-  icon: LucideIcon
-  badge: string
+const IMAGE_CREDIT_COST = 15
+const CTA_LABEL = 'Choose plan'
+
+function formatImageCount(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value)
 }
 
-function getPlanVisualMeta(planId: PlanId): PlanVisualMeta {
-  switch (planId) {
-    case 'Starter':
-      return {
-        icon: Star,
-        badge: 'For solo creators',
-      }
-    case 'Pro':
-      return {
-        icon: Zap,
-        badge: 'For growing teams',
-      }
-    case 'Studio':
-    default:
-      return {
-        icon: Crown,
-        badge: 'For studios & production',
-      }
-  }
-}
-
-type HobbyPlanCardProps = {
+type PricingCardProps = {
   className?: string
   plan: PlanOption
+  interval?: 'month' | 'year'
 }
 
 type SubscriptionStatusResponse = {
@@ -84,12 +65,10 @@ async function fetchSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
   return response.json()
 }
 
-export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
+export default function PricingCard({ className, plan, interval = 'month' }: PricingCardProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { user, isLoaded } = useUser()
-  const visualMeta = getPlanVisualMeta(plan.id)
-  const VisualIcon = visualMeta.icon
 
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -119,6 +98,37 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
       ? subscriptionError.message
       : 'Unable to determine subscription status.'
   }, [subscriptionError])
+
+  const includedFeatures = useMemo(() => {
+    const creditBudget = PLAN_CREDIT_TOPUPS[plan.id] ?? 0
+    const imageCount = Math.floor(creditBudget / IMAGE_CREDIT_COST)
+
+    const baseFeatures = [
+      `${formatImageCount(creditBudget)} credits / month`,
+      `~${formatImageCount(imageCount)} images / month`,
+    ]
+
+    // Plan-specific features
+    const planFeatures: Record<PlanId, string[]> = {
+      'Small Brands': [
+        'Standard resolution (2K)',
+        'Up to 10 saved models',
+        'Commercial license',
+      ],
+      'Agency': [
+        '4K resolution support',
+        'Up to 50 saved models',
+        'Commercial license',
+      ],
+      'Studio': [
+        '4K resolution support',
+        'Unlimited saved models',
+        'Commercial license',
+      ],
+    }
+
+    return [...baseFeatures, ...planFeatures[plan.id], ...plan.features]
+  }, [plan.features, plan.id])
 
   const redirectToSignIn = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -153,7 +163,7 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ plan: planId }),
+          body: JSON.stringify({ plan: planId, interval }),
         })
 
         if (!response.ok) {
@@ -177,7 +187,7 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
         setActiveCheckoutPlan(null)
       }
     },
-    [activeCheckoutPlan, hasActiveSubscription, isLoaded, redirectToSignIn, user]
+    [activeCheckoutPlan, hasActiveSubscription, isLoaded, redirectToSignIn, user, interval]
   )
 
   const isLoadingState = !isLoaded || statusLoading
@@ -197,57 +207,75 @@ export default function PricingCard({ className, plan }: HobbyPlanCardProps) {
   const isActionDisabled =
     isLoadingState || hasActiveSubscription || !user || Boolean(activeCheckoutPlan)
 
+  const isHighlighted = plan.id === 'Agency'
+
   return (
     <Card
-      className={`relative flex flex-col gap-8 rounded-[28px] border border-border/60 bg-card/95 p-8 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)] transition hover:shadow-[0_22px_48px_-20px_rgba(15,23,42,0.45)] ${className ?? ''}`}
+      className={`relative flex flex-col gap-10 rounded-3xl p-8 transition-all duration-300 ${isHighlighted
+        ? 'border-primary/50 bg-primary/5 shadow-2xl shadow-primary/10 hover:shadow-primary/20 hover:-translate-y-1'
+        : 'border-border/60 bg-card/50 shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-foreground/20'
+        } ${className ?? ''}`}
     >
-      <CardHeader className="space-y-3 p-0">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-2xl font-semibold text-foreground">
+      {isHighlighted && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
+          Most Popular
+        </div>
+      )}
+
+      <CardHeader className="space-y-4 p-0">
+        <div>
+          <CardTitle className="text-2xl font-semibold tracking-tight text-foreground font-geist-sans">
             {plan.label}
           </CardTitle>
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-            <VisualIcon className="h-3.5 w-3.5 text-violet-500" />
-            <span className="truncate max-w-[140px]">{visualMeta.badge}</span>
-          </div>
+          <CardDescription className="text-sm text-muted-foreground mt-2 leading-relaxed h-10">
+            {plan.tagline}
+          </CardDescription>
         </div>
-        <CardDescription className="text-base text-muted-foreground">
-          {plan.tagline}
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6 p-0">
-        <div>
-          <span className="text-4xl font-semibold text-foreground">{plan.price}</span>
-          <p className="mt-1 text-sm text-muted-foreground">{plan.priceNote}</p>
-        </div>
+
+      <CardContent className="space-y-8 p-0 mt-4">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${plan.id}-${plan.price}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="flex items-baseline gap-1"
+          >
+            <span className="text-5xl font-semibold tracking-tight text-foreground">{plan.price}</span>
+            <span className="text-sm text-muted-foreground font-medium">{plan.priceNote}</span>
+          </motion.div>
+        </AnimatePresence>
+
         <Button
           size="lg"
-          className="h-12 w-full rounded-full bg-foreground text-background hover:bg-foreground/90"
+          variant={isHighlighted ? 'default' : 'outline'}
+          className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
+            : 'border-border bg-transparent hover:bg-foreground hover:text-background'
+            }`}
           onClick={() => handleSubscribe(plan.id)}
           disabled={isActionDisabled}
         >
-          {getButtonLabel(plan.id, plan.ctaLabel ?? 'Purchase credits')}
+          {getButtonLabel(plan.id, CTA_LABEL)}
         </Button>
       </CardContent>
-      <CardFooter className="flex flex-col gap-3 p-0 pt-4">
-        <p className="text-sm font-medium text-foreground">Included</p>
-        <ul className="space-y-2 text-sm text-foreground">
-          {plan.features.map(feature => (
-            <li key={feature} className="flex items-start gap-3">
-              <CheckCircle2 className="mt-[2px] h-4 w-4 text-violet-500" />
-              <span>{feature}</span>
+
+      <CardFooter className="flex flex-col items-start gap-4 p-0 mt-auto pt-6 border-t border-border/40">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+          Includes
+        </p>
+        <ul className="space-y-2.5 text-sm text-foreground/80 w-full">
+          {includedFeatures.map(feature => (
+            <li key={feature} className="flex items-start gap-3 group">
+              <div className={`mt-1.5 h-1.5 w-1.5 rounded-full transition-colors ${isHighlighted ? 'bg-primary' : 'bg-muted-foreground group-hover:bg-foreground'}`} />
+              <span className="leading-relaxed">{feature}</span>
             </li>
           ))}
         </ul>
         {actionError || subscriptionErrorMessage ? (
-          <p className="text-sm text-destructive">{actionError ?? subscriptionErrorMessage}</p>
-        ) : null}
-        {!user ? (
-          <span className="text-xs text-muted-foreground">Sign in to purchase and manage credits.</span>
-        ) : hasActiveSubscription ? (
-          <span className="text-xs text-muted-foreground">
-            You already have an active subscription. Manage it from your billing dashboard.
-          </span>
+          <p className="text-sm text-destructive font-medium mt-2">{actionError ?? subscriptionErrorMessage}</p>
         ) : null}
       </CardFooter>
     </Card>

@@ -22,7 +22,7 @@ export default function SiteNavbarSignedIn() {
             alt="Blooma Logo"
             width={28}
             height={28}
-            className="w-12 h-12 object-contain select-none"
+            className="w-7 h-7 object-contain select-none"
             draggable={false}
           />
         </button>

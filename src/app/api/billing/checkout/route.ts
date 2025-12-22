@@ -5,7 +5,9 @@ import { hasActiveSubscription } from '@/lib/billing/subscription'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
 import { getProductIdForPlan, isPlanId, type PlanId } from '@/lib/billing/plans'
 
-const DEFAULT_PLAN: PlanId = 'Starter'
+const DEFAULT_PLAN: PlanId = 'Small Brands'
+const polarServer =
+  process.env.POLAR_SERVER?.toLowerCase() === 'sandbox' ? 'sandbox' : 'production'
 
 function resolveAppBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'http://localhost:3000'
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
     const requestedPlan = typeof body.plan === 'string' ? body.plan : DEFAULT_PLAN
+    const interval = (body.interval === 'year' ? 'year' : 'month') as 'month' | 'year'
 
     // plans.ts의 유효성 검사 함수 사용
     if (!isPlanId(requestedPlan)) {
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // plans.ts의 중앙 집중화된 함수 사용
-    const productId = getProductIdForPlan(planId)
+    const productId = getProductIdForPlan(planId, interval)
 
     if (!productId) {
       console.error('Polar product ID is not configured for plan', { planId })
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
 
     const polar = new Polar({
       accessToken,
-      server: 'production',
+      server: polarServer,
     })
 
     const customServerUrl = resolvePolarServerURL()

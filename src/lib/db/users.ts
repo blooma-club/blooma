@@ -375,7 +375,7 @@ export async function addCreditsToUser(userId: string, amount: number): Promise<
 /**
  * 사용자의 구독 플랜을 업데이트합니다.
  * @param userId Clerk user ID (external_id)
- * @param planId 구독 플랜 ID ('Starter', 'Pro', 'Studio', 또는 null로 취소/해지)
+ * @param planId 구독 플랜 ID ('Small Brands', 'Agency', 'Studio', 또는 null로 취소/해지)
  */
 export async function updateUserSubscriptionTier(
   userId: string,
@@ -412,7 +412,7 @@ export type SubscriptionUpdateData = {
   polarCustomerId?: string | null
   /** Subscription status (active, trialing, past_due, canceled, etc.) */
   subscriptionStatus?: string | null
-  /** Plan tier (Starter, Pro, Studio) */
+  /** Plan tier (Small Brands, Agency, Studio) */
   subscriptionTier?: string | null
   /** Current billing period start (ISO 8601) */
   currentPeriodStart?: string | null
@@ -439,7 +439,7 @@ export async function updateUserSubscription(
   const assignments: string[] = []
   const values: unknown[] = []
 
-  // Subscription tier (Starter/Pro/Studio/null)
+  // Subscription tier (Small Brands/Agency/Studio/null)
   if (data.subscriptionTier !== undefined && columns.has('subscription_tier')) {
     assignments.push('subscription_tier = ?')
     values.push(data.subscriptionTier)

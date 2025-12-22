@@ -1,160 +1,160 @@
 # Blooma
 
-AI-powered storyboard generation platform for creators. Transform your ideas into visual storyboards in minutes.
+Blooma is an AI media studio for creators to generate image and video assets with consistent models, locations, and camera presets. It includes asset libraries, generation history, and credit-based billing.
 
-## Overview
+## Product Overview
 
-Blooma is a web application that helps creators, YouTubers, and content producers quickly visualize their content ideas. Using AI, it automatically generates storyboards from scripts, reducing planning time by up to 70%.
-
-## Features
-
-- 🎬 **AI Storyboard Generation** - Convert scripts to visual storyboards automatically
-- 🖼️ **Image Generation** - Multiple AI models (Seedream, Nano Banana Pro, etc.)
-- 🎥 **Video Generation** - Transform storyboard frames into video clips
-- 👥 **Character Management** - Create and manage consistent characters across scenes
-- 🎨 **Visual Style Presets** - Photorealistic, Cinematic, Illustration, and more
-- 📤 **Export Options** - Download as PNG, PDF, or video
-- 💳 **Credit System** - Flexible credit-based pricing
+- Studio for image generation and video generation
+- Model library (custom and public)
+- Location library (custom and public)
+- Camera presets
+- Generation history for review and reuse
+- Credits and billing (Polar)
+- Authentication and user accounts (Clerk)
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS v4
-- **State Management**: Zustand
-- **Authentication**: Clerk
-- **Database**: Cloudflare D1 (SQLite)
-- **Storage**: Cloudflare R2
-- **AI Services**: Fal AI, OpenRouter
-- **Payments**: Polar
+- Next.js App Router, React, TypeScript, Tailwind CSS
+- Cloudflare D1 (SQLite) and R2 storage
+- Fal AI for generation
+- Upstash QStash for video queueing
+- Polar for billing
+- Clerk for auth
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
 - Node.js 20+
-- npm or pnpm
-- Cloudflare account (for D1 and R2)
-- Clerk account (for authentication)
-- Fal AI account (for image/video generation)
+- Cloudflare account (D1 and R2)
+- Clerk account
+- Fal AI account
+- Polar account (optional, billing)
 
-### Installation
+### Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-org/blooma.git
-cd blooma
-```
+1. Install dependencies:
 
-2. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Copy the environment template:
-```bash
-cp env.example.txt .env.local
-```
+2. Create a `.env.local` and set environment variables (see below).
 
-4. Fill in your environment variables (see [Environment Variables](#environment-variables))
+3. Run the dev server:
 
-5. Run the development server:
 ```bash
 npm run dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000)
+4. Open http://localhost:3000
 
 ### Environment Variables
 
-Copy `env.example.txt` to `.env.local` and fill in the values:
+Required for core features:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ | Clerk publishable key |
-| `CLERK_SECRET_KEY` | ✅ | Clerk secret key |
-| `FAL_KEY` | ✅ | Fal AI API key |
-| `CLOUDFLARE_ACCOUNT_ID` | ✅ | Cloudflare account ID |
-| `CLOUDFLARE_D1_DATABASE_ID` | ✅ | D1 database ID |
-| `CLOUDFLARE_D1_API_TOKEN` | ✅ | D1 API token |
-| `R2_ACCOUNT_ID` | ✅ | R2 account ID |
-| `R2_ACCESS_KEY_ID` | ✅ | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | ✅ | R2 secret key |
-| `R2_BUCKET_NAME` | ✅ | R2 bucket name |
-| `R2_PUBLIC_BASE_URL` | ✅ | R2 public URL |
-| `OPENROUTER_API_KEY` | Optional | For script enhancement |
-| `POLAR_ACCESS_TOKEN` | Optional | For billing features |
+- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+- CLERK_SECRET_KEY
+- FAL_KEY
+- CLOUDFLARE_ACCOUNT_ID
+- CLOUDFLARE_D1_DATABASE_ID
+- CLOUDFLARE_D1_API_TOKEN
+- R2_ACCOUNT_ID
+- R2_ACCESS_KEY_ID
+- R2_SECRET_ACCESS_KEY
+- R2_BUCKET_NAME
+- R2_PUBLIC_BASE_URL
 
-See `env.example.txt` for the complete list.
+Optional (feature specific):
+
+- CLOUDFLARE_API_BASE_URL
+- NEXT_PUBLIC_APP_URL
+- POLAR_ACCESS_TOKEN (or POLAR_API_KEY)
+- POLAR_SERVER
+- POLAR_BLOOMA_1000_PRODUCT_ID, POLAR_BLOOMA_3000_PRODUCT_ID, POLAR_BLOOMA_5000_PRODUCT_ID
+- SUNO_API_KEY, SUNO_MODEL_ID, SUNO_DEFAULT_TAGS
+- ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID, ELEVENLABS_VOICE_ID, ELEVENLABS_VOICE_STABILITY, ELEVENLABS_VOICE_SIMILARITY, ELEVENLABS_VOICE_STYLE
+- OPENROUTER_API_KEY
+- OPENAI_API_KEY
 
 ## Scripts
 
 ```bash
-npm run dev          # Start development server (Turbopack)
-npm run build        # Build for production
+npm run dev          # Start dev server (Turbopack)
+npm run build        # Production build
 npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run test:e2e     # Run Playwright E2E tests
-npm run test:e2e:ui  # Run E2E tests with UI
+npm run lint         # ESLint (Next.js)
+npm run test:e2e     # Playwright tests
+npm run test:e2e:ui  # Playwright UI
+npm run test:e2e:headed  # Playwright headed mode
 ```
 
 ## Project Structure
 
 ```
 blooma/
-├── docs/                  # Documentation (PRD, TRD)
-├── public/                # Static assets
-├── src/
-│   ├── app/               # Next.js App Router
-│   │   ├── (workspace)/   # Authenticated routes
-│   │   ├── api/           # API routes
-│   │   └── ...
-│   ├── components/        # React components
-│   ├── hooks/             # Custom React hooks
-│   ├── lib/               # Utilities & services
-│   ├── store/             # Zustand stores
-│   └── types/             # TypeScript types
-└── workers/               # Cloudflare Workers
+  docs/                 # Product and engineering docs
+  migrations/           # D1 migrations
+  public/               # Static assets
+  src/
+    app/                # Next.js App Router
+    components/         # UI components
+    hooks/              # React hooks
+    lib/                # Server and client utilities
+    store/              # Zustand stores
+    types/              # Shared types
 ```
+
+## App Routes
+
+- / (landing)
+- /studio
+- /studio/create
+- /studio/generated
+- /assets/models
+- /assets/locations
+- /assets/camera-settings
+- /pricing
+- /sign-in, /sign-up
 
 ## API Routes
 
-| Endpoint | Description |
-|----------|-------------|
-| `/api/projects` | Project CRUD operations |
-| `/api/cards` | Storyboard card management |
-| `/api/storyboard/build` | Generate storyboard from script |
-| `/api/generate-image` | AI image generation |
-| `/api/video/generate` | AI video generation |
-| `/api/characters` | Character management |
-| `/api/billing/*` | Payment and subscription |
+- /api/generate-image
+- /api/image-edit
+- /api/video/generate
+- /api/video/queue
+- /api/video/status
+- /api/models
+- /api/locations
+- /api/camera-presets
+- /api/upload-image
+- /api/studio/generated
+- /api/studio/generated/[id]
+- /api/audio/voiceover
+- /api/audio/music
+- /api/audio/music/attach
+- /api/audio/voices
+- /api/user/credits
+- /api/user/subscription
+- /api/billing/checkout
+- /api/billing/status
+- /api/billing/webhook
+- /api/diagnose
+- /api/proxy-image
+
+## Database and Migrations
+
+Migrations live in `migrations/`. Apply them to D1 with:
+
+```bash
+npx wrangler d1 migrations apply blooma --remote
+```
 
 ## Deployment
 
-### Vercel (Recommended)
-
-1. Connect your repository to Vercel
-2. Add environment variables in Vercel dashboard
-3. Deploy
-
-### Cloudflare Workers
-
-For the auth sync worker:
-```bash
-npx wrangler deploy
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- Vercel is a common deployment target for the Next.js app.
+- Ensure D1 and R2 environment variables are configured in your host.
 
 ## License
 
-This project is proprietary software. All rights reserved.
-
-## Support
-
-For questions or issues, please open an issue on GitHub.
-
+Proprietary software. All rights reserved.

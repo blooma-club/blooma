@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUserCredits } from '@/hooks/useUserCredits'
 import { cn } from '@/lib/utils'
@@ -86,44 +85,57 @@ export default function CreditsIndicator({ className, minimal = false, placement
       {open && (
         <div
           className={cn(
-            "absolute right-0 z-50 w-72 rounded-xl border bg-popover/95 backdrop-blur-sm p-4 text-popover-foreground shadow-xl ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
+            "absolute right-0 z-50 w-72 rounded-2xl border border-border/40 bg-popover/95 backdrop-blur-xl p-5 text-popover-foreground shadow-2xl ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
             placement === 'top' ? "bottom-full mb-2" : "top-full mt-2"
           )}
           onClick={e => e.stopPropagation()}
         >
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Available Credits</span>
-              <Zap className="h-4 w-4 text-primary/70" />
+            <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              <span>Credits</span>
+              <span className="h-px flex-1 bg-border/40" />
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold tracking-tight">{displayRemaining}</span>
-                <span className="text-sm text-muted-foreground">/ {displayTotal}</span>
+            <div className="space-y-3">
+              <div className="flex items-end justify-between">
+                <div className="space-y-1">
+                  <span className="text-3xl font-semibold tracking-tight">{displayRemaining}</span>
+                  <p className="text-xs text-muted-foreground">available of {displayTotal}</p>
+                </div>
+                <span className="text-xs text-muted-foreground">{displayPercentage}%</span>
               </div>
 
-              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary/50 mt-2">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
                 <div
-                  className="h-full bg-primary transition-all duration-500 ease-out"
+                  className="h-full bg-foreground/80 transition-all duration-500 ease-out"
                   style={{ width: `${displayPercentage}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground pt-1">
-                Monthly refresh
-              </p>
+
+              <div className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+                Credits refresh monthly with your plan.
+              </div>
             </div>
 
             <div className="pt-2">
               {(!subscriptionTier || subscriptionTier === 'free') ? (
-                <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-white">
+                <Button
+                  variant="default"
+                  size="sm"
+                  asChild
+                  className="w-full h-9 rounded-xl font-medium shadow-none"
+                >
                   <Link href="/pricing">
-                    <Sparkles className="mr-2 h-3.5 w-3.5" />
                     Upgrade
                   </Link>
                 </Button>
               ) : (
-                <Button variant="default" size="sm" asChild className="w-full h-9 font-medium shadow-none">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="w-full h-9 rounded-xl font-medium shadow-none"
+                >
                   <Link href="/customerportal">
                     Manage
                   </Link>

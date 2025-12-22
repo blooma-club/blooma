@@ -138,7 +138,11 @@ export async function POST(request: Request) {
         break
 
       case 'order.created':
-        await handleOrderCreated(event)
+        console.log('[webhook] Order created', extractLogInfo(event))
+        break
+
+      case 'order.paid':
+        await handleOrderPaid(event)
         break
 
       default:
@@ -331,12 +335,6 @@ async function handleSubscriptionCreated(event: PolarWebhookEvent) {
     return
   }
 
-  const creditAmount = getCreditsForPlan(planId)
-  if (creditAmount > 0) {
-    await addCreditsToUser(userId, creditAmount)
-    console.log(`[webhook] Added ${creditAmount} credits to user ${userId} for plan ${planId}`)
-  }
-
   // 구독 정보를 DB에 전체 동기화
   await updateUserSubscription(userId, {
     subscriptionTier: planId,
@@ -428,13 +426,6 @@ async function handleSubscriptionActive(event: PolarWebhookEvent) {
   if (!planId) {
     console.warn('[webhook] subscription.active: Unknown productId', { productId })
     return
-  }
-
-  // 구독 갱신 시 크레딧 지급 (매월 갱신)
-  const creditAmount = getCreditsForPlan(planId)
-  if (creditAmount > 0) {
-    await addCreditsToUser(userId, creditAmount)
-    console.log(`[webhook] Renewed ${creditAmount} credits to user ${userId} for plan ${planId}`)
   }
 
   // 구독 활성화 시 전체 정보 업데이트
@@ -552,16 +543,16 @@ async function handleSubscriptionUncanceled(event: PolarWebhookEvent) {
 
 /**
  * Credit granting policy:
- * - subscription_create: Initial subscription - credits granted via subscription.created event
- * - subscription_cycle: Monthly renewal - credits granted here
+ * - subscription_create: Initial subscription - credits granted on order.paid
+ * - subscription_cycle: Monthly renewal - credits granted on order.paid
  * - subscription_update: Plan change - no additional credits (handled separately if needed)
  * - purchase: One-time purchase - credits granted based on product
  */
-const CREDIT_GRANTING_BILLING_REASONS = ['subscription_cycle'] as const
+const CREDIT_GRANTING_BILLING_REASONS = ['subscription_create', 'subscription_cycle'] as const
 
-async function handleOrderCreated(event: PolarWebhookEvent) {
+async function handleOrderPaid(event: PolarWebhookEvent) {
   if (!isOrderEvent(event)) {
-    console.warn('[webhook] order.created: Invalid payload structure')
+    console.warn('[webhook] order.paid: Invalid payload structure')
     return
   }
 
@@ -570,7 +561,7 @@ async function handleOrderCreated(event: PolarWebhookEvent) {
   const productId = extractProductId(data)
   const billingReason = data.billing_reason
 
-  console.log('[webhook] order.created', {
+  console.log('[webhook] order.paid', {
     orderId: data.id,
     userId,
     productId,
@@ -580,11 +571,13 @@ async function handleOrderCreated(event: PolarWebhookEvent) {
     subscriptionId: data.subscription_id,
   })
 
-  // PR-4: Only grant credits for subscription_cycle (monthly renewal)
-  // Initial subscription credits are handled by subscription.created event
-  // This prevents duplicate credit granting
+  // PR-4: Grant credits only when payment is complete (order.paid)
+  // Avoid duplicate grants by relying on billing_reason
   if (
-    billingReason === 'subscription_cycle' &&
+    billingReason &&
+    CREDIT_GRANTING_BILLING_REASONS.includes(
+      billingReason as (typeof CREDIT_GRANTING_BILLING_REASONS)[number]
+    ) &&
     userId &&
     productId
   ) {
@@ -593,10 +586,12 @@ async function handleOrderCreated(event: PolarWebhookEvent) {
       const creditAmount = getCreditsForPlan(planId)
       if (creditAmount > 0) {
         await addCreditsToUser(userId, creditAmount)
-        console.log(`[webhook] order.created: Renewed ${creditAmount} credits for user ${userId} (billing_reason: ${billingReason})`)
+        console.log(
+          `[webhook] order.paid: Granted ${creditAmount} credits for user ${userId} (billing_reason: ${billingReason})`
+        )
       }
     }
   } else if (billingReason) {
-    console.log(`[webhook] order.created: Skipping credit grant for billing_reason: ${billingReason}`)
+    console.log(`[webhook] order.paid: Skipping credit grant for billing_reason: ${billingReason}`)
   }
 }
