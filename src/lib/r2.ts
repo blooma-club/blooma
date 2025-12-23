@@ -139,7 +139,7 @@ export async function uploadImageToR2(projectId: string, frameId: string, src: s
       // Public URL strategy:
       // Prefer R2_PUBLIC_BASE_URL env (e.g. https://cdn.example.com or https://pub-xxxxx.r2.dev)
       const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
-      const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+      const publicUrl = base ? `${base.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : null
 
       // Also create a presigned GET URL as a fallback when the public gateway requires auth
       let signedUrl: string | null = null
@@ -290,7 +290,7 @@ export async function uploadModelImageToR2(
 
       // Public URL strategy
       const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
-      const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+      const publicUrl = base ? `${base.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : null
 
       // Presigned GET URL as fallback
       let signedUrl: string | null = null
@@ -346,7 +346,7 @@ export async function uploadAudioToR2({
   )
 
   const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
-  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : null
 
   let signedUrl: string | null = null
   try {
@@ -391,7 +391,7 @@ export async function uploadVideoToR2({
   )
 
   const base = (process.env.R2_PUBLIC_BASE_URL || '').replace(/^@/, '')
-  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key}` : null
+  const publicUrl = base ? `${base.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : null
 
   let signedUrl: string | null = null
   try {

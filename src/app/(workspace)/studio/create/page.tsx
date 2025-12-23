@@ -26,7 +26,7 @@ export default function FittingRoomCreatePage() {
     const [isPromptOpen, setIsPromptOpen] = useState(false);
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-    const [resolution, setResolution] = useState<'2K' | '4K'>('2K'); // 해상도 선택
+    const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K'); // 해상도 선택
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
     const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]); // 카메라 프리셋
     const [modelTier, setModelTier] = useState<'basic' | 'pro'>('basic'); // 모델 티어 선택
@@ -37,6 +37,14 @@ export default function FittingRoomCreatePage() {
     React.useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    React.useEffect(() => {
+        // When switching to Pro tier, ensure resolution is valid (2K or 4K)
+        if (modelTier === 'pro' && resolution === '1K') {
+            setResolution('2K');
+        }
+    }, [modelTier, resolution]);
+
 
 
 
@@ -125,7 +133,7 @@ export default function FittingRoomCreatePage() {
             // 모델 티어에 따라 모델 ID 선택
             const selectedModelId = modelTier === 'pro'
                 ? 'fal-ai/nano-banana-pro/edit'
-                : 'fal-ai/bytedance/seedream/v4.5/edit';
+                : 'fal-ai/gpt-image-1.5/edit';
 
             const response = await fetch('/api/generate-image', {
                 method: 'POST',
@@ -136,6 +144,7 @@ export default function FittingRoomCreatePage() {
                     imageUrls,
                     resolution, // 사용자가 선택한 해상도 (2K 또는 4K)
                     numImages,  // 생성 개수 (2 또는 4)
+                    viewType: selectedCameraPreset.id as 'front' | 'behind' | 'side' | 'quarter',  // View 타입
                     cameraPrompt: selectedCameraPreset.prompt,   // 카메라 프리셋 프롬프트
                 }),
             });
@@ -155,16 +164,42 @@ export default function FittingRoomCreatePage() {
                 const batchId = crypto.randomUUID();
 
                 for (const imgUrl of generatedImageUrls) {
+                    // 모델 이미지 URL (첫 번째 선택된 모델 - 이미 R2 또는 system-models 경로)
+                    const sourceModelUrl = selectedModels[0]?.imageUrl || null;
+
+                    // 아웃핏 이미지를 R2에 업로드 (blob URL → R2 URL)
+                    let sourceOutfitUrls: string[] | null = null;
+                    if (referenceImages.length > 0) {
+                        try {
+                            sourceOutfitUrls = await Promise.all(
+                                referenceImages.map(async (refUrl) => {
+                                    // blob URL이면 R2에 업로드
+                                    if (refUrl.startsWith('blob:')) {
+                                        return await ensureR2Url(refUrl, {
+                                            type: 'location',
+                                            assetId: `outfit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+                                        });
+                                    }
+                                    return refUrl; // 이미 R2 URL이면 그대로
+                                })
+                            );
+                        } catch (e) {
+                            console.error('Failed to upload outfit images:', e);
+                            sourceOutfitUrls = null;
+                        }
+                    }
+
                     await fetch('/api/studio/generated', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             image_url: imgUrl,
                             group_id: batchId,
-                            // 사용자 입력만 저장 (템플릿 제외) - SQLITE_TOOBIG 방지
                             prompt: userPrompt || null,
                             model_id: selectedModelId,
-                            generation_params: null, // 완전히 제거
+                            source_model_url: sourceModelUrl,
+                            source_outfit_urls: sourceOutfitUrls,
+                            generation_params: null,
                         }),
                     }).catch(console.error);
                 }
@@ -473,38 +508,40 @@ export default function FittingRoomCreatePage() {
                                 <AccordionContent className="pt-2 pb-8">
                                     <div className="flex flex-col gap-6">
 
-                                        {/* Row 1: Resolution & Count */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {/* Resolution */}
-                                            <div className="space-y-2.5">
-                                                <div className="flex items-center gap-1.5 px-0.5">
-                                                    <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Resolution</span>
+                                        {/* Row 1: Resolution (Pro only) & Count */}
+                                        <div className={modelTier === 'pro' ? "grid grid-cols-2 gap-4" : ""}>
+                                            {/* Resolution - Only show for Pro tier */}
+                                            {modelTier === 'pro' && (
+                                                <div className="space-y-2.5">
+                                                    <div className="flex items-center gap-1.5 px-0.5">
+                                                        <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Resolution</span>
+                                                    </div>
+                                                    <div className="flex p-1 bg-muted rounded-xl border border-border/40">
+                                                        <button
+                                                            onClick={() => setResolution('2K')}
+                                                            className={cn(
+                                                                "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                                resolution === '2K'
+                                                                    ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                            )}
+                                                        >
+                                                            2K
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setResolution('4K')}
+                                                            className={cn(
+                                                                "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                                                                resolution === '4K'
+                                                                    ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                                            )}
+                                                        >
+                                                            4K
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex p-1 bg-muted rounded-xl border border-border/40">
-                                                    <button
-                                                        onClick={() => setResolution('2K')}
-                                                        className={cn(
-                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
-                                                            resolution === '2K'
-                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                                                        )}
-                                                    >
-                                                        2K
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setResolution('4K')}
-                                                        className={cn(
-                                                            "flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
-                                                            resolution === '4K'
-                                                                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                                                        )}
-                                                    >
-                                                        4K
-                                                    </button>
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* Count */}
                                             <div className="space-y-2.5">
@@ -557,7 +594,7 @@ export default function FittingRoomCreatePage() {
                                                         <span className="text-xs font-semibold mt-0.5">Standard</span>
                                                         <div className="px-1.5 py-0.5 rounded-md bg-muted/50 border border-border/50 text-[10px] font-medium text-muted-foreground group-hover:bg-muted group-hover:text-foreground/80 transition-colors">
                                                             <Coins className="w-2.5 h-2.5 inline mr-1 -mt-0.5" />
-                                                            {15 * numImages}
+                                                            {10 * numImages}
                                                         </div>
                                                     </div>
                                                     <p className="text-[10px] opacity-60 font-medium">Balanced quality</p>
@@ -615,6 +652,6 @@ export default function FittingRoomCreatePage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -1,15 +1,12 @@
 import { fal } from '@fal-ai/client'
-import type { ImageSize } from '@fal-ai/client/endpoints'
 import type {
   FalAIModel,
-  FalAIInputSchema,
   FalAISubmission,
   FalAIGenerationOptions,
   FalAIGenerationResult,
   FalAISubmissionUpdate,
   FalAIImageResult,
 } from './types'
-import { isFalAIModel } from './types'
 
 export type { FalAIModel } from './types'
 
@@ -94,69 +91,27 @@ export const FAL_AI_MODELS: FalAIModel[] = [
     },
   },
 
-  // ByteDance Seedream v4.5 Series (Edit only)
+  // GPT Image 1.5 Edit
   {
-    id: 'fal-ai/bytedance/seedream/v4.5/edit',
-    name: 'Seedream v4.5 Edit',
-    description: 'ByteDance Seedream v4.5 Image Edit - unified image generation and editing',
+    id: 'fal-ai/gpt-image-1.5/edit',
+    name: 'GPT Image 1.5 Edit',
+    description: 'GPT Image 1.5 edit workflow',
     category: 'inpainting',
-    maxResolution: '4K',
-    credits: 15,
+    maxResolution: '2K',
+    credits: 10,
     inputSchema: {
       prompt: 'string',
-      image_urls: 'list<string>',
+      image_url: 'string',
+      mask_url: 'string?',
       num_images: 'number?',
-      image_size: 'string?', // supports enum: auto_2K, auto_4K, square_hd, portrait_4_3, etc.
-    },
-  },
-
-  // Kling 2.5 Turbo Pro - Image to Video
-  {
-    id: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-    name: 'Kling v2.5 Turbo Pro',
-    description: 'Kling Video v2.5 Turbo Pro image-to-video generation model.',
-    category: 'video-generation',
-    maxResolution: '1080p',
-    credits: 120,
-    inputSchema: {
-      image_url: 'string',
-      tail_image_url: 'string?',
-      prompt: 'string?',
-      duration: 'string?',
-      aspect_ratio: 'string?',
-      negative_prompt: 'string?',
-      cfg_scale: 'number?',
-    },
-  },
-  // Kling 2.5 Turbo Standard - Image to Video
-  {
-    id: 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
-    name: 'Kling v2.5 Turbo Standard',
-    description: 'Kling Video v2.5 Turbo Standard image-to-video generation model.',
-    category: 'video-generation',
-    maxResolution: '1080p',
-    credits: 70,
-    inputSchema: {
-      image_url: 'string',
-      prompt: 'string',
-      duration: 'string?',
-      negative_prompt: 'string?',
-      cfg_scale: 'number?',
+      output_format: 'string?',
+      size: 'string?',
     },
   },
 ]
 
 // 기본 모델 설정 (프로덕션용)
-export const DEFAULT_MODEL = 'fal-ai/bytedance/seedream/v4.5/edit'
-
-export const IMAGE_TO_VIDEO_MODEL_IDS = [
-  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-  'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
-]
-
-export const START_TO_END_FRAME_MODEL_IDS = [
-  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-]
+export const DEFAULT_MODEL = 'fal-ai/gpt-image-1.5/edit'
 
 // Fal AI 클라이언트 초기화
 let falConfigured = false
@@ -214,8 +169,10 @@ function resolveAspectRatio(aspectRatio?: string): string {
   }
 }
 
-function resolveOutputFormat(format?: string): 'jpeg' | 'png' {
-  return format === 'png' ? 'png' : 'jpeg'
+function resolveOutputFormat(format?: string): 'jpeg' | 'png' | 'webp' {
+  if (format === 'jpeg') return 'jpeg'
+  if (format === 'webp') return 'webp'
+  return 'png' // Default to PNG (same as Fal.ai)
 }
 
 
@@ -400,151 +357,24 @@ async function generateImageByModel(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
-  // Use Nano Banana Pro logic for text-to-image models
+  // GPT Image 1.5 Edit (Basic tier)
+  if (modelId === 'fal-ai/gpt-image-1.5/edit') {
+    return await generateWithGptImageEdit(prompt, options, modelId)
+  }
+
+  // Nano Banana Pro Edit (Pro tier)
+  if (modelId === 'fal-ai/nano-banana-pro/edit' ||
+    modelId === 'fal-ai/nano-banana/edit') {
+    return await generateWithNanoBananaProEdit(prompt, options, modelId)
+  }
+
+  // Nano Banana Pro text-to-image (fallback)
   if (modelId === 'fal-ai/nano-banana-pro' ||
     modelId === 'fal-ai/nano-banana') {
     return await generateWithNanoBananaPro(prompt, options, modelId)
   }
 
-  // Use Nano Banana Pro Edit logic for image-to-image edit models
-  if (modelId === 'fal-ai/nano-banana-pro/edit' ||
-    modelId === 'fal-ai/nano-banana/edit' ||
-    modelId === 'fal-ai/bytedance/seedream/v4.5/edit') {
-    return await generateWithNanoBananaProEdit(prompt, options, modelId)
-  }
-
-  switch (modelId) {
-    case 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video':
-      return await generateWithKlingImageToVideo(modelId, prompt, options)
-
-    case 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
-      if (options.imageUrls && options.imageUrls.length > 0) {
-        // 2장이 선택되었으면 Start-End 모드로 실행
-        return await generateWithKlingStartEndVideo(modelId, prompt, options)
-      }
-      // 1장이면 일반 I2V로 실행
-      return await generateWithKlingImageToVideo(modelId, prompt, options)
-
-    default:
-      throw new Error(`Unsupported model: ${modelId}`)
-  }
-}
-
-// Seedream image_size 타입 정의
-type SeedreamImageSize =
-  | 'square_hd'
-  | 'square'
-  | 'portrait_4_3'
-  | 'portrait_16_9'
-  | 'landscape_4_3'
-  | 'landscape_16_9'
-  | 'auto'
-  | 'auto_2K'
-  | 'auto_4K'
-  | { width: number; height: number }
-
-/**
- * Blooma의 StoryboardAspectRatio를 Seedream v4.5의 image_size로 변환
- * Text-to-Image 모델 전용 (Edit 모델은 레퍼런스 이미지 비율을 따르므로 auto 사용)
- * 
- * Seedream image_size 옵션:
- * - Enum: landscape_16_9, portrait_16_9, square_hd, square, portrait_4_3, landscape_4_3 등
- * - auto_2K, auto_4K: 자동 비율 + 고해상도
- * - 커스텀 { width, height }: 정확한 크기 지정 (1920~4096 범위)
- * 
- * 2K/4K 요청 시 커스텀 크기를 사용해야 정확한 해상도가 적용됩니다.
- * 
- * @param aspectRatio - Blooma 비율 (예: '16:9', '3:2')
- * @param resolution - 해상도 설정 ('1K', '2K', '4K')
- */
-function resolveSeedreamImageSizeForT2I(
-  aspectRatio?: string,
-  resolution?: '1K' | '2K' | '4K' | string
-): SeedreamImageSize {
-  // 비율이 없으면 auto 계열로 폴백
-  if (!aspectRatio) {
-    if (resolution === '4K') return 'auto_4K'
-    if (resolution === '2K') return 'auto_2K'
-    return 'auto'
-  }
-
-  const normalized = aspectRatio.replace(/\s+/g, '').toLowerCase()
-
-  // 해상도별 기본 크기 (Seedream은 1024~4096 지원)
-  // 1K: ~1024px 기준, 2K: ~2048px 기준, 4K: ~4096px 기준
-  const getBaseSize = () => {
-    if (resolution === '4K') return 4096
-    if (resolution === '2K') return 2048
-    return 1024
-  }
-  const base = getBaseSize()
-
-  // 비율별 크기 계산 (긴 쪽을 base로 설정)
-  switch (normalized) {
-    case '16:9': {
-      // 16:9 = 1.78:1, 긴 쪽(width)을 base로
-      const width = base
-      const height = Math.round(base * 9 / 16)
-      return { width, height }
-    }
-    case '9:16': {
-      // 9:16 = 0.56:1, 긴 쪽(height)을 base로
-      const height = base
-      const width = Math.round(base * 9 / 16)
-      return { width, height }
-    }
-    case '4:3': {
-      const width = base
-      const height = Math.round(base * 3 / 4)
-      return { width, height }
-    }
-    case '3:4': {
-      const height = base
-      const width = Math.round(base * 3 / 4)
-      return { width, height }
-    }
-    case '1:1': {
-      return { width: base, height: base }
-    }
-    case '3:2': {
-      const width = base
-      const height = Math.round(base * 2 / 3)
-      return { width, height }
-    }
-    case '2:3': {
-      const height = base
-      const width = Math.round(base * 2 / 3)
-      return { width, height }
-    }
-
-    default:
-      // 알 수 없는 비율은 auto 계열로 폴백
-      if (resolution === '4K') return 'auto_4K'
-      if (resolution === '2K') return 'auto_2K'
-      return 'auto'
-  }
-}
-
-/**
- * Seedream Edit 모델용 image_size 결정 (Studio 전용)
- * 
- * 항상 3:4 비율 커스텀 픽셀 사용:
- * - 2K: 1536 x 2048
- * - 4K: 3072 x 4096
- * 
- * @param resolution - 해상도 설정 ('2K' | '4K')
- */
-function resolveSeedreamImageSizeForEdit(
-  aspectRatio?: string,
-  resolution?: string,
-  isGenerateMode?: boolean
-): SeedreamImageSize {
-  // 항상 3:4 비율 커스텀 픽셀 사용
-  if (resolution === '4K') {
-    return { width: 3072, height: 4096 }
-  }
-  // 기본값: 2K (1536 x 2048)
-  return { width: 1536, height: 2048 }
+  throw new Error(`Unsupported model: ${modelId}`)
 }
 
 // Nano Banana Pro Text to Image 모델 (Shared logic)
@@ -602,36 +432,6 @@ async function generateWithNanoBananaProEdit(
 
   const numImages = options.numImages || 1
 
-  // Seedream Edit logic
-  // Generate mode에서는 Custom 픽셀 계산, Edit mode에서는 auto 계열 사용
-  if (modelId.includes('seedream')) {
-    const imageSize = resolveSeedreamImageSizeForEdit(options.aspectRatio, options.resolution, options.isGenerateMode)
-    console.log(`[FAL][${modelId}] Using image_size:`, imageSize, 'num_images:', numImages, 'isGenerateMode:', options.isGenerateMode)
-    const submission = (await fal.subscribe(modelId, {
-      input: {
-        prompt,
-        image_urls: referenceImages,
-        num_images: numImages,
-        max_images: numImages, // Seedream은 max_images도 설정해야 여러 장 생성 가능
-        image_size: imageSize,
-        enable_safety_checker: true,
-        sync_mode: true,
-      },
-      logs: true,
-      onQueueUpdate(update: FalAISubmissionUpdate) {
-        if (update?.status === 'IN_PROGRESS') {
-          console.log(`[FAL][${modelId}]`, update.status)
-        }
-      },
-    })) as FalAISubmission
-
-    // 여러 이미지 요청 시 배열로 반환
-    if (numImages > 1) {
-      return extractImageUrls(submission, modelId)
-    }
-    return extractImageUrl(submission, modelId)
-  }
-
   const aspectRatio = resolveAspectRatio(options.aspectRatio)
 
   // Nano Banana Pro Edit는 resolution 지원, Standard Edit는 미지원
@@ -672,25 +472,34 @@ async function generateWithNanoBananaProEdit(
   return extractImageUrl(submission, modelId)
 }
 
-// Kling Image to Video 모델 (v2.5)
-async function generateWithKlingImageToVideo(
-  modelId: string,
+// GPT Image 1.5 Edit
+async function generateWithGptImageEdit(
   prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string> {
-  const imageUrl = options.imageUrl || options.imageUrls?.[0]
-  if (!imageUrl) {
-    throw new Error('Kling Image-to-Video requires an input image')
+  options: FalAIGenerationOptions,
+  modelId: string = 'fal-ai/gpt-image-1.5/edit'
+): Promise<string | string[]> {
+  const referenceImages = [options.imageUrl, ...(options.imageUrls || [])].filter(
+    (value): value is string => Boolean(value && value.trim())
+  )
+
+  if (referenceImages.length === 0) {
+    throw new Error(`${modelId} requires at least one reference image`)
+  }
+
+  const numImages = options.numImages || 1
+  const inputPayload: Record<string, unknown> = {
+    prompt,
+    image_urls: referenceImages,
+    num_images: numImages,
+    output_format: resolveOutputFormat(options.outputFormat),
+    quality: 'medium', // Fixed to medium quality
+    input_fidelity: 'high', // High fidelity to reference images
+    background: 'auto', // Auto background handling
+    image_size: '1024x1536', // Fixed portrait size (3:4 ratio)
   }
 
   const submission = (await fal.subscribe(modelId, {
-    input: {
-      prompt,
-      image_url: imageUrl,
-      duration: options.duration || '5',
-      negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
-      cfg_scale: options.guidanceScale || 0.5,
-    },
+    input: inputPayload,
     logs: true,
     onQueueUpdate(update: FalAISubmissionUpdate) {
       if (update?.status === 'IN_PROGRESS') {
@@ -699,84 +508,10 @@ async function generateWithKlingImageToVideo(
     },
   })) as FalAISubmission
 
-  return extractVideoUrl(submission, modelId)
-}
-
-// Kling Start/End Frame Video 모델 (v2.1)
-async function generateWithKlingStartEndVideo(
-  modelId: string,
-  prompt: string,
-  options: FalAIGenerationOptions
-): Promise<string> {
-  const startImageUrl = options.imageUrl
-  const endImageUrl = options.imageUrls?.[0] // imageUrls[0]을 end frame으로 사용
-
-  if (!startImageUrl) {
-    throw new Error('Kling Start/End Video requires a start image')
+  if (numImages > 1) {
+    return extractImageUrls(submission, modelId)
   }
-
-  const input: any = {
-    prompt: prompt || undefined, // v2.1 might treat empty prompt as optional
-    image_url: startImageUrl,
-    duration: options.duration || '5',
-    // v2.5 Turbo Pro doesn't support aspect_ratio param explicitly in common schema but we keep it minimal
-    negative_prompt: options.negativePrompt || 'blur, distort, and low quality',
-    cfg_scale: options.guidanceScale || 0.5,
-  }
-
-  if (endImageUrl) {
-    input.tail_image_url = endImageUrl
-  }
-
-  const submission = (await fal.subscribe(modelId, {
-    input,
-    logs: true,
-    onQueueUpdate(update: FalAISubmissionUpdate) {
-      if (update?.status === 'IN_PROGRESS') {
-        console.log(`[FAL][${modelId}]`, update.status)
-      }
-    },
-  })) as FalAISubmission
-
-  return extractVideoUrl(submission, modelId)
-}
-
-// 비디오 URL 추출 헬퍼
-function extractVideoUrl(submission: FalAISubmission, modelName: string): string {
-  const elapsed = Date.now()
-
-  let videoUrl: string | undefined =
-    (submission as any)?.video?.url ||
-    (submission?.output as any)?.video?.url ||
-    (submission?.data as any)?.video?.url
-
-  if (!videoUrl && submission && typeof submission === 'object') {
-    // Deep scan fallback
-    try {
-      const stack: unknown[] = [submission]
-      while (stack.length) {
-        const current = stack.pop()
-        if (!current || typeof current !== 'object') continue
-
-        const currentObj = current as any
-        if (currentObj.video && typeof currentObj.video.url === 'string') {
-          videoUrl = currentObj.video.url
-          break
-        }
-        Object.values(currentObj).forEach(v => stack.push(v))
-      }
-    } catch (e) {
-      console.warn('Video URL deep scan failed', e)
-    }
-  }
-
-  if (!videoUrl) {
-    console.error(`[FAL][${modelName}][empty-video]`, submission)
-    throw new Error(`No video generated from ${modelName}`)
-  }
-
-  console.log(`[FAL][${modelName}][video-ready]`, { elapsedMs: elapsed, url: videoUrl })
-  return videoUrl
+  return extractImageUrl(submission, modelId)
 }
 
 // URL이 유효한지 확인 (https:// 또는 data: URI)
@@ -921,7 +656,7 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
       if (/^https?:\/\//.test(img.url)) {
         url = img.url
       } else if (img.url.startsWith('data:')) {
-        // Seedream 등 일부 모델은 url 필드에 Base64 데이터 URI를 반환
+        // Some models return Base64 data URIs in the url field
         url = img.url
       }
     }
@@ -955,77 +690,4 @@ function extractImageUrls(submission: FalAISubmission, modelName: string): strin
 // 모델 정보 조회
 export function getModelInfo(modelId: string): FalAIModel | undefined {
   return FAL_AI_MODELS.find(model => model.id === modelId)
-}
-
-// 카테고리별 모델 조회
-export function getModelsByCategory(category: FalAIModel['category']): FalAIModel[] {
-  return FAL_AI_MODELS.filter(model => model.category === category)
-}
-
-// 이미지 생성 모델만 조회
-export function getImageGenerationModels(): FalAIModel[] {
-  return getModelsByCategory('image-generation')
-}
-
-// 이미지-투-이미지 지원 모델 식별
-export function isImageToImageModel(modelId: string): boolean {
-  return modelId.includes('/edit')
-}
-
-// 텍스트-투-이미지 전용/가능 모델 식별
-export function isTextToImageModel(modelId: string): boolean {
-  return (
-    modelId === 'fal-ai/nano-banana-pro' ||
-    modelId === 'fal-ai/nano-banana'
-    // Edit models require images, so they are not T2I models
-  )
-}
-
-// PromptDock에서 사용할 모델 목록 (nano-banana-pro/edit만 사용)
-// 비디오 모드는 getVideoModelsForSelection(count)를 사용해야 함 (선택 개수에 따라 다른 모델 반환)
-export function getModelsForMode(mode: 'generate' | 'edit' | 'video'): FalAIModel[] {
-  if (mode === 'video') {
-    // video 모드는 getVideoModelsForSelection(count)를 사용해야 함
-    // 여기서는 기본값으로 image-to-video 모델만 반환 (하위 호환성)
-    console.warn(
-      '[getModelsForMode] video mode should use getVideoModelsForSelection(count) instead'
-    )
-    return IMAGE_TO_VIDEO_MODEL_IDS.map(id => getModelInfo(id)).filter(
-      (model): model is FalAIModel => Boolean(model)
-    )
-  }
-
-  // generate 모드: text-to-image capable models
-  if (mode === 'generate') {
-    return FAL_AI_MODELS.filter(m => m.category === 'image-generation')
-  }
-
-  // edit 모드: inpainting/edit models
-  if (mode === 'edit') {
-    return FAL_AI_MODELS.filter(m => m.category === 'inpainting')
-  }
-
-  return []
-}
-
-// 비디오 선택 개수에 따른 모델 목록 반환
-export function getVideoModelsForSelection(count: number): FalAIModel[] {
-  const ids = count >= 2 ? START_TO_END_FRAME_MODEL_IDS : IMAGE_TO_VIDEO_MODEL_IDS
-  return ids.map(id => getModelInfo(id)).filter((model): model is FalAIModel => Boolean(model))
-}
-
-export function isStartEndVideoModel(id: string): boolean {
-  return START_TO_END_FRAME_MODEL_IDS.includes(id)
-}
-
-export function isImageToVideoModelId(id: string): boolean {
-  return IMAGE_TO_VIDEO_MODEL_IDS.includes(id)
-}
-
-// 모델 크레딧 계산
-export function calculateModelCredits(modelId: string): number {
-  const model = getModelInfo(modelId)
-  if (!model) return 0
-
-  return model.credits
 }

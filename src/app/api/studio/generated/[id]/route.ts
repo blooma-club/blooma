@@ -27,12 +27,28 @@ export async function GET(
             return NextResponse.json({ error: 'Image not found' }, { status: 404 })
         }
 
-        // 상세 정보: JSON 필드 파싱 및 R2 URL 재구성
+        // 상세 정보: JSON 필드 파싱 및 URL 처리
         const outfitKeys = image.source_outfit_urls ? JSON.parse(image.source_outfit_urls) : null
+
+        // URL 처리 함수: 이미 완전한 URL이면 그대로, R2 키이면 재구성
+        const resolveUrl = (url: string | null): string | null => {
+            if (!url) return null
+            // blob: URL은 이미 만료됨 - null 반환 (표시 안함)
+            if (url.startsWith('blob:')) {
+                return null
+            }
+            // 이미 완전한 URL (https://, http://, /로 시작하는 경로)
+            if (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('/')) {
+                return url
+            }
+            // R2 키인 경우에만 재구성
+            return reconstructR2Url(url)
+        }
+
         const data = {
             ...image,
-            source_model_url: image.source_model_url ? reconstructR2Url(image.source_model_url) : null,
-            source_outfit_urls: outfitKeys ? outfitKeys.map((key: string) => reconstructR2Url(key)) : null,
+            source_model_url: resolveUrl(image.source_model_url),
+            source_outfit_urls: outfitKeys ? outfitKeys.map((key: string) => resolveUrl(key)) : null,
             generation_params: image.generation_params ? JSON.parse(image.generation_params) : null,
         }
 

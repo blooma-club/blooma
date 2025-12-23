@@ -33,9 +33,9 @@ const PLAN_PRODUCT_CONFIGS: Record<PlanId, PlanProductConfig> = {
 }
 
 export const PLAN_CREDIT_TOPUPS: Record<PlanId, number> = {
-  'Small Brands': 3000,
-  'Agency': 7500,
-  'Studio': 15000,
+  'Small Brands': 2000,
+  'Agency': 5000,
+  'Studio': 10000,
 }
 
 const PLAN_IDS: PlanId[] = ['Small Brands', 'Agency', 'Studio']

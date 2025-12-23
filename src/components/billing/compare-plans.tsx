@@ -40,13 +40,13 @@ const COMPARISON_DATA: ComparisonRow[] = [
     {
         feature: 'Monthly Credits',
         description: 'Credits renew every month and do not roll over.',
-        smallBrands: '3,000',
-        agency: '7,500',
-        studio: '15,000',
+        smallBrands: '2,000',
+        agency: '5,000',
+        studio: '10,000',
     },
     {
         feature: 'Est. Images',
-        description: 'Number of images you can generate per month (15 credits/image).',
+        description: 'Number of images you can generate per month (10 credits/image).',
         smallBrands: '~200',
         agency: '~500',
         studio: '~1,000',

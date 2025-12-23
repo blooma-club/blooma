@@ -31,7 +31,7 @@ export default function SiteNavbarSignedIn() {
         <div className="flex items-center gap-3">
           {/* 크레딧 인디케이터: 작은 화면에서는 숨김으로 미니멀 유지 */}
           <div className="hidden sm:block">
-            <CreditsIndicator />
+            <CreditsIndicator placement="bottom" />
           </div>
           <ProfileMenu />
         </div>

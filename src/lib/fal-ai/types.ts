@@ -114,7 +114,7 @@ export interface FalAIGenerationOptions {
   strength?: number
   resolution?: '1K' | '2K' | '4K'
   duration?: '5' | '10'
-  // Seedream specific options
+  // Model-specific options
   maxImages?: number
   seed?: number
   syncMode?: boolean

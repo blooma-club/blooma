@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
             image_key,
             prompt,
             model_id,
-            // source_model_url, source_outfit_urls 제거 - SQLITE_TOOBIG 에러 방지
+            source_model_url,
+            source_outfit_urls,
             generation_params,
             credit_cost,
             group_id
@@ -78,9 +79,10 @@ export async function POST(request: NextRequest) {
             image_key,
             prompt,
             model_id,
-            // source_model_url과 source_outfit_urls는 저장하지 않음 (크기 문제)
-            source_model_url: null,
-            source_outfit_urls: null,
+            // source_model_url: 시스템 모델 경로 또는 R2 URL
+            source_model_url: source_model_url || null,
+            // source_outfit_urls: 배열로 저장 (blob URL은 제외됨)
+            source_outfit_urls: source_outfit_urls || null,
             generation_params,
             credit_cost,
         })

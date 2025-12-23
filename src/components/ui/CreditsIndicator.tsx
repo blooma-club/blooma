@@ -15,7 +15,13 @@ type CreditsIndicatorProps = {
 export default function CreditsIndicator({ className, minimal = false, placement = 'top' }: CreditsIndicatorProps) {
   const { total, remaining, percentage, isLoading, isAvailable, subscriptionTier } = useUserCredits()
   const [open, setOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Fix hydration mismatch: only render after client mount
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -41,7 +47,8 @@ export default function CreditsIndicator({ className, minimal = false, placement
     }
   }, [open])
 
-  if (!isAvailable) {
+  // Return null during SSR and initial client render to ensure hydration match
+  if (!isMounted || !isAvailable) {
     return null
   }
 

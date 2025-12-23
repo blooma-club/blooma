@@ -1,6 +1,10 @@
 import { fal } from '@fal-ai/client'
-import { START_TO_END_FRAME_MODEL_IDS } from '@/lib/fal-ai'
 import { uploadVideoToR2, UploadResult } from './r2'
+
+// Video model IDs (defined locally to avoid circular dependency with fal-ai/index.ts)
+const START_TO_END_FRAME_MODEL_IDS = [
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
+]
 
 export interface VideoGenerationParams {
   projectId: string
@@ -111,8 +115,8 @@ function extractVideoUrl(submission: unknown, modelId: string): string {
         typeof record.base64 === 'string'
           ? record.base64
           : typeof record.b64 === 'string'
-          ? record.b64
-          : undefined
+            ? record.b64
+            : undefined
 
       if (!videoUrl && base64Candidate && base64Candidate.length > 50) {
         base64Fallback = base64Candidate

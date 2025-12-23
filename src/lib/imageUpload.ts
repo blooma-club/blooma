@@ -79,7 +79,7 @@ export function reconstructR2Url(key: string): string {
         return key
     }
 
-    return `${baseUrl.replace(/\/$/, '')}/${key}`
+    return `${baseUrl.replace(/\/$/, '')}/${key.replace(/^\//, '')}`
 }
 
 // ============================================================================

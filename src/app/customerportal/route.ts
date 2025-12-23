@@ -42,7 +42,7 @@ export async function GET() {
     // Polar SDK 호출 - customServerUrl이 없으면 두 번째 파라미터 생략
     const sessionOptions = {
       externalCustomerId: userId,
-      returnUrl: `${appBaseUrl}/dashboard`,
+      returnUrl: `${appBaseUrl}/studio/create?billing=portal`,
     }
     
     const session = customServerUrl
@@ -111,7 +111,7 @@ export async function GET() {
         // 고객 생성 후 다시 세션 생성 시도
         const sessionOptions = {
           externalCustomerId: userId,
-          returnUrl: `${appBaseUrl}/dashboard`,
+          returnUrl: `${appBaseUrl}/studio/create?billing=portal`,
         }
         
         const session = customServerUrl
@@ -123,8 +123,8 @@ export async function GET() {
         }
 
         // 고객은 생성되었지만 포털 URL이 없는 경우 대시보드로 리다이렉트
-        console.log('[customerportal] No portal URL, redirecting to dashboard')
-        return NextResponse.redirect(`${appBaseUrl}/dashboard`)
+        console.log('[customerportal] No portal URL, redirecting to studio create')
+        return NextResponse.redirect(`${appBaseUrl}/studio/create?billing=portal`)
       } catch (createError: any) {
         console.error('[customerportal] Failed to create Polar customer', {
           message: createError?.message,

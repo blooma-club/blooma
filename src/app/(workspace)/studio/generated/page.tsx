@@ -169,22 +169,17 @@ export default function GeneratedPage() {
         }
     }
 
-    // Download original image
-    const handleDownload = useCallback(async (imageUrl: string, filename?: string) => {
+    // Download original image (CORS-free method)
+    const handleDownload = useCallback((imageUrl: string, filename?: string) => {
         try {
-            toast({ title: 'Preparing download...', description: 'Fetching original image' })
-
-            const response = await fetch(imageUrl)
-            const blob = await response.blob()
-
-            const url = URL.createObjectURL(blob)
             const link = document.createElement('a')
-            link.href = url
+            link.href = imageUrl
             link.download = filename || `blooma-${Date.now()}.png`
+            link.target = '_blank' // Fallback if download fails
+            link.rel = 'noopener noreferrer'
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
-            URL.revokeObjectURL(url)
 
             toast({ title: 'Downloaded', description: 'Original image saved to your device' })
         } catch (error) {

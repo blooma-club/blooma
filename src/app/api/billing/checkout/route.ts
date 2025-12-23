@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         {
           products: [productId],
           externalCustomerId: userId,
-          successUrl: `${appBaseUrl}/dashboard?checkout=success`,
+          successUrl: `${appBaseUrl}/studio/create?billing=success`,
         },
         customServerUrl ? { serverURL: customServerUrl } : undefined
       )
