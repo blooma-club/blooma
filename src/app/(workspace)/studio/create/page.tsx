@@ -29,7 +29,7 @@ export default function FittingRoomCreatePage() {
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K'); // 해상도 선택
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
     const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]); // 카메라 프리셋
-    const [modelTier, setModelTier] = useState<'basic' | 'pro'>('basic'); // 모델 티어 선택
+    const [modelTier, setModelTier] = useState<'standard' | 'pro'>('standard'); // 모델 티어 선택
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Fix hydration mismatch
@@ -167,27 +167,10 @@ export default function FittingRoomCreatePage() {
                     // 모델 이미지 URL (첫 번째 선택된 모델 - 이미 R2 또는 system-models 경로)
                     const sourceModelUrl = selectedModels[0]?.imageUrl || null;
 
-                    // 아웃핏 이미지를 R2에 업로드 (blob URL → R2 URL)
-                    let sourceOutfitUrls: string[] | null = null;
-                    if (referenceImages.length > 0) {
-                        try {
-                            sourceOutfitUrls = await Promise.all(
-                                referenceImages.map(async (refUrl) => {
-                                    // blob URL이면 R2에 업로드
-                                    if (refUrl.startsWith('blob:')) {
-                                        return await ensureR2Url(refUrl, {
-                                            type: 'location',
-                                            assetId: `outfit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-                                        });
-                                    }
-                                    return refUrl; // 이미 R2 URL이면 그대로
-                                })
-                            );
-                        } catch (e) {
-                            console.error('Failed to upload outfit images:', e);
-                            sourceOutfitUrls = null;
-                        }
-                    }
+
+                    // 아웃핏 이미지 URL (이미 121-126행에서 R2로 변환됨)
+                    // imageUrls[0]는 모델 이미지, 나머지가 outfit 이미지
+                    const sourceOutfitUrls = imageUrls.length > 1 ? imageUrls.slice(1) : null;
 
                     await fetch('/api/studio/generated', {
                         method: 'POST',
@@ -582,10 +565,10 @@ export default function FittingRoomCreatePage() {
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <button
-                                                    onClick={() => setModelTier('basic')}
+                                                    onClick={() => setModelTier('standard')}
                                                     className={cn(
                                                         "relative group flex flex-col items-start gap-1 p-3 rounded-xl border transition-all duration-200 text-left h-[72px]",
-                                                        modelTier === 'basic'
+                                                        modelTier === 'standard'
                                                             ? "bg-background border-foreground text-foreground shadow-sm"
                                                             : "bg-muted/10 border-border/60 text-muted-foreground hover:bg-muted/30 hover:border-foreground/20"
                                                     )}

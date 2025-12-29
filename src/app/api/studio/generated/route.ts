@@ -7,6 +7,7 @@ import {
     toggleFavorite
 } from '@/lib/db/generatedImages'
 import { deleteImageFromR2 } from '@/lib/r2'
+import { extractR2Key } from '@/lib/imageUpload'
 
 export const runtime = 'nodejs'
 
@@ -65,6 +66,16 @@ export async function POST(request: NextRequest) {
             group_id
         } = body
 
+        const normalizeOutfitUrls = (urls: unknown): string[] | null => {
+            if (!Array.isArray(urls)) return null
+            const cleaned = urls
+                .map((url) => (typeof url === 'string' ? url.trim() : ''))
+                .filter((url) => url.length > 0 && !url.startsWith('blob:') && !url.startsWith('data:'))
+                .map((url) => extractR2Key(url))
+
+            return cleaned.length > 0 ? cleaned : null
+        }
+
         if (!image_url) {
             return NextResponse.json({ error: 'image_url is required' }, { status: 400 })
         }
@@ -82,7 +93,7 @@ export async function POST(request: NextRequest) {
             // source_model_url: 시스템 모델 경로 또는 R2 URL
             source_model_url: source_model_url || null,
             // source_outfit_urls: 배열로 저장 (blob URL은 제외됨)
-            source_outfit_urls: source_outfit_urls || null,
+            source_outfit_urls: normalizeOutfitUrls(source_outfit_urls),
             generation_params,
             credit_cost,
         })

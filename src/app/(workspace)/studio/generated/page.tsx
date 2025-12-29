@@ -62,6 +62,8 @@ export default function GeneratedPage() {
     const [loadingDetail, setLoadingDetail] = useState(false)
     const { push: toast } = useToast()
     const loadMoreRef = useRef<HTMLDivElement>(null)
+    const detailCacheRef = useRef<Record<string, GeneratedImageDetail>>({})
+    const detailRequestRef = useRef<string | null>(null)
 
     // SWR Infinite for pagination
     const getKey = (pageIndex: number, previousPageData: { data: GeneratedImageSlim[], hasMore: boolean } | null) => {
@@ -105,24 +107,39 @@ export default function GeneratedPage() {
     // Fetch image detail when modal opens
     const handleOpenModal = async (image: GeneratedImageSlim) => {
         setSelectedImage(image)
+        const cachedDetail = detailCacheRef.current[image.id]
+        if (cachedDetail) {
+            setImageDetail(cachedDetail)
+            setLoadingDetail(false)
+            return
+        }
+
+        setImageDetail(null)
         setLoadingDetail(true)
+        detailRequestRef.current = image.id
 
         try {
             const response = await fetch(`/api/studio/generated/${image.id}`)
             const result = await response.json()
             if (result.success && result.data) {
+                if (detailRequestRef.current !== image.id) return
+                detailCacheRef.current[image.id] = result.data
                 setImageDetail(result.data)
             }
         } catch (error) {
             console.error('Error fetching image detail:', error)
         } finally {
-            setLoadingDetail(false)
+            if (detailRequestRef.current === image.id) {
+                setLoadingDetail(false)
+            }
         }
     }
 
     const handleCloseModal = () => {
         setSelectedImage(null)
         setImageDetail(null)
+        setLoadingDetail(false)
+        detailRequestRef.current = null
     }
 
     // Optimistic Delete: UI 즉시 반영 후 서버 처리

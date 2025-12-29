@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
-import { addCreditsToUser, updateUserSubscription } from '@/lib/db/users'
-import { getPlanIdForProductId, getCreditsForPlan } from '@/lib/billing/plans'
+import { getUserById, grantCreditsWithResetDate, updateUserSubscription } from '@/lib/db/users'
+import { getPlanIdForProductId, getCreditsForPlan, getIntervalForProductId } from '@/lib/billing/plans'
 import {
   tryClaimWebhookEvent,
   markWebhookEventProcessed,
@@ -584,8 +584,32 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
     const planId = getPlanIdForProductId(productId)
     if (planId) {
       const creditAmount = getCreditsForPlan(planId)
+      const interval = getIntervalForProductId(productId)
+      if (interval === 'year') {
+        if (creditAmount > 0) {
+          try {
+            const user = await getUserById(userId)
+            const hasPeriod = Boolean(user?.current_period_start && user?.current_period_end)
+            if (!hasPeriod) {
+              const nextResetDate = addMonths(new Date(), 1).toISOString()
+              await grantCreditsWithResetDate(userId, creditAmount, nextResetDate)
+              console.log(
+                `[webhook] order.paid: Granted initial credits for yearly plan (missing period metadata) for user ${userId}`
+              )
+              return
+            }
+          } catch (error) {
+            console.warn('[webhook] order.paid: Unable to load user for yearly credit guard', error)
+          }
+        }
+
+        console.log('[webhook] order.paid: yearly plan detected; credits granted monthly.')
+        return
+      }
+
       if (creditAmount > 0) {
-        await addCreditsToUser(userId, creditAmount)
+        const nextResetDate = addMonths(new Date(), 1).toISOString()
+        await grantCreditsWithResetDate(userId, creditAmount, nextResetDate)
         console.log(
           `[webhook] order.paid: Granted ${creditAmount} credits for user ${userId} (billing_reason: ${billingReason})`
         )
@@ -594,4 +618,14 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
   } else if (billingReason) {
     console.log(`[webhook] order.paid: Skipping credit grant for billing_reason: ${billingReason}`)
   }
+}
+
+function addMonths(date: Date, months: number): Date {
+  const next = new Date(date)
+  const day = next.getDate()
+  next.setDate(1)
+  next.setMonth(next.getMonth() + months)
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+  next.setDate(Math.min(day, lastDay))
+  return next
 }

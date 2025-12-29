@@ -357,7 +357,7 @@ async function generateImageByModel(
   prompt: string,
   options: FalAIGenerationOptions
 ): Promise<string | string[]> {
-  // GPT Image 1.5 Edit (Basic tier)
+  // GPT Image 1.5 Edit (Standard tier)
   if (modelId === 'fal-ai/gpt-image-1.5/edit') {
     return await generateWithGptImageEdit(prompt, options, modelId)
   }

@@ -1,10 +1,10 @@
 # Blooma
 
-Blooma is an AI media studio for creators to generate image and video assets with consistent models, locations, and camera presets. It includes asset libraries, generation history, and credit-based billing.
+Blooma is an AI media studio for creators to generate image assets with consistent models, locations, and camera presets. It includes asset libraries, generation history, and credit-based billing.
 
 ## Product Overview
 
-- Studio for image generation and video generation
+- Studio for image generation
 - Model library (custom and public)
 - Location library (custom and public)
 - Camera presets
@@ -17,7 +17,6 @@ Blooma is an AI media studio for creators to generate image and video assets wit
 - Next.js App Router, React, TypeScript, Tailwind CSS
 - Cloudflare D1 (SQLite) and R2 storage
 - Fal AI for generation
-- Upstash QStash for video queueing
 - Polar for billing
 - Clerk for auth
 
@@ -121,9 +120,6 @@ blooma/
 
 - /api/generate-image
 - /api/image-edit
-- /api/video/generate
-- /api/video/queue
-- /api/video/status
 - /api/models
 - /api/locations
 - /api/camera-presets

@@ -2,14 +2,13 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { Check, Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
+import { Check, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { uploadFileToR2 } from '@/lib/imageUpload'
 
 export type LocationLibraryAsset = {
   id: string
@@ -37,7 +36,6 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
 }) => {
   const [assets, setAssets] = React.useState<LocationLibraryAsset[]>([])
   const [loading, setLoading] = React.useState(false)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const fetchAssets = React.useCallback(async () => {
     try {
@@ -66,25 +64,6 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
     }
   }, [open, fetchAssets])
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    try {
-      setLoading(true)
-      await uploadFileToR2(file, { type: 'location', assetId: `location-${Date.now()}` })
-      await fetchAssets()
-    } catch (error) {
-      console.error('Error uploading location:', error)
-      alert('Failed to upload location')
-    } finally {
-      setLoading(false)
-      if (event.target) {
-        event.target.value = ''
-      }
-    }
-  }
-
   const handleDelete = async (e: React.MouseEvent, assetId: string) => {
     e.stopPropagation()
     if (!confirm('Are you sure you want to delete this location?')) return
@@ -107,19 +86,8 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
     }
   }
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
-
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type='file'
-        accept='image/*'
-        className='hidden'
-        onChange={handleUpload}
-      />
       <DropdownMenu open={open} onOpenChange={onOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -150,15 +118,6 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
         >
           <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
             <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Location Reference</h4>
-            {(assets.length > 0 || loading) && (
-              <button
-                onClick={handleUploadClick}
-                disabled={loading}
-                className="text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors font-medium disabled:opacity-50"
-              >
-                + Upload
-              </button>
-            )}
           </div>
 
           {loading && assets.length === 0 ? (
@@ -173,17 +132,8 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
               </div>
               <div>
                 <p className="text-xs font-medium text-foreground">No locations yet</p>
-                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Upload a location image to set the scene and lighting.</p>
+                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Add a location image to set the scene and lighting.</p>
               </div>
-              <Button
-                onClick={handleUploadClick}
-                variant="outline"
-                size="sm"
-                className="mt-4 w-full h-8 text-xs border-violet-500/20 bg-violet-500/5 hover:bg-violet-500/10 text-violet-700 dark:text-violet-300 transition-all rounded-lg font-normal"
-              >
-                <Upload className="w-3 h-3 mr-2" />
-                Upload Image
-              </Button>
             </div>
           ) : (
             <div className="p-2">
@@ -232,29 +182,6 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
                   </div>
                 ))}
 
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='sm'
-                  disabled={loading}
-                  className='w-full justify-start text-xs h-9 px-2 text-muted-foreground hover:text-violet-600 hover:bg-violet-500/5 rounded-xl border border-dashed border-violet-500/20 hover:border-violet-500/40 transition-all group disabled:opacity-50 disabled:cursor-not-allowed'
-                  onClick={handleUploadClick}
-                >
-                  {loading ? (
-                    <div className="w-full flex justify-center">
-                      <div className="animate-spin w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-10 h-full flex items-center justify-center mr-3">
-                        <div className="w-8 h-full flex items-center justify-center bg-violet-500/5 rounded-lg group-hover:bg-violet-500/10 transition-colors">
-                          <Plus className='h-3.5 w-3.5' />
-                        </div>
-                      </div>
-                      Upload New Location
-                    </>
-                  )}
-                </Button>
               </div>
 
               {selectedAsset && (

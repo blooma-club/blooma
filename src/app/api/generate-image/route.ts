@@ -63,48 +63,55 @@ export async function POST(request: NextRequest) {
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
 
-    // GPT Image 1.5 Edit 모델 - 간단한 키워드 프롬프트
-    if (effectiveModelId === 'fal-ai/gpt-image-1.5/edit') {
+    // 이미지 편집 모델 - JSON 기반 프롬프트 (GPT Image 1.5, Nano Banana Pro)
+    const editModels = ['fal-ai/gpt-image-1.5/edit', 'fal-ai/nano-banana-pro/edit']
+    if (editModels.includes(effectiveModelId)) {
       const userPrompt = validated.prompt?.trim() || ''
       const viewType = validated.viewType || 'front'
 
-      // View별 간단한 키워드
-      const viewKeywords: Record<string, string> = {
-        front: 'front view',
-        behind: 'back view',
-        side: 'side view',
-        quarter: '3/4 view'
+      // View별 포즈 설정
+      const viewPoses: Record<string, string> = {
+        front: 'standing_straight, front_view, arms_relaxed_at_sides',
+        behind: 'standing_straight, back_view, arms_relaxed_at_sides',
+        side: 'standing_straight, side_view, profile, arms_relaxed',
+        quarter: 'standing_straight, three_quarter_view, slight_angle, arms_relaxed',
       }
 
-      // 기본 프롬프트 (간단한 키워드만)
-      const promptParts = [
-        'E-commerce cutout photography of high fashion lookbook style',
-        'use the face and body of the model from the reference image',
-        'maintain the original fit, silhouette, and volume of the reference outfit',
-        'if no shoes provided, add clean minimal white sneakers',
-        'natural skin texture',
-        viewKeywords[viewType],
-        'full body shot',
-        'standing pose',
-        'arms naturally at sides',
-        'seamless white background',
-        'soft even lighting',
-        'sharp focus',
-        '8k, raw photo, high resolution, photorealistic',
-      ]
+      const pose = viewPoses[viewType] || viewPoses.front
 
-      // Quarter view 추가
-      if (viewType === 'quarter') {
-        promptParts.push('body turned 45 degrees')
+      // JSON 구조 기반 프롬프트
+      const promptData = {
+        image_type: 'commercial_fashion_photography',
+        sub_type: 'fashion_studio_lookbook, e-commerce_catalog, full_body_shot',
+        subject: {
+          model_source: 'Use the face and body of the model from the reference image',
+          expression: 'neutral_expression, looking_straight_at_camera, confident',
+          pose,
+          skin: 'natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed',
+          body_framing: 'COMPLETE full body from head to toes, MUST include feet and shoes',
+        },
+        apparel: {
+          instruction: 'Wear the exact outfit provided in the reference image',
+          fit: 'Maintain the original fit, silhouette, and volume of the reference outfit',
+          details: 'Keep all details, materials, textures, and colors strictly from the reference outfit',
+          styling: 'High-end streetwear, minimalist styling',
+          realism: 'natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body',
+          footwear: 'If no shoes provided, add clean minimal white sneakers',
+        },
+        environment: {
+          background: 'seamless_pure_white_background, infinite_white, #FFFFFF',
+        },
+        technical_specs: {
+          lighting: 'soft_even_lighting',
+          image_quality: 'high_resolution, photorealistic, sharp_focus, 8k, raw_photo',
+          composition: 'centered_subject, leave_space_above_head_and_below_feet',
+        },
+        negative_prompt: 'cropped_body, partial_body, cut_off_legs, missing_feet, no_shoes',
+        ...(userPrompt ? { user_details: userPrompt } : {}),
       }
 
-      // 사용자 입력
-      if (userPrompt) {
-        promptParts.push(userPrompt)
-      }
-
-      validated.prompt = promptParts.join(', ')
-      console.log(`[API] Simple prompt (${viewType}):`, validated.prompt)
+      validated.prompt = JSON.stringify(promptData)
+      console.log(`[API] JSON prompt (${viewType}):`, validated.prompt.substring(0, 200) + '...')
     }
 
     if (effectiveModelId !== modelId) {
@@ -125,7 +132,7 @@ export async function POST(request: NextRequest) {
     // numImages? ?? ? ??? ??
     const fallbackCategory = modelInfo.category === 'inpainting'
       ? 'IMAGE_EDIT'
-      : (modelInfo.category === 'video-generation' ? 'VIDEO' : 'IMAGE')
+      : 'IMAGE'
     const baseCreditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
       resolution: validated.resolution,
     })
@@ -168,7 +175,7 @@ export async function POST(request: NextRequest) {
           // base64 또는 Fal URL을 R2에 업로드
           const uploadResult = await uploadImageToR2(
             'studio',
-            `generated-${Date.now()}-${index}`,
+            `generated-${crypto.randomUUID().slice(0, 8)}-${index}`,
             url
           )
           console.log(`[API] Image ${index + 1} uploaded to R2: ${uploadResult.publicUrl?.substring(0, 80)}...`)

@@ -372,6 +372,42 @@ export async function addCreditsToUser(userId: string, amount: number): Promise<
   )
 }
 
+export async function grantCreditsWithResetDate(
+  userId: string,
+  amount: number,
+  nextResetDate: string | null
+): Promise<void> {
+  const metadata = await getUsersTableMetadata()
+  const assignments: string[] = []
+  const values: unknown[] = []
+
+  if (metadata.columns.has('credits') && amount !== 0) {
+    assignments.push('credits = COALESCE(credits, 0) + ?')
+    values.push(amount)
+  }
+
+  if (metadata.columns.has('credits_reset_date') && nextResetDate) {
+    assignments.push('credits_reset_date = ?')
+    values.push(nextResetDate)
+  }
+
+  if (metadata.columns.has('updated_at')) {
+    assignments.push('updated_at = ?')
+    values.push(new Date().toISOString())
+  }
+
+  if (assignments.length === 0) {
+    return
+  }
+
+  values.push(userId)
+
+  await queryD1(
+    `UPDATE users SET ${assignments.join(', ')} WHERE ${metadata.idColumn} = ?`,
+    values,
+  )
+}
+
 /**
  * 사용자의 구독 플랜을 업데이트합니다.
  * @param userId Clerk user ID (external_id)
@@ -665,7 +701,6 @@ export async function deleteUser(userId: string): Promise<void> {
     { sql: 'DELETE FROM camera_presets WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM uploaded_models WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM uploaded_locations WHERE user_id = ?', params: [userId] },
-    { sql: 'DELETE FROM video_jobs WHERE user_id = ?', params: [userId] },
     { sql: 'DELETE FROM credit_transactions WHERE user_id = ?', params: [userId] },
 
     // 3. Delete the user record
@@ -693,7 +728,6 @@ export async function mergeUsers(targetUserId: string, sourceUserId: string): Pr
     'camera_presets',
     'uploaded_models',
     'uploaded_locations',
-    'video_jobs',
     'credit_transactions'
   ]
 
@@ -731,7 +765,6 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
     'camera_presets',
     'uploaded_models',
     'uploaded_locations',
-    'video_jobs',
     'credit_transactions'
   ]
 

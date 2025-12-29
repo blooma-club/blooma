@@ -32,7 +32,6 @@ function useIsMobile() {
 const navLinks = [
     { label: 'Studio', href: '/studio/create' },
     { label: 'Gallery', href: '/studio/generated' },
-    { label: 'Assets', href: '/assets/models' },
 ]
 
 // --- Header Component ---
@@ -147,11 +146,8 @@ const HeaderNavLink = memo(function HeaderNavLink({
 }) {
     const pathname = usePathname()
 
-    // Special handling for Assets: match any /assets/* path
-    const isAssetsLink = link.href === '/assets/models'
     const isActive = pathname === link.href ||
-        (isAssetsLink && pathname?.startsWith('/assets')) ||
-        (link.href !== '/studio/create' && !isAssetsLink && pathname?.startsWith(link.href))
+        (link.href !== '/studio/create' && pathname?.startsWith(link.href))
 
     return (
         <Link

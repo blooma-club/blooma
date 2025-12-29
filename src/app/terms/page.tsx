@@ -22,7 +22,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold">2. Description of Service</h2>
             <p>
               Blooma is a generative AI platform that enables creative storyboard production from
-              images or videos. The Service provides tools such as camera angle transformation,
+              images. The Service provides tools such as camera angle transformation,
               location changes, and scene composition to support imaginative visual creation. We may
               modify, add, or remove features from time to time to improve functionality and
               reliability.
@@ -53,7 +53,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold">4. Content Rights</h2>
             <p className="font-semibold">User-Provided Content (&quot;Uploads&quot;):</p>
             <p>
-              You retain ownership of images, videos, text, prompts, and any other materials you
+              You retain ownership of images, text, prompts, and any other materials you
               upload. You grant Blooma a non-exclusive, worldwide, royalty-free license to process,
               store, back up, display, transmit, and technically reproduce or transform your Uploads
               solely as necessary to operate and improve the Service. You represent and warrant that
@@ -61,7 +61,7 @@ export default function TermsPage() {
             </p>
             <p className="font-semibold">Outputs / Generated Content:</p>
             <p>
-              Subject to applicable law and third-party rights, you own the images, videos, and
+              Subject to applicable law and third-party rights, you own the images and
               storyboards generated from your valid inputs. However, we do not guarantee uniqueness
               or exclusivity. Similar inputs may lead to similar outputs for other users.
             </p>

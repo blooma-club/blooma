@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getUserById } from '@/lib/db/users'
+import { syncSubscriptionCredits } from '@/lib/credits'
 
 export async function GET() {
   try {
@@ -14,11 +15,12 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    const syncedUser = await syncSubscriptionCredits(user)
     const total =
-      typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 0
+      typeof syncedUser.credits === 'number' && Number.isFinite(syncedUser.credits) ? syncedUser.credits : 0
     const used =
-      typeof user.credits_used === 'number' && Number.isFinite(user.credits_used)
-        ? user.credits_used
+      typeof syncedUser.credits_used === 'number' && Number.isFinite(syncedUser.credits_used)
+        ? syncedUser.credits_used
         : 0
     const remaining = Math.max(total - used, 0)
     const percentage =
@@ -31,8 +33,8 @@ export async function GET() {
         used,
         remaining,
         percentage,
-        resetDate: user.credits_reset_date ?? null,
-        subscriptionTier: user.subscription_tier ?? null,
+        resetDate: syncedUser.credits_reset_date ?? null,
+        subscriptionTier: syncedUser.subscription_tier ?? null,
       },
     })
   } catch (error) {

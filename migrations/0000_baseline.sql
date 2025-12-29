@@ -65,23 +65,6 @@ CREATE TABLE IF NOT EXISTS uploaded_backgrounds (
     updated_at TEXT NOT NULL
 );
 
--- Video Jobs Table
-CREATE TABLE IF NOT EXISTS video_jobs (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    frame_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    video_url TEXT,
-    video_key TEXT,
-    error_message TEXT,
-    model_id TEXT,
-    prompt TEXT,
-    credit_cost INTEGER DEFAULT 0,
-    qstash_message_id TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS users_clerk_user_id_idx ON users(clerk_user_id);
 CREATE INDEX IF NOT EXISTS users_email_idx ON users(email);
@@ -96,6 +79,3 @@ CREATE INDEX IF NOT EXISTS uploaded_models_user_id_idx ON uploaded_models(user_i
 
 CREATE INDEX IF NOT EXISTS uploaded_backgrounds_user_id_idx ON uploaded_backgrounds(user_id);
 
-CREATE INDEX IF NOT EXISTS video_jobs_user_id_idx ON video_jobs(user_id);
-CREATE INDEX IF NOT EXISTS video_jobs_frame_id_idx ON video_jobs(frame_id);
-CREATE INDEX IF NOT EXISTS video_jobs_status_idx ON video_jobs(status);

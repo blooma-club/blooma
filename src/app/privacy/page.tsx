@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
                 billing information processed securely through third-party payment processors.
               </li>
               <li>
-                <strong>Content:</strong> We collect the prompts, images, videos, and other content
+                <strong>Content:</strong> We collect the prompts, images, and other content
                 you create, upload, or generate using our services.
               </li>
               <li>

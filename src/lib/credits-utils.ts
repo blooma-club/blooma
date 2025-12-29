@@ -16,7 +16,6 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 export const CREDIT_COSTS = {
   IMAGE: parsePositiveInt(process.env.CREDIT_COST_IMAGE, 1),
   IMAGE_EDIT: parsePositiveInt(process.env.CREDIT_COST_IMAGE_EDIT, 1),
-  VIDEO: parsePositiveInt(process.env.CREDIT_COST_VIDEO, 8),
   STORYBOARD_FRAME: parsePositiveInt(process.env.CREDIT_COST_STORYBOARD_FRAME, 1),
 } as const
 

@@ -27,7 +27,8 @@ export type PlanOption = {
   features: string[]
 }
 
-const IMAGE_CREDIT_COST = 15
+const STANDARD_CREDIT_COST = 10  // GPT Image 1.5 Edit
+const PRO_CREDIT_COST = 50       // Nano Banana Pro Edit
 const CTA_LABEL = 'Choose plan'
 
 function formatImageCount(value: number): string {
@@ -101,28 +102,27 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
 
   const includedFeatures = useMemo(() => {
     const creditBudget = PLAN_CREDIT_TOPUPS[plan.id] ?? 0
-    const imageCount = Math.floor(creditBudget / IMAGE_CREDIT_COST)
+    const standardImageCount = Math.floor(creditBudget / STANDARD_CREDIT_COST)
+    const proImageCount = Math.floor(creditBudget / PRO_CREDIT_COST)
 
     const baseFeatures = [
       `${formatImageCount(creditBudget)} credits / month`,
-      `~${formatImageCount(imageCount)} images / month`,
+      `~${formatImageCount(standardImageCount)} Standard images`,
+      `~${formatImageCount(proImageCount)} Pro images`,
     ]
 
     // Plan-specific features
     const planFeatures: Record<PlanId, string[]> = {
       'Small Brands': [
         'Standard resolution (2K)',
-        'Up to 10 saved models',
         'Commercial license',
       ],
       'Agency': [
         '4K resolution support',
-        'Up to 50 saved models',
         'Commercial license',
       ],
       'Studio': [
         '4K resolution support',
-        'Unlimited saved models',
         'Commercial license',
       ],
     }

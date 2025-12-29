@@ -92,45 +92,38 @@ export default function CreditsIndicator({ className, minimal = false, placement
       {open && (
         <div
           className={cn(
-            "absolute right-0 z-50 w-72 rounded-2xl border border-border/40 bg-popover/95 backdrop-blur-xl p-5 text-popover-foreground shadow-2xl ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
+            "absolute right-0 z-50 w-60 rounded-xl border border-border/50 bg-popover/95 backdrop-blur-xl p-4 text-popover-foreground shadow-lg ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
             placement === 'top' ? "bottom-full mb-2" : "top-full mt-2"
           )}
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          <div>
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
               <span>Credits</span>
-              <span className="h-px flex-1 bg-border/40" />
+              <span className="text-[11px] font-medium tracking-normal text-muted-foreground/80">
+                {displayPercentage}%
+              </span>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-end justify-between">
-                <div className="space-y-1">
-                  <span className="text-3xl font-semibold tracking-tight">{displayRemaining}</span>
-                  <p className="text-xs text-muted-foreground">available of {displayTotal}</p>
-                </div>
-                <span className="text-xs text-muted-foreground">{displayPercentage}%</span>
-              </div>
-
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
-                <div
-                  className="h-full bg-foreground/80 transition-all duration-500 ease-out"
-                  style={{ width: `${displayPercentage}%` }}
-                />
-              </div>
-
-              <div className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-                Credits refresh monthly with your plan.
-              </div>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-3xl font-semibold tracking-tight text-foreground">{displayRemaining}</span>
+              <span className="text-xs text-muted-foreground">/ {displayTotal}</span>
             </div>
 
-            <div className="pt-2">
+            <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-secondary/40">
+              <div
+                className="h-full bg-foreground/80 transition-all duration-500 ease-out"
+                style={{ width: `${displayPercentage}%` }}
+              />
+            </div>
+
+            <div className="mt-4">
               {(!subscriptionTier || subscriptionTier === 'free') ? (
                 <Button
-                  variant="default"
+                  variant="ghost"
                   size="sm"
                   asChild
-                  className="w-full h-9 rounded-xl font-medium shadow-none"
+                  className="h-8 px-3 text-xs font-medium text-foreground/80 hover:text-foreground"
                 >
                   <Link href="/pricing">
                     Upgrade
@@ -138,10 +131,10 @@ export default function CreditsIndicator({ className, minimal = false, placement
                 </Button>
               ) : (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   asChild
-                  className="w-full h-9 rounded-xl font-medium shadow-none"
+                  className="h-8 px-3 text-xs font-medium text-foreground/80 hover:text-foreground"
                 >
                   <Link href="/customerportal">
                     Manage

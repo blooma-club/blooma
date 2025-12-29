@@ -425,10 +425,10 @@ export default function Home() {
 
           <div className="flex justify-center">
             <Button
-              onClick={handleGetStarted}
+              asChild
               className="h-12 px-8 rounded-xl bg-foreground text-background font-medium text-base transition-all duration-300 hover:bg-foreground/90 hover:scale-[1.02]"
             >
-              Get Started for Free
+              <a href="mailto:contact@blooma.club">Talk to Sales</a>
             </Button>
           </div>
         </div>

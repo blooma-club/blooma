@@ -9,7 +9,7 @@ export interface FalAIModel {
   id: string
   name: string
   description: string
-  category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting' | 'video-generation'
+  category: 'image-generation' | 'image-enhancement' | 'upscaling' | 'inpainting'
   maxResolution: string
   credits: number
   inputSchema: FalAIInputSchema
@@ -18,16 +18,16 @@ export interface FalAIModel {
 /**
  * 입력 스키마 타입 정의
  */
-export type FalAIInputSchema = Record<string, 
-  | 'string' 
-  | 'number' 
-  | 'boolean' 
-  | 'string?' 
-  | 'number?' 
-  | 'boolean?' 
-  | 'list<string>' 
-  | 'list<string>?' 
-  | 'object?' 
+export type FalAIInputSchema = Record<string,
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'string?'
+  | 'number?'
+  | 'boolean?'
+  | 'list<string>'
+  | 'list<string>?'
+  | 'object?'
   | 'string | object?'
 >
 
@@ -46,7 +46,7 @@ export function isFalAIModel(obj: unknown): obj is FalAIModel {
     typeof model.name === 'string' &&
     typeof model.description === 'string' &&
     typeof model.category === 'string' &&
-    ['image-generation', 'image-enhancement', 'upscaling', 'inpainting', 'video-generation'].includes(model.category) &&
+    ['image-generation', 'image-enhancement', 'upscaling', 'inpainting'].includes(model.category) &&
     typeof model.maxResolution === 'string' &&
     typeof model.credits === 'number' &&
     typeof model.inputSchema === 'object' &&
@@ -113,7 +113,7 @@ export interface FalAIGenerationOptions {
   safetyTolerance?: string | '1' | '2' | '3' | '4' | '5' | '6'
   strength?: number
   resolution?: '1K' | '2K' | '4K'
-  duration?: '5' | '10'
+
   // Model-specific options
   maxImages?: number
   seed?: number

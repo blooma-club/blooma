@@ -59,11 +59,6 @@ export const cardInputSchema = z.object({
   storyboard_status: z.enum(['ready', 'pending', 'enhancing', 'prompted', 'generating', 'error']).optional(),
   shot_description: z.string().max(5000).optional(),
 
-  // 비디오 메타데이터
-  video_url: z.string().url().optional(),
-  video_key: z.string().max(500).nullable().optional(),
-  video_prompt: z.string().max(5000).nullable().optional(),
-
   // 확장 메타데이터
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
@@ -111,23 +106,6 @@ export const imageUploadSchema = z.object({
   cardId: z.string().uuid().optional(),
   contentType: z.string().regex(/^image\//, 'Must be an image file').optional(),
 })
-
-/**
- * 비디오 생성 요청 스키마
- */
-export const videoGenerationSchema = z.object({
-  frameId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  imageUrl: z.string().url(),
-  startImageUrl: z.string().url().optional(),
-  endImageUrl: z.string().url().optional(),
-  endFrameId: z.string().uuid().optional(),
-  prompt: z.string().max(5000).optional(),
-  modelId: z.string().min(1),
-  duration: z.number().int().min(1).max(30).optional(), // 비디오 길이 (초)
-})
-
-export type VideoGenerationValidated = z.infer<typeof videoGenerationSchema>
 
 /**
  * 스크립트 생성 요청 스키마

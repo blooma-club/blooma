@@ -1,503 +1,123 @@
-# Technical Requirements Document (TRD)
+# Blooma Technical Requirements Document (TRD)
 
-## 1. Executive Technical Summary
-
-### 프로젝트 개요
-Blooma는 크리에이터가 아이디어 입력만으로 AI 기반 스토리보드를 즉시 생성·편집·공유할 수 있는 SaaS 웹 서비스이다.
-
-### 핵심 기술 방향
-- Next.js 15 App Router 기반 풀스택 아키텍처
-- Cloudflare 인프라 (D1 Database, R2 Storage)
-- 외부 AI API 연동 (Fal AI, OpenRouter)
-- 서버리스 배포 (Vercel)
-
-### 주요 기술 목표
-- 페이지 로드 ≤ 1.5초
-- 이미지 생성 요청 30초 내 완료
-- 99.9% 가용성, 에러율 < 0.5%
-- 월 100만 호출 대비 수평 확장 가능 구조
+## 1. Executive Summary
+Blooma is a Next.js-based AI image generation platform focused on fashion lookbook workflows.
+It integrates Fal AI for image generation, Cloudflare D1 for data, and R2 for asset storage.
 
 ## 2. Tech Stack
-
-| Category | Technology | Version | Reasoning |
-|----------|------------|---------|-----------|
-| **Frontend** |
-| UI Framework | Next.js | 15.5 | App Router, React Server Components |
-| UI Library | React | 19 | 최신 동시성 기능, Suspense |
-| Language | TypeScript | 5+ | 정적 타입, 협업 안정성 |
-| Styling | Tailwind CSS | v4 | JIT 컴파일, 빠른 스타일링 |
-| State Management | Zustand | 5.0 | 경량, 보일러플레이트 최소화 |
-| Animation | tailwindcss-animate | 1.0 | CSS 애니메이션 유틸리티 |
-| **Backend** |
-| API Routes | Next.js API Routes | - | 서버리스 함수 |
-| Database | Cloudflare D1 | - | SQLite 기반, Edge 최적화 |
-| Storage | Cloudflare R2 | - | S3 호환, CDN 캐싱 |
-| **AI Services** |
-| Image/Video | Fal AI | 1.6+ | Seedream, Nano Banana, Kling |
-| Text Generation | OpenRouter | - | GPT-4o, Claude 등 다중 모델 |
-| Gemini | Google Generative AI | 0.24+ | 스크립트 분석 |
-| **Authentication** |
-| Auth Provider | Clerk | 6.33+ | OAuth 2.0, 소셜 로그인 |
-| **Payments** |
-| Billing | Polar | 0.40+ | 구독 결제, 웹훅 |
-| **UI Components** |
-| Primitives | Radix UI | - | Dialog, Dropdown, Tabs 등 |
-| Icons | Lucide React | 0.525+ | 아이콘 라이브러리 |
-| DnD | @dnd-kit | 6.1+ | 드래그 앤 드롭 |
-| Carousel | Embla Carousel | 8.6+ | 카드 캐러셀 |
-| **DevOps** |
-| Deployment | Vercel | - | 프리뷰 URL, 오토스케일링 |
-| Testing | Playwright | 1.55+ | E2E 테스트 |
-| Linting | ESLint | 9+ | 코드 품질 |
+- **Framework**: Next.js 16 App Router, React 19, TypeScript
+- **Styling**: Tailwind CSS, shadcn/ui
+- **Database**: Cloudflare D1 (SQLite)
+- **Storage**: Cloudflare R2 (S3-compatible)
+- **AI**: Fal AI (image generation)
+- **Auth**: Clerk
+- **Billing**: Polar
 
 ## 3. System Architecture
-
-### 아키텍처 다이어그램
-
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client (Browser)                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Next.js   │  │   Zustand   │  │    Tailwind CSS v4      │  │
-│  │  React 19   │  │   Stores    │  │    + Radix UI           │  │
-│  └──────┬──────┘  └──────┬──────┘  └─────────────────────────┘  │
-└─────────┼────────────────┼──────────────────────────────────────┘
-          │                │
-          ▼                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Vercel Edge Network                           │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              Next.js API Routes (Serverless)             │    │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │    │
-│  │  │ /api/    │  │ /api/    │  │ /api/    │  │ /api/   │  │    │
-│  │  │ projects │  │ generate │  │ video/   │  │ billing │  │    │
-│  │  │          │  │ -image   │  │ generate │  │         │  │    │
-│  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬────┘  │    │
-│  └───────┼─────────────┼─────────────┼─────────────┼───────┘    │
-└──────────┼─────────────┼─────────────┼─────────────┼────────────┘
-           │             │             │             │
-           ▼             ▼             ▼             ▼
-┌──────────────┐  ┌────────────┐  ┌──────────┐  ┌─────────┐
-│ Cloudflare   │  │  Fal AI    │  │ Fal AI   │  │  Polar  │
-│ D1 + R2      │  │  Image     │  │  Video   │  │ Billing │
-│              │  │  Models    │  │  Models  │  │         │
-└──────────────┘  └────────────┘  └──────────┘  └─────────┘
-                        │
-                        ▼
-              ┌─────────────────┐
-              │ Seedream v4     │
-              │ Nano Banana Pro │
-              │ Kling v2.5      │
-              └─────────────────┘
+Client (Studio UI)
+   -> /api/generate-image
+      -> Fal AI (GPT Image 1.5 Edit / Nano Banana Pro)
+      -> R2 (generated image cache)
+   -> /api/studio/generated (save metadata)
+   -> D1 (generated_images)
 
-┌─────────────────────────────────────────────────────────────────┐
-│                     External Services                            │
-│  ┌────────────┐  ┌────────────┐  ┌────────────────────────────┐ │
-│  │   Clerk    │  │ OpenRouter │  │  Google Generative AI      │ │
-│  │   Auth     │  │   (GPT-4o) │  │       (Gemini)             │ │
-│  └────────────┘  └────────────┘  └────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+Assets
+   -> /api/upload-image
+      -> R2 (models storage)
+   -> /api/models
+      -> D1 (uploaded_models)
 ```
 
-### 데이터 흐름
+## 4. Data Model (D1)
 
-1. **인증 플로우**
-   - Client → Clerk → Webhook → /api/sync-user → D1 users 테이블
+### users
+- `credits`, `credits_used`: 크레딧 관리
+- `subscription_tier`: Small Brands / Agency / Studio
+- `subscription_status`: active / canceled / revoked
 
-2. **이미지 생성 플로우**
-   - Client → /api/generate-image → 크레딧 검증 → Fal AI → R2 업로드 → Client
+### generated_images
+- `image_url`: R2 저장 URL
+- `prompt`: 생성 프롬프트
+- `model_id`: 사용된 AI 모델 ID
+- `source_model_url`: 소스 모델 이미지 URL
+- `source_outfit_urls`: 소스 의류 이미지 URLs (JSON)
 
-3. **비디오 생성 플로우**
-   - Client → /api/video/generate → 크레딧 검증 → Fal AI (Kling) → R2 → Client
+### uploaded_models
+- `user_id`, `name`, `image_url`
+- `is_public`: 시스템 공개 모델 여부
 
-4. **결제 플로우**
-   - Client → /api/billing/checkout → Polar → Webhook → D1 크레딧 갱신
-
-## 4. Database Schema
-
-### Cloudflare D1 (SQLite)
-
-```sql
--- 사용자 테이블
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  clerk_user_id TEXT UNIQUE,
-  email TEXT,
-  name TEXT,
-  avatar_url TEXT,
-  credits INTEGER DEFAULT 100,
-  credits_used INTEGER DEFAULT 0,
-  subscription_plan TEXT,
-  subscription_id TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 프로젝트 테이블
-CREATE TABLE projects (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  aspect_ratio TEXT DEFAULT '16:9',
-  is_public BOOLEAN DEFAULT FALSE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- 스토리보드 카드 테이블
-CREATE TABLE storyboard_cards (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  order_index INTEGER NOT NULL,
-  title TEXT,
-  description TEXT,
-  prompt TEXT,
-  image_url TEXT,
-  video_url TEXT,
-  metadata TEXT, -- JSON: camera, character refs, etc.
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (project_id) REFERENCES projects(id)
-);
-
--- 캐릭터 테이블
-CREATE TABLE characters (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  project_id TEXT,
-  name TEXT NOT NULL,
-  description TEXT,
-  image_url TEXT,
-  prompt_prefix TEXT,
-  metadata TEXT, -- JSON
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (project_id) REFERENCES projects(id)
-);
-
--- 카메라 프리셋 테이블
-CREATE TABLE camera_presets (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  category TEXT,
-  prompt_suffix TEXT,
-  icon TEXT,
-  is_default BOOLEAN DEFAULT FALSE
-);
-
--- 배경 라이브러리 테이블
-CREATE TABLE backgrounds (
-  id TEXT PRIMARY KEY,
-  user_id TEXT,
-  name TEXT NOT NULL,
-  image_url TEXT NOT NULL,
-  category TEXT,
-  is_default BOOLEAN DEFAULT FALSE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 커스텀 에셋 (모델) 테이블
-CREATE TABLE custom_assets (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL, -- 'model', 'background', etc.
-  name TEXT NOT NULL,
-  image_url TEXT,
-  prompt_prefix TEXT,
-  metadata TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-```
-
-## 5. API Endpoints
-
-### Projects
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/projects | 프로젝트 목록 조회 |
-| POST | /api/projects | 프로젝트 생성 |
-| GET | /api/projects/[id] | 프로젝트 상세 조회 |
-| PATCH | /api/projects/[id] | 프로젝트 수정 |
-| DELETE | /api/projects/[id] | 프로젝트 삭제 |
-| POST | /api/projects/[id]/duplicate | 프로젝트 복제 |
-
-### Cards
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/cards | 카드 목록 조회 |
-| POST | /api/cards | 카드 생성 |
-| PATCH | /api/cards/[id] | 카드 수정 |
-| DELETE | /api/cards/[id] | 카드 삭제 |
+## 5. API Routes
 
 ### Image Generation
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/generate-image | AI 이미지 생성 |
-| POST | /api/image-edit | 이미지 편집 |
-| POST | /api/upload-image | 이미지 업로드 (R2) |
-| GET | /api/proxy-image | 외부 이미지 프록시 |
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/generate-image` | POST | Generate image via Fal AI, cache to R2 |
+| `/api/studio/generated` | GET/POST/DELETE | Gallery CRUD |
+| `/api/studio/generated/[id]` | GET | Get single image detail |
 
-### Video Generation
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/video/generate | AI 비디오 생성 |
-
-### Characters
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/characters | 캐릭터 목록 조회 |
-| POST | /api/characters | 캐릭터 생성 |
-| POST | /api/characters/generate | AI 캐릭터 생성 |
-| POST | /api/characters/upload-image | 캐릭터 이미지 업로드 |
-
-### Storyboard
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/storyboard/build | AI 스토리보드 빌드 |
+### Assets
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/models` | GET/DELETE | Model library |
+| `/api/upload-image` | POST | Upload to R2 |
 
 ### Billing
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/billing/checkout | 결제 세션 생성 |
-| GET | /api/billing/status | 구독 상태 조회 |
-| POST | /api/billing/webhook | Polar 웹훅 처리 |
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/billing/checkout` | POST | Create checkout session |
+| `/api/billing/status` | GET | Check subscription status |
+| `/api/billing/webhook` | POST | Polar webhook handler |
+| `/api/user/credits` | GET | Get credit balance |
 
-### User
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/user/credits | 크레딧 잔액 조회 |
-| GET | /api/user/subscription | 구독 정보 조회 |
-| POST | /api/sync-user | Clerk 사용자 동기화 |
+## 6. Image Generation Flow
 
-## 6. AI Models Configuration
+### Standard Mode (GPT Image 1.5 Edit)
+1. Client collects: model image + outfit refs + view type + prompt
+2. `POST /api/generate-image` with `modelId: 'fal-ai/gpt-image-1.5/edit'`
+3. Server builds JSON prompt with view-specific pose
+4. Fal AI generates images
+5. Images cached to R2
+6. Client saves to D1 via `/api/studio/generated`
 
-### Image Generation Models
+### Pro Mode (Nano Banana Pro)
+- Same flow with `modelId: 'fal-ai/nano-banana-pro/edit'`
+- Supports 2K/4K resolution selection
+- Higher credit cost (50 vs 10)
 
-```typescript
-// Fal AI Models
-{
-  'fal-ai/bytedance/seedream/v4/text-to-image': {
-    credits: 10,
-    maxResolution: '4K',
-    category: 'image-generation'
-  },
-  'fal-ai/bytedance/seedream/v4/edit': {
-    credits: 10,
-    maxResolution: '4K',
-    category: 'inpainting'
-  },
-  'fal-ai/nano-banana-pro': {
-    credits: 50,
-    maxResolution: '4K',
-    category: 'image-generation'
-  },
-  'fal-ai/nano-banana-pro/edit': {
-    credits: 50,
-    maxResolution: '4K',
-    category: 'inpainting'
-  }
-}
-```
-
-### Video Generation Models
-
-```typescript
-{
-  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': {
-    credits: 120,
-    maxResolution: '1080p',
-    features: ['image-to-video', 'start-end-frame']
-  },
-  'fal-ai/kling-video/v2.5-turbo/standard/image-to-video': {
-    credits: 70,
-    maxResolution: '720p',
-    features: ['image-to-video']
-  }
-}
-```
-
-## 7. Project Structure
-
-```
-blooma/
-├── docs/                     # 문서 (PRD, TRD)
-├── public/                   # 정적 에셋
-│   └── backgrounds/          # 기본 배경 이미지
-├── src/
-│   ├── app/                  # Next.js App Router
-│   │   ├── (workspace)/      # 인증 필요 라우트
-│   │   │   ├── dashboard/    # 대시보드
-│   │   │   └── assets/       # 에셋 관리
-│   │   ├── api/              # API 라우트
-│   │   │   ├── billing/      # 결제 API
-│   │   │   ├── cards/        # 카드 CRUD
-│   │   │   ├── characters/   # 캐릭터 API
-│   │   │   ├── generate-image/
-│   │   │   ├── video/
-│   │   │   └── ...
-│   │   ├── project/[id]/     # 프로젝트 페이지
-│   │   │   ├── storyboard/   # 스토리보드 에디터
-│   │   │   └── setup/        # 프로젝트 설정
-│   │   └── pricing/          # 요금제 페이지
-│   │
-│   ├── components/           # React 컴포넌트
-│   │   ├── auth/             # 인증 UI
-│   │   ├── billing/          # 결제 UI
-│   │   ├── dashboard/        # 대시보드 컴포넌트
-│   │   ├── layout/           # 레이아웃 (Navbar, Footer)
-│   │   ├── project/          # 프로젝트 컴포넌트
-│   │   │   └── setup/        # 설정 위저드
-│   │   ├── storyboard/       # 스토리보드 컴포넌트
-│   │   │   ├── PromptDock.tsx
-│   │   │   ├── StoryboardCard.tsx
-│   │   │   └── libraries/    # 라이브러리 드롭다운
-│   │   └── ui/               # 공통 UI (Button, Dialog 등)
-│   │
-│   ├── hooks/                # 커스텀 React Hooks
-│   │   ├── useFrameManagement.ts
-│   │   ├── useUserCredits.ts
-│   │   └── ...
-│   │
-│   ├── lib/                  # 유틸리티 & 서비스
-│   │   ├── billing/          # 결제 로직
-│   │   ├── clerk/            # Clerk 설정
-│   │   ├── db/               # D1 데이터베이스
-│   │   ├── fal-ai/           # Fal AI 클라이언트
-│   │   ├── credits.ts        # 크레딧 관리
-│   │   └── r2.ts             # R2 스토리지
-│   │
-│   ├── store/                # Zustand 스토어
-│   │   ├── storyboardCards.ts
-│   │   ├── backgrounds.ts
-│   │   └── ui.ts
-│   │
-│   └── types/                # TypeScript 타입
-│       ├── index.ts
-│       └── storyboard.ts
-│
-├── workers/                  # Cloudflare Workers
-├── .env.local                # 환경변수 (로컬)
-├── package.json
-└── tsconfig.json
-```
-
-## 8. Performance Optimization
-
-### Frontend
-- Next.js App Router Server Components로 초기 렌더링 최적화
-- Tailwind CSS JIT 모드로 번들 크기 최소화
-- 이미지 지연 로딩 및 프리로딩 전략
-- Zustand 선택적 구독으로 불필요한 리렌더링 방지
-
-### Backend
-- Cloudflare D1 Edge 배치로 레이턴시 최소화
-- R2 CDN 캐싱으로 에셋 전송 최적화
-- API 응답 스트리밍 (이미지 생성 진행 상황)
-
-### AI 호출 최적화
-- 모델별 폴백 체인으로 실패 시 대체 모델 자동 전환
-- 플레이스홀더 이미지로 API 장애 시 UX 유지
-- 크레딧 선차감 후 실패 시 자동 환불
-
-## 9. Security Considerations
-
-### 인증 & 권한
-- Clerk OAuth 2.0 기반 인증
-- 미들웨어 레벨 라우트 보호
-- API 요청 시 사용자 ID 검증
-
-### 데이터 보안
-- Cloudflare D1 암호화 저장
-- R2 서명된 URL (만료 시간 설정)
-- 환경변수 Vercel 시크릿 관리
-
-### API 보안
-- Rate Limiting (Vercel Edge)
-- CORS 정책 적용
-- 입력값 Zod 스키마 검증
-
-## 10. Environment Variables
-
-```bash
-# Authentication (Clerk)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-CLERK_WEBHOOK_SECRET=
-
-# Database (Cloudflare D1)
-CLOUDFLARE_ACCOUNT_ID=
-CLOUDFLARE_D1_DATABASE_ID=
-CLOUDFLARE_D1_API_TOKEN=
-
-# Storage (Cloudflare R2)
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
-R2_PUBLIC_BASE_URL=
-
-# AI Services
-FAL_KEY=
-OPENROUTER_API_KEY=
-GOOGLE_GENERATIVE_AI_API_KEY=
-
-# Payments (Polar)
-POLAR_ACCESS_TOKEN=
-POLAR_WEBHOOK_SECRET=
-POLAR_BLOOMA_STARTER_PRODUCT_ID=
-POLAR_BLOOMA_PRO_PRODUCT_ID=
-POLAR_BLOOMA_STUDIO_PRODUCT_ID=
-
-# App
-NEXT_PUBLIC_APP_URL=
-```
-
-## 11. Deployment
-
-### Vercel 배포
-1. GitHub 저장소 연결
-2. 환경변수 설정 (Vercel Dashboard)
-3. 빌드 명령어: `npm run build`
-4. 출력 디렉토리: `.next`
-
-### 빌드 설정
+## 7. Prompt System
+JSON-based structured prompt:
 ```json
 {
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "framework": "nextjs"
+  "image_type": "commercial_fashion_photography",
+  "subject": {
+    "model_source": "Use the face and body from reference",
+    "pose": "standing_straight, front_view, arms_relaxed"
+  },
+  "apparel": {
+    "instruction": "Wear the exact outfit from reference"
+  },
+  "environment": {
+    "background": "seamless_pure_white_background"
+  },
+  "technical_specs": {
+    "image_quality": "8k, photorealistic"
+  }
 }
 ```
 
-## 12. Monitoring & Logging
+## 8. Credit System
+| Tier | Model | Credits/Image |
+|------|-------|-------------:|
+| Standard | GPT Image 1.5 Edit | 10 |
+| Pro | Nano Banana Pro Edit | 50 |
+| Pro 4K | Nano Banana Pro Edit (4K) | 100 |
 
-### 로깅
-- Vercel Logs (API 요청/응답)
-- D1 쿼리 타이밍 로그
-- Fal AI 호출 로그
+## 9. Storage Conventions
+- Generated images: `projects/studio/storyboard/generated-{uuid}-{index}.png`
+- Model assets: `models/{projectId}/{assetId}.{ext}`
 
-### 에러 추적
-- API 에러 응답 표준화
-- 크레딧 소비 실패 시 자동 환불 로그
-- 외부 서비스 장애 알림
-
-## 13. Future Technical Considerations
-
-### 단기 (Phase 2)
-- 실시간 협업 (WebSocket/Supabase Realtime)
-- 이미지 캐싱 레이어 (Redis/Upstash)
-- 성능 모니터링 대시보드
-
-### 중기 (Phase 3)
-- 자체 모델 파인튜닝 파이프라인
-- 멀티테넌트 아키텍처 강화
-- API SaaS 버전 개발
-
-### 장기
-- 모바일 네이티브 앱 (React Native)
-- 오프라인 지원 (PWA)
-- AI 모델 A/B 테스팅 인프라
+## 10. Notes
+- Video generation pipeline has been removed
+- All images use R2 CDN for fast loading
+- Public models are seeded via `/api/seed-models` (development only)

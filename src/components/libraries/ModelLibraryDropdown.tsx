@@ -10,8 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { uploadFileToR2 } from '@/lib/imageUpload'
-import { Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
+import { Image as ImageIcon, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 
 export type ModelLibraryAsset = {
@@ -41,7 +40,6 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
 }) => {
   const [assets, setAssets] = React.useState<ModelLibraryAsset[]>([])
   const [loading, setLoading] = React.useState(false)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const fetchAssets = React.useCallback(async () => {
     try {
@@ -72,25 +70,6 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
     }
   }, [open, fetchAssets])
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    try {
-      setLoading(true)
-      await uploadFileToR2(file, { type: 'model', assetId: `model-${Date.now()}` })
-      await fetchAssets()
-    } catch (error) {
-      console.error('Error uploading model:', error)
-      alert('Failed to upload model')
-    } finally {
-      setLoading(false)
-      if (event.target) {
-        event.target.value = ''
-      }
-    }
-  }
-
   const handleDelete = async (e: React.MouseEvent, assetId: string) => {
     e.stopPropagation()
     if (!confirm('Are you sure you want to delete this model?')) return
@@ -113,19 +92,8 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
     }
   }
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
-
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type='file'
-        accept='image/*'
-        className='hidden'
-        onChange={handleUpload}
-      />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>
           <Button
@@ -153,17 +121,6 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
         <DialogContent className='sm:max-w-md rounded-2xl p-0 overflow-hidden border border-border/40 shadow-2xl bg-background/95 backdrop-blur-xl'>
           <DialogHeader className="px-6 py-4 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
             <DialogTitle className="text-sm font-medium tracking-tight">Model Library</DialogTitle>
-            <div className="flex items-center gap-4 pr-6">
-              {(assets.length > 0 || loading) && (
-                <button
-                  onClick={handleUploadClick}
-                  disabled={loading}
-                  className="text-xs font-medium hover:underline underline-offset-4 disabled:opacity-50 transition-all"
-                >
-                  Upload
-                </button>
-              )}
-            </div>
           </DialogHeader>
 
           {loading && assets.length === 0 ? (
@@ -178,17 +135,8 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">No models yet</p>
-                <p className="text-xs text-muted-foreground mt-2 max-w-[220px] leading-relaxed mx-auto">Upload a model reference to maintain consistency across your shots.</p>
+                <p className="text-xs text-muted-foreground mt-2 max-w-[220px] leading-relaxed mx-auto">Add a model reference to maintain consistency across your shots.</p>
               </div>
-              <Button
-                onClick={handleUploadClick}
-                variant="outline"
-                size="sm"
-                className="mt-8 w-full max-w-[160px] h-9 text-xs rounded-lg font-medium border-border/40 hover:bg-foreground hover:text-background transition-all"
-              >
-                <Upload className="w-3.5 h-3.5 mr-2" />
-                Upload Image
-              </Button>
             </div>
           ) : (
             <div className="p-6">
@@ -250,23 +198,6 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
                     )}
                   </div>
                 ))}
-                <button
-                  type='button'
-                  onClick={handleUploadClick}
-                  disabled={loading}
-                  className="relative aspect-[3/4] rounded-xl border border-dashed border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <div className="animate-spin w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full"></div>
-                  ) : (
-                    <>
-                      <div className="w-8 h-8 rounded-full bg-muted/50 group-hover:bg-foreground/5 flex items-center justify-center transition-colors text-muted-foreground group-hover:text-foreground">
-                        <Plus className="w-4 h-4" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">New Model</span>
-                    </>
-                  )}
-                </button>
               </div>
 
               {selectedAsset && (

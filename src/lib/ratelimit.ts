@@ -39,19 +39,14 @@ function getRedis(): Redis | null {
  * Rate Limit 정책
  * 
  * - imageGeneration: 이미지 생성 (분당 10회, 시간당 100회)
- * - videoGeneration: 비디오 생성 (분당 3회, 시간당 20회)
  * - scriptGeneration: 스크립트 생성 (분당 5회, 시간당 50회)
  */
-export type RateLimitType = 'imageGeneration' | 'videoGeneration' | 'scriptGeneration'
+export type RateLimitType = 'imageGeneration' | 'scriptGeneration'
 
 const RATE_LIMIT_CONFIGS: Record<RateLimitType, { requests: number; window: string; windowMs: number }[]> = {
   imageGeneration: [
     { requests: 10, window: '1 m', windowMs: 60 * 1000 },       // 분당 10회
     { requests: 100, window: '1 h', windowMs: 60 * 60 * 1000 }, // 시간당 100회
-  ],
-  videoGeneration: [
-    { requests: 3, window: '1 m', windowMs: 60 * 1000 },       // 분당 3회
-    { requests: 20, window: '1 h', windowMs: 60 * 60 * 1000 }, // 시간당 20회
   ],
   scriptGeneration: [
     { requests: 5, window: '1 m', windowMs: 60 * 1000 },       // 분당 5회

@@ -87,3 +87,16 @@ export function getPlanIdForProductId(productId: string | null | undefined): Pla
 export function getCreditsForPlan(planId: PlanId): number {
   return PLAN_CREDIT_TOPUPS[planId] ?? 0
 }
+
+export function getIntervalForProductId(
+  productId: string | null | undefined
+): BillingInterval | undefined {
+  if (!productId) return undefined
+
+  for (const planId of PLAN_IDS) {
+    if (resolveProductId(planId, 'month') === productId) return 'month'
+    if (resolveProductId(planId, 'year') === productId) return 'year'
+  }
+
+  return undefined
+}
