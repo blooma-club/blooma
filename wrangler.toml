@@ -1,9 +1,0 @@
-name = "blooma"
-compatibility_date = "2024-11-01"
-compatibility_flags = ["nodejs_compat"]
-
-[[d1_databases]]
-binding = "DB"
-database_name = "blooma"
-database_id = "1e39f89b-a7d6-4dfa-9cbd-c6432474e67e"
-migrations_dir = "migrations"

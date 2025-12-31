@@ -4,7 +4,7 @@ export default function PrivacyPolicyPage() {
       <section className="space-y-6">
         <header>
           <h1 className="text-3xl font-semibold">Privacy Policy</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Effective Date: October 17, 2025</p>
+          <p className="mt-2 text-sm text-muted-foreground">Effective Date: December 31, 2025</p>
         </header>
 
         <article className="space-y-12">
@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
             <p>
               Blooma (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting
               your privacy. This Privacy Policy explains how we collect, use, disclose, and
-              safeguard your information when you use our AI-powered creative platform.
+              safeguard your information when you use our AI-powered fashion image generation platform.
             </p>
           </section>
 
@@ -29,8 +29,8 @@ export default function PrivacyPolicyPage() {
                 billing information processed securely through third-party payment processors.
               </li>
               <li>
-                <strong>Content:</strong> We collect the prompts, images, and other content
-                you create, upload, or generate using our services.
+                <strong>Content:</strong> We collect the prompts, model images, outfit reference
+                images, and other content you create, upload, or generate using our services.
               </li>
               <li>
                 <strong>Communications:</strong> When you contact us, we collect the information you
@@ -104,7 +104,13 @@ export default function PrivacyPolicyPage() {
                     and assets
                   </li>
                   <li>
-                    <strong>fal.ai:</strong> AI model inference and generation services
+                    <strong>fal.ai:</strong> AI model inference and image generation services
+                  </li>
+                  <li>
+                    <strong>Polar:</strong> Payment processing and subscription management
+                  </li>
+                  <li>
+                    <strong>Upstash:</strong> Rate limiting and Redis caching services
                   </li>
                 </ul>
               </li>

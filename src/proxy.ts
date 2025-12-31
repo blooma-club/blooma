@@ -25,16 +25,17 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
-  '/project(.*)',
-  '/storyboard(.*)',
-  '/api/projects(.*)',
+  '/studio(.*)',
+  '/assets(.*)',
+  '/api/studio(.*)',
+  '/api/models(.*)',
+  '/api/locations(.*)',
+  '/api/generate-image(.*)',
+  '/api/user(.*)',
 ])
 
 const isAuthRoute = createRouteMatcher([
   '/auth(.*)',
-  '/sign-in(.*)',
-  '/sign-up(.*)',
 ])
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,14 +69,16 @@ export default clerkMiddleware(async (auth, req) => {
     return addSecurityHeaders(response)
   }
 
-  // 무한 리다이렉트 방지: 이미 sign-in 페이지로 가는 중이면 리다이렉트하지 않음
-  if (req.nextUrl.pathname === '/sign-in' || req.nextUrl.pathname === '/auth') {
+  // 무한 리다이렉트 방지: 이미 auth 페이지로 가는 중이면 리다이렉트하지 않음
+  if (req.nextUrl.pathname === '/auth') {
     const response = NextResponse.next()
     return addSecurityHeaders(response)
   }
 
-  // 그 외의 경우 sign-in으로 리다이렉트
-  return authResult.redirectToSignIn({ returnBackUrl: req.url })
+  // 그 외의 경우 pricing 페이지로 리다이렉트 (Clerk 모달로 로그인 유도)
+  const pricingUrl = new URL('/pricing', req.url)
+  pricingUrl.searchParams.set('redirect_url', req.url)
+  return addSecurityHeaders(NextResponse.redirect(pricingUrl))
 })
 
 export const config = {

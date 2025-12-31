@@ -4,7 +4,7 @@ export default function TermsPage() {
       <section className="space-y-6">
         <header>
           <h1 className="text-3xl font-semibold">Terms &amp; Conditions</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Last updated: 10/17/2025</p>
+          <p className="mt-2 text-sm text-muted-foreground">Last updated: 12/31/2025</p>
         </header>
 
         <article className="space-y-12">
@@ -21,11 +21,11 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-xl font-semibold">2. Description of Service</h2>
             <p>
-              Blooma is a generative AI platform that enables creative storyboard production from
-              images. The Service provides tools such as camera angle transformation,
-              location changes, and scene composition to support imaginative visual creation. We may
-              modify, add, or remove features from time to time to improve functionality and
-              reliability.
+              Blooma is an AI-powered fashion image generation platform that enables brands to create
+              professional lookbook images without traditional photoshoots. The Service provides tools
+              for combining model photos with clothing references to generate high-quality product
+              visuals for e-commerce, marketing campaigns, and brand catalogs. We may modify, add, or
+              remove features from time to time to improve functionality and reliability.
             </p>
           </section>
 
@@ -61,8 +61,8 @@ export default function TermsPage() {
             </p>
             <p className="font-semibold">Outputs / Generated Content:</p>
             <p>
-              Subject to applicable law and third-party rights, you own the images and
-              storyboards generated from your valid inputs. However, we do not guarantee uniqueness
+              Subject to applicable law and third-party rights, you own the fashion images and
+              lookbook visuals generated from your valid inputs. However, we do not guarantee uniqueness
               or exclusivity. Similar inputs may lead to similar outputs for other users.
             </p>
             <p className="font-semibold">Third-Party Rights:</p>

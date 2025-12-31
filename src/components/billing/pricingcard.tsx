@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter, usePathname } from 'next/navigation'
-import { useUser } from '@clerk/nextjs'
+import { useUser, SignInButton } from '@clerk/nextjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
@@ -130,24 +130,13 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
     return [...baseFeatures, ...planFeatures[plan.id], ...plan.features]
   }, [plan.features, plan.id])
 
-  const redirectToSignIn = useCallback(() => {
-    if (typeof window === 'undefined') {
-      router.push('/sign-in')
-      return
-    }
-
-    const searchParams = new URLSearchParams()
-    searchParams.set('redirect_url', `${window.location.origin}${pathname}`)
-    router.push(`/sign-in?${searchParams.toString()}`)
-  }, [pathname, router])
+  // Clerk 모달로 로그인 처리 (별도 페이지 없이)
 
   const handleSubscribe = useCallback(
     async (planId: PlanId) => {
       if (!isLoaded || activeCheckoutPlan) return
-      if (!user) {
-        redirectToSignIn()
-        return
-      }
+      // 로그인 안 된 상태면 SignInButton이 처리하므로 여기서 return
+      if (!user) return
 
       if (hasActiveSubscription) {
         return
@@ -187,7 +176,7 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
         setActiveCheckoutPlan(null)
       }
     },
-    [activeCheckoutPlan, hasActiveSubscription, isLoaded, redirectToSignIn, user, interval]
+    [activeCheckoutPlan, hasActiveSubscription, isLoaded, user, interval]
   )
 
   const isLoadingState = !isLoaded || statusLoading
@@ -248,18 +237,34 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
           </motion.div>
         </AnimatePresence>
 
-        <Button
-          size="lg"
-          variant={isHighlighted ? 'default' : 'outline'}
-          className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
-            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
-            : 'border-border bg-transparent hover:bg-foreground hover:text-background'
-            }`}
-          onClick={() => handleSubscribe(plan.id)}
-          disabled={isActionDisabled}
-        >
-          {getButtonLabel(plan.id, CTA_LABEL)}
-        </Button>
+        {!user ? (
+          <SignInButton mode="modal">
+            <Button
+              size="lg"
+              variant={isHighlighted ? 'default' : 'outline'}
+              className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
+                : 'border-border bg-transparent hover:bg-foreground hover:text-background'
+                }`}
+              disabled={isLoadingState}
+            >
+              {isLoadingState ? 'Loading...' : 'Sign in to subscribe'}
+            </Button>
+          </SignInButton>
+        ) : (
+          <Button
+            size="lg"
+            variant={isHighlighted ? 'default' : 'outline'}
+            className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
+              : 'border-border bg-transparent hover:bg-foreground hover:text-background'
+              }`}
+            onClick={() => handleSubscribe(plan.id)}
+            disabled={isActionDisabled}
+          >
+            {getButtonLabel(plan.id, CTA_LABEL)}
+          </Button>
+        )}
       </CardContent>
 
       <CardFooter className="flex flex-col items-start gap-4 p-0 mt-auto pt-6 border-t border-border/40">
