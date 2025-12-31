@@ -48,6 +48,18 @@ export async function POST(request: NextRequest) {
         const assetUrl = assetResult.publicUrl || assetResult.signedUrl
         if (!assetUrl) throw new Error('Failed to get uploaded asset URL')
 
+        const skipDb = parseBoolean(request.nextUrl.searchParams.get('skipDb'))
+
+        if (skipDb) {
+          return NextResponse.json({
+            success: true,
+            publicUrl: assetUrl,
+            key: assetResult.key,
+            size: typeof assetResult.size === 'number' ? assetResult.size : file.size,
+            type: 'uploaded'
+          })
+        }
+
         const tableName = isModelUpload ? 'uploaded_models' : 'uploaded_locations'
         const assetName = sanitizeOptionalString(formData.get('name')) || file.name.split('.')[0]
         const assetSubtitle = sanitizeOptionalString(formData.get('subtitle'))

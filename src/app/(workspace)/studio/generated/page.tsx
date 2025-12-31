@@ -27,13 +27,8 @@ const formatDate = (dateString: string, style: 'short' | 'long' = 'short') => {
 }
 
 // 슬림 이미지 타입 (그리드용)
-type GeneratedImageSlim = {
-    id: string
-    group_id?: string
-    image_url: string
-    prompt?: string
-    created_at: string
-}
+
+import { useGeneratedImages, GeneratedImageSlim } from '@/hooks/useGeneratedImages'
 
 // 상세 이미지 타입 (모달용)
 type GeneratedImageDetail = GeneratedImageSlim & {
@@ -42,17 +37,8 @@ type GeneratedImageDetail = GeneratedImageSlim & {
     generation_params?: Record<string, unknown>
 }
 
-const PAGE_SIZE = 24
-
 // 간단한 blur placeholder (동적 생성 불필요 시 사용)
 const BLUR_DATA_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAPEAAB/cAf/Z'
-
-// SWR fetcher with error handling
-const fetcher = async (url: string) => {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Failed to fetch')
-    return res.json()
-}
 
 export default function GeneratedPage() {
     const { user, isLoaded } = useUser()
@@ -65,27 +51,19 @@ export default function GeneratedPage() {
     const detailCacheRef = useRef<Record<string, GeneratedImageDetail>>({})
     const detailRequestRef = useRef<string | null>(null)
 
-    // SWR Infinite for pagination
-    const getKey = (pageIndex: number, previousPageData: { data: GeneratedImageSlim[], hasMore: boolean } | null) => {
-        if (!user) return null
-        if (previousPageData && !previousPageData.hasMore) return null
-        return `/api/studio/generated?limit=${PAGE_SIZE}&offset=${pageIndex * PAGE_SIZE}`
-    }
-
-    const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite<{
-        success: boolean
-        data: GeneratedImageSlim[]
-        hasMore: boolean
-    }>(getKey, fetcher, {
-        revalidateOnFocus: false,
-        revalidateFirstPage: false,
-    })
-
-    // Flatten all pages into a single array
-    const images = data ? data.flatMap(page => page.data || []) : []
-    const isLoading = !data && !error
-    const isLoadingMore = isValidating && data && size > 0
-    const hasMore = data ? data[data.length - 1]?.hasMore : false
+    // Use Custom SWR Hook
+    const {
+        data,
+        images,
+        isLoading,
+        isLoadingMore,
+        hasMore,
+        error,
+        size,
+        setSize,
+        mutate,
+        isValidating
+    } = useGeneratedImages({ enabled: !!user })
 
     // IntersectionObserver for infinite scroll
     useEffect(() => {
@@ -151,10 +129,13 @@ export default function GeneratedPage() {
 
         // Optimistic update: 즉시 UI에서 제거
         mutate(
-            data?.map(page => ({
-                ...page,
-                data: page.data.filter(img => img.id !== id)
-            })),
+            (currentData) => {
+                if (!currentData) return []
+                return currentData.map(page => ({
+                    ...page,
+                    data: page.data.filter(img => img.id !== id)
+                }))
+            },
             false // revalidate 하지 않음
         )
         handleCloseModal()
@@ -164,7 +145,7 @@ export default function GeneratedPage() {
         })
 
         try {
-            const response = await fetch('/api/studio/generated', {
+            const response = await fetch('/api/generated-images', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id }),
@@ -330,7 +311,7 @@ export default function GeneratedPage() {
                                     {/* Info on hover */}
                                     <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
                                         <p className="text-white text-sm font-medium truncate">{image.prompt || 'Untitled'}</p>
-                                        <p className="text-white/60 text-xs mt-0.5">
+                                        <p className="text-white/60 text-xs mt-0.5" suppressHydrationWarning>
                                             {formatDate(image.created_at, 'short')}
                                         </p>
                                     </div>
@@ -525,7 +506,7 @@ export default function GeneratedPage() {
                             {/* Date */}
                             <div className="mb-8">
                                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Created</h4>
-                                <p className="text-sm">{formatDate(selectedImage.created_at, 'long')}</p>
+                                <p className="text-sm" suppressHydrationWarning>{formatDate(selectedImage.created_at, 'long')}</p>
                             </div>
 
                             {/* Actions */}

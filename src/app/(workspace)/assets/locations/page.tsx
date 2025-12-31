@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import useSWR from 'swr'
 import { useUser } from '@clerk/nextjs'
 import { Plus, Search, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react'
 import Image from 'next/image'
@@ -19,39 +20,23 @@ type LocationAsset = {
 
 export default function LocationsPage() {
   const { user, isLoaded } = useUser()
-  const [locations, setLocations] = useState<LocationAsset[]>([])
-  const [loading, setLoading] = useState(true)
+
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { push: toast } = useToast()
 
-  const fetchLocations = async () => {
-    if (!user) return
-    try {
-      setLoading(true)
-      const response = await fetch('/api/locations')
-      if (!response.ok) throw new Error('Failed to fetch locations')
-      const result = await response.json()
-      if (result.success) {
-        setLocations(result.data)
-      }
-    } catch (error) {
-      console.error('Error fetching locations:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load locations. Please try again.',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
-  useEffect(() => {
-    if (isLoaded && user) {
-      fetchLocations()
-    }
-  }, [isLoaded, user])
+  const { data, error, isLoading, mutate } = useSWR('/api/locations', fetcher, {
+    revalidateOnFocus: false
+  })
+
+  // Normalize data
+  const locations: LocationAsset[] = data?.success ? data.data : []
+
+
+
 
   const handleUploadLocation = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -61,12 +46,44 @@ export default function LocationsPage() {
 
     try {
       setUploading(true)
-      await uploadFileToR2(file, { type: 'location', assetId: `location-${Date.now()}` })
+      setUploading(true)
+
+      // Step 1: Upload image to R2 (skip DB insert)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'location')
+      formData.append('assetId', `location-${Date.now()}`)
+
+      const uploadRes = await fetch('/api/upload-image?skipDb=true', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const uploadJson = await uploadRes.json()
+
+      if (!uploadJson.success || !uploadJson.publicUrl) {
+        throw new Error('Failed to get image URL')
+      }
+
+      // Step 2: Create Location via API
+      const createRes = await fetch('/api/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name.split('.')[0],
+          imageUrl: uploadJson.publicUrl,
+          subtitle: 'Uploaded Location'
+        })
+      })
+
+      if (!createRes.ok) throw new Error('Failed to create location record')
+
+      mutate() // Revalidate cache
       toast({
         title: 'Uploaded',
         description: 'Location uploaded successfully.',
       })
-      fetchLocations()
     } catch (error) {
       console.error('Error uploading location:', error)
       toast({
@@ -93,7 +110,9 @@ export default function LocationsPage() {
 
       if (!response.ok) throw new Error('Failed to delete location')
 
-      setLocations(previous => previous.filter(location => location.id !== id))
+      if (!response.ok) throw new Error('Failed to delete location')
+
+      mutate() // Revalidate cache
       toast({
         title: 'Deleted',
         description: 'Location has been removed.',
@@ -157,7 +176,7 @@ export default function LocationsPage() {
           </div>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {[...Array(10)].map((_, index) => (
               <div key={index} className="aspect-[16/9] rounded-xl bg-muted/20 animate-pulse" />

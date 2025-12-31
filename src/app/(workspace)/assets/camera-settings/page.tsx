@@ -8,10 +8,9 @@ import { Input } from '@/components/ui/input'
 import type { CameraPreset } from '@/components/libraries/CameraLibrary'
 import {
   CAMERA_PRESETS,
-  fetchCustomCameraPresets,
+  useCameraPresets,
   createCustomCameraPreset,
   deleteCustomCameraPresetApi,
-  deleteCustomCameraPreset,
 } from '@/components/libraries/CameraLibrary'
 import { cn } from '@/lib/utils'
 
@@ -26,27 +25,12 @@ const createEmptyFormState = (): PresetFormState => ({
 })
 
 export default function CameraSettingsPage() {
-  const [customPresets, setCustomPresets] = useState<CameraPreset[]>([])
+  const { allPresets, isLoading: loading } = useCameraPresets()
   const [formState, setFormState] = useState<PresetFormState>(createEmptyFormState)
   const [creating, setCreating] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [showTooltip, setShowTooltip] = useState(false)
 
-  // 초기 로드 시 API에서 가져오기
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    fetchCustomCameraPresets()
-      .then(presets => {
-        if (mounted) setCustomPresets(presets)
-      })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
 
-  const allPresets = [...CAMERA_PRESETS, ...customPresets]
 
   const handleChange =
     (field: keyof PresetFormState) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -75,7 +59,6 @@ export default function CameraSettingsPage() {
 
       const created = await createCustomCameraPreset(newPreset)
       if (created) {
-        setCustomPresets(previous => [created, ...previous])
         setFormState(createEmptyFormState())
       }
     } finally {
@@ -87,11 +70,10 @@ export default function CameraSettingsPage() {
     if (!window.confirm('Delete this preset?')) return
 
     // 먼저 UI에서 제거
-    setCustomPresets(previous => previous.filter(p => p.id !== presetId))
+    // SWR handles updates via mutate
 
     // API 호출 + localStorage 삭제
     await deleteCustomCameraPresetApi(presetId)
-    deleteCustomCameraPreset(presetId)
   }
 
   return (
@@ -203,7 +185,7 @@ export default function CameraSettingsPage() {
             {loading && <Loader2 className="inline-block w-3 h-3 ml-2 animate-spin text-muted-foreground" />}
           </h2>
           <div className="grid gap-2">
-            {loading && customPresets.length === 0 && (
+            {loading && allPresets.length === CAMERA_PRESETS.length && (
               <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 Loading presets...

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
+import useSWR from 'swr'
 import { useUser } from '@clerk/nextjs'
 import { Plus, Upload, Search, MoreHorizontal, Trash2, Loader2, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,57 +27,80 @@ type ModelAsset = {
 
 export default function ModelsPage() {
   const { user, isLoaded } = useUser()
-  const [models, setModels] = useState<ModelAsset[]>([])
-  const [loading, setLoading] = useState(true)
+  const { push: toast } = useToast()
+
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
+  const { data, error, isLoading, mutate } = useSWR('/api/models', fetcher, {
+    revalidateOnFocus: false
+  })
+
+  // Normalize data
+  const models: ModelAsset[] = (data?.success ? data.data : []).map((item: any) => ({
+    ...item,
+    is_public: (item.is_public === 1 || item.is_public === true || item.is_public === '1') ? 1 : 0
+  }))
+
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { push: toast } = useToast()
 
-  // Fetch Models
-  const fetchModels = async () => {
-    if (!user) return
-    try {
-      setLoading(true)
-      const response = await fetch('/api/models')
-      if (!response.ok) throw new Error('Failed to fetch models')
-      const result = await response.json()
-      if (result.success) {
-        setModels(result.data.map((item: any) => ({
-          ...item,
-          is_public: (item.is_public === 1 || item.is_public === true || item.is_public === '1') ? 1 : 0
-        })))
-      }
-    } catch (error) {
-      console.error('Error fetching models:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load models. Please try again.',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  useEffect(() => {
-    if (isLoaded && user) {
-      fetchModels()
-    }
-  }, [isLoaded, user])
+
 
   // Handle Upload
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadModel = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     try {
       setUploading(true)
-      await uploadFileToR2(file, { type: 'model', assetId: `model-${Date.now()}` })
+
+      // Step 1: Upload image to R2 (skip DB insert)
+      // We need to construct the R2 URL properly if uploadFileToR2 returns just logic
+      // Actually uploadFileToR2 implementation in imageUpload.ts calls /api/upload-image
+      // I need to make sure I'm passing skipDb to it or modify uploadFileToR2 to accept query params
+      // Since I can't easily change the hook signature used everywhere, I will manually fetch here for the two-step process
+      // OR better, I'll update uploadFileToR2 to support custom query params if needed, but for now manual fetch is safer 
+      // to avoid breaking other things.
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'model')
+      formData.append('assetId', `model-${Date.now()}`)
+
+      const uploadRes = await fetch('/api/upload-image?skipDb=true', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const uploadJson = await uploadRes.json()
+
+      if (!uploadJson.success || !uploadJson.publicUrl) {
+        throw new Error('Failed to get image URL')
+      }
+
+      // Step 2: Create Model via API
+      const createRes = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name.split('.')[0],
+          imageUrl: uploadJson.publicUrl,
+          subtitle: 'Uploaded Reference'
+        })
+      })
+
+      if (!createRes.ok) throw new Error('Failed to create model record')
+
       toast({
-        title: 'Success',
+        title: 'Uploaded',
         description: 'Model uploaded successfully.',
       })
-      fetchModels()
+      mutate() // Revalidate cache
     } catch (error) {
       console.error('Error uploading model:', error)
       toast({
@@ -104,7 +128,7 @@ export default function ModelsPage() {
 
       if (!response.ok) throw new Error('Failed to delete model')
 
-      setModels(prev => prev.filter(m => m.id !== id))
+      mutate() // Revalidate cache
       toast({
         title: 'Deleted',
         description: 'Model has been removed.',
@@ -149,7 +173,7 @@ export default function ModelsPage() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleUpload}
+              onChange={handleUploadModel}
             />
             <Button
               onClick={() => fileInputRef.current?.click()}
@@ -167,7 +191,7 @@ export default function ModelsPage() {
         </div>
 
         {/* Gallery Grid */}
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {[...Array(10)].map((_, i) => (
               <div key={i} className="aspect-[3/4] rounded-xl bg-muted/20 animate-pulse" />
