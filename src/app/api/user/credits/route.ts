@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { getUserById } from '@/lib/db/users'
 import { syncSubscriptionCredits } from '@/lib/credits'
 
+export const runtime = 'nodejs'
+
 export async function GET() {
   try {
     const { userId } = await auth()

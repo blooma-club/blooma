@@ -8,6 +8,8 @@ import {
 } from '@/lib/db/cameraPresets'
 import { z } from 'zod'
 
+export const runtime = 'nodejs'
+
 const handleError = createErrorHandler('api/camera-presets')
 
 const createPresetSchema = z.object({

@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
 
+export const runtime = 'nodejs'
+
 const polarServer =
   process.env.POLAR_SERVER?.toLowerCase() === 'sandbox' ? 'sandbox' : 'production'
 

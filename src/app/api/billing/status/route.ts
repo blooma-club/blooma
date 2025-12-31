@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { hasActiveSubscription } from '@/lib/billing/subscription'
 
+export const runtime = 'nodejs'
+
 export async function GET() {
   const { userId } = await auth()
 
