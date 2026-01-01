@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUser, SignInButton } from '@clerk/nextjs'
@@ -73,6 +73,20 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
 
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  // bfcache에서 페이지가 복원될 때 checkout 상태 리셋
+  // (Polar 결제창에서 뒤로가기 시 버튼이 비활성화된 채로 유지되는 문제 해결)
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setActiveCheckoutPlan(null)
+        setActionError(null)
+      }
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+    return () => window.removeEventListener('pageshow', handlePageShow)
+  }, [])
 
   const shouldFetchStatus = isLoaded && Boolean(user)
   const {
