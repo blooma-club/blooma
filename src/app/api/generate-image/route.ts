@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         front: 'standing_straight, front_view, arms_relaxed_at_sides',
         behind: 'standing_straight, back_view, arms_relaxed_at_sides',
         side: 'standing_straight, side_view, profile, arms_relaxed',
-        quarter: 'standing_straight, three_quarter_view, slight_angle, arms_relaxed',
+        quarter: 'standing_straight, three_quarter_view, slight_angle, arms_relaxed, looking_in_body_direction, gaze_matches_body_angle',
       }
 
       const pose = viewPoses[viewType] || viewPoses.front
