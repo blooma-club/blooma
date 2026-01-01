@@ -10,6 +10,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import useSWR, { mutate as globalMutate } from 'swr'
+
+const PRESETS_API_KEY = '/api/camera-presets'
+
 
 export type CameraPreset = {
   id: string
@@ -50,91 +54,74 @@ export const CAMERA_PRESETS: CameraPreset[] = [
   },
 ]
 
-const CUSTOM_CAMERA_PRESETS_STORAGE_KEY = 'blooma.customCameraPresets.v2'
-
-// localStorage 폴백 함수들 (API 실패 시 사용)
-export const loadCustomCameraPresetsFromStorage = (): CameraPreset[] => {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(CUSTOM_CAMERA_PRESETS_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((value): value is CameraPreset => {
-      if (!value || typeof value !== 'object') return false
-      const preset = value as Partial<CameraPreset>
-      return typeof preset.id === 'string' && typeof preset.title === 'string' && typeof preset.prompt === 'string'
-    })
-  } catch {
-    return []
-  }
-}
-
-export const saveCustomCameraPresetsToStorage = (presets: CameraPreset[]): void => {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(CUSTOM_CAMERA_PRESETS_STORAGE_KEY, JSON.stringify(presets))
-  } catch {
-    // Silent failure – storage access may be blocked
-  }
-}
-
-// API 함수들
-export const fetchCustomCameraPresets = async (): Promise<CameraPreset[]> => {
-  try {
-    const res = await fetch('/api/camera-presets')
+// SWR Hook
+export function useCameraPresets() {
+  const { data, error, isLoading, mutate } = useSWR(PRESETS_API_KEY, async (url) => {
+    const res = await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch')
     const json = await res.json()
-    const presets = json?.data?.presets || []
-    // DB에서 가져온 데이터를 localStorage에도 동기화
-    saveCustomCameraPresetsToStorage(presets)
-    return presets
-  } catch {
-    // API 실패 시 localStorage 폴백
-    return loadCustomCameraPresetsFromStorage()
+    return (json?.data?.presets || []) as CameraPreset[]
+  }, {
+    revalidateOnFocus: false
+  })
+
+  // Combine built-in and custom presets
+  const allPresets = React.useMemo(() => {
+    // If we have data, use it. If loading, show built-ins. If error, show built-ins.
+    const custom = data || []
+    return [...CAMERA_PRESETS, ...custom]
+  }, [data])
+
+  return {
+    presets: data || [],
+    allPresets,
+    isLoading,
+    isError: error,
+    mutate
   }
 }
 
+// API Functions
 export const createCustomCameraPreset = async (preset: Omit<CameraPreset, 'isBuiltIn'>): Promise<CameraPreset | null> => {
   try {
-    const res = await fetch('/api/camera-presets', {
+    const res = await fetch(PRESETS_API_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(preset),
     })
     if (!res.ok) throw new Error('Failed to create')
     const json = await res.json()
-    return json?.data?.preset || null
-  } catch {
-    // API 실패 시 localStorage에 저장
-    const current = loadCustomCameraPresetsFromStorage()
-    const newPreset = { ...preset, isBuiltIn: false }
-    saveCustomCameraPresetsToStorage([...current, newPreset])
-    return newPreset
+    const created = json?.data?.preset
+    if (created) {
+      globalMutate(PRESETS_API_KEY) // Invalidate cache
+    }
+    return created || null
+  } catch (e) {
+    console.error(e)
+    return null
   }
 }
 
 export const deleteCustomCameraPresetApi = async (presetId: string): Promise<boolean> => {
   try {
-    const res = await fetch(`/api/camera-presets?id=${encodeURIComponent(presetId)}`, {
+    const res = await fetch(`${PRESETS_API_KEY}?id=${encodeURIComponent(presetId)}`, {
       method: 'DELETE',
     })
     if (!res.ok) throw new Error('Failed to delete')
+
+    globalMutate(PRESETS_API_KEY) // Invalidate cache
     return true
-  } catch {
+  } catch (e) {
+    console.error(e)
     return false
   }
 }
 
-// 레거시 호환성을 위한 함수들
-export const loadCustomCameraPresets = loadCustomCameraPresetsFromStorage
-export const saveCustomCameraPresets = saveCustomCameraPresetsToStorage
-export const deleteCustomCameraPreset = (presetId: string): CameraPreset[] => {
-  const current = loadCustomCameraPresetsFromStorage()
-  const updated = current.filter(p => p.id !== presetId)
-  saveCustomCameraPresetsToStorage(updated)
-  return updated
-}
+// Legacy exports explicitly marked (can be removed later if unused)
+export const fetchCustomCameraPresets = async () => []
+export const loadCustomCameraPresetsFromStorage = () => []
+export const saveCustomCameraPresetsToStorage = () => { }
+export const deleteCustomCameraPreset = () => []
 
 type CameraLibraryProps = {
   selectedPreset: CameraPreset | null
@@ -151,25 +138,10 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
   open,
   onOpenChange,
 }) => {
-  const [customPresets, setCustomPresets] = React.useState<CameraPreset[]>([])
-  const [loading, setLoading] = React.useState(true)
+  const { allPresets, isLoading: loading } = useCameraPresets()
   const [saving, setSaving] = React.useState(false)
 
-  // 초기 로드 시 API에서 가져오기
-  React.useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    fetchCustomCameraPresets()
-      .then(presets => {
-        if (mounted) setCustomPresets(presets)
-      })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
 
-  const allPresets = React.useMemo(() => [...CAMERA_PRESETS, ...customPresets], [customPresets])
 
   const handleSelect = React.useCallback(
     (preset: CameraPreset, event: Event) => {
@@ -200,9 +172,7 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
     setSaving(true)
     try {
       const created = await createCustomCameraPreset(newPreset)
-      if (created) {
-        setCustomPresets(previous => [...previous, created])
-      }
+      // global mutate is handled in createCustomCameraPreset
     } finally {
       setSaving(false)
     }
@@ -214,14 +184,11 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
 
     if (!window.confirm('Delete this preset?')) return
 
-    // 먼저 UI에서 제거
-    setCustomPresets(previous => previous.filter(p => p.id !== presetId))
+    // 먼저 UI에서 제거 (Optimistic update or just wait for revalidate)
+    // SWR will handle revalidation via mutate in deleteCustomCameraPresetApi
 
-    // API 호출 (실패해도 localStorage 폴백)
+    // API 호출
     await deleteCustomCameraPresetApi(presetId)
-
-    // localStorage에서도 삭제
-    deleteCustomCameraPreset(presetId)
 
     // Clear selection if deleted preset was selected
     if (selectedPreset?.id === presetId) {

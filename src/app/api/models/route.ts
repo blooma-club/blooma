@@ -1,6 +1,7 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { listUploadedAssets, deleteUploadedAsset } from '@/lib/db/customAssets'
+import { listUploadedAssets, deleteUploadedAsset, insertUploadedAsset } from '@/lib/db/customAssets'
 import { deleteImageFromR2 } from '@/lib/r2'
 
 export const runtime = 'nodejs'
@@ -23,6 +24,40 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json()
+    const { name, imageUrl, subtitle, projectId, id } = body
+
+    if (!name || !imageUrl) {
+      return NextResponse.json({ error: 'Name and imageUrl are required' }, { status: 400 })
+    }
+
+    const newModel = await insertUploadedAsset('uploaded_models', {
+      id: id || `model-${Date.now()}`,
+      user_id: userId,
+      project_id: projectId,
+      name,
+      subtitle,
+      image_url: imageUrl,
+      // Optional fields that might come from the upload response or client
+      // For now we assume the client provides the URL and we might not have the key/size readily available
+      // unless passed. If missing, they will be null.
+    })
+
+    return NextResponse.json({ success: true, data: newModel })
+
+  } catch (error) {
+    console.error('Failed to create model:', error)
+    return NextResponse.json({ error: 'Failed to create model' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {
@@ -36,7 +71,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const imageKey = await deleteUploadedAsset('uploaded_models', id, userId)
-    
+
     if (imageKey) {
       await deleteImageFromR2(imageKey).catch(console.error)
     }
@@ -47,4 +82,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete model' }, { status: 500 })
   }
 }
-
