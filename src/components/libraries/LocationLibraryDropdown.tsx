@@ -2,22 +2,26 @@
 
 import React from 'react'
 import clsx from 'clsx'
-import { Check, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Image as ImageIcon, Trash2 } from 'lucide-react'
+import Image from 'next/image'
 
 export type LocationLibraryAsset = {
   id: string
   name: string
   subtitle: string
   imageUrl: string
+  isPublic?: boolean
 }
 
-// const LOCATION_LIBRARY_ASSETS: LocationLibraryAsset[] = [] // No longer used
+// const LOCATION_LIBRARY_ASSETS: LocationLibraryAsset[] = [] // No longer used as we fetch from API
 
 type LocationLibraryDropdownProps = {
   selectedAsset: LocationLibraryAsset | null
@@ -48,7 +52,9 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
           id: item.id,
           name: item.name,
           subtitle: item.subtitle || 'Uploaded Reference',
-          imageUrl: item.image_url
+          imageUrl: item.image_url,
+          isPublic: item.is_public === 1 || item.is_public === true || item.is_public === '1',
+          userId: item.user_id // Map user_id from API
         })))
       }
     } catch (error) {
@@ -88,22 +94,22 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
-        <DropdownMenuTrigger asChild>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogTrigger asChild>
           <Button
             variant='outline'
             className={clsx(
               'h-9 px-3 text-sm transition-all duration-300 shadow-sm',
-              'border border-border/40 hover:border-violet-400/40 hover:bg-violet-500/5',
+              'border border-border/40 hover:border-foreground/20 hover:bg-muted/30',
               selectedAsset
-                ? 'text-violet-600 dark:text-violet-300 bg-violet-500/10 border-violet-500/20'
+                ? 'text-foreground bg-muted/20'
                 : 'text-muted-foreground bg-background/60 backdrop-blur-sm'
             )}
           >
             {selectedAsset ? (
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
-                  <img src={selectedAsset.imageUrl} className="w-full h-full object-cover" alt="" />
+                <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-border/20 shadow-sm">
+                  <Image src={selectedAsset.imageUrl} alt="" fill className="object-cover" sizes="16px" />
                 </div>
                 <span className="truncate max-w-[100px] font-medium">{selectedAsset.name}</span>
               </div>
@@ -111,35 +117,32 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
               <span className="font-normal">Location</span>
             )}
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className='w-80 rounded-2xl p-0 z-[80] border border-border/40 bg-background/80 backdrop-blur-xl shadow-2xl supports-[backdrop-filter]:bg-background/60'
-          sideOffset={8}
-        >
-          <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
-            <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Location Reference</h4>
-          </div>
+        </DialogTrigger>
+        <DialogContent className='sm:max-w-md rounded-2xl p-0 overflow-hidden border border-border/40 shadow-2xl bg-background/95 backdrop-blur-xl'>
+          <DialogHeader className="px-6 py-4 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
+            <DialogTitle className="text-sm font-medium tracking-tight">Location Library</DialogTitle>
+          </DialogHeader>
 
           {loading && assets.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="animate-spin w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p className="text-xs text-muted-foreground">Loading locations...</p>
+            <div className="py-16 text-center">
+              <div className="animate-spin w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full mx-auto mb-4"></div>
+              <p className="text-xs text-muted-foreground font-medium">Loading locations...</p>
             </div>
           ) : assets.length === 0 ? (
-            <div className="py-12 px-6 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-600 mb-3 transition-colors hover:bg-violet-500/20">
-                <ImageIcon className="w-4 h-4" strokeWidth={1.5} />
+            <div className="py-20 px-8 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground mb-4">
+                <ImageIcon className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <div>
-                <p className="text-xs font-medium text-foreground">No locations yet</p>
-                <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px] leading-relaxed">Add a location image to set the scene and lighting.</p>
+                <p className="text-sm font-medium text-foreground">No locations yet</p>
+                <p className="text-xs text-muted-foreground mt-2 max-w-[220px] leading-relaxed mx-auto">Add a location reference to set the scene for your shots.</p>
               </div>
             </div>
           ) : (
-            <div className="p-2">
-              <div className='flex flex-col gap-2 max-h-[280px] overflow-y-auto custom-scrollbar p-1'>
+            <div className="p-6">
+              <div className='grid grid-cols-3 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar p-1'>
                 {assets.map(asset => (
-                  <div key={asset.id} className="relative group/item">
+                  <div key={asset.id} className="group relative">
                     <button
                       type='button'
                       onClick={() => {
@@ -147,50 +150,63 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
                         onOpenChange?.(false)
                       }}
                       className={clsx(
-                        'flex w-full items-center gap-3 rounded-xl border p-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 group',
+                        'w-full overflow-hidden rounded-xl border transition-all duration-300 focus:outline-none aspect-[3/4]',
                         selectedAsset?.id === asset.id
-                          ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_10px_rgba(139,92,246,0.15)]'
-                          : 'border-transparent hover:border-violet-500/30 hover:shadow-lg hover:shadow-violet-500/5'
+                          ? 'border-foreground ring-1 ring-foreground'
+                          : 'border-transparent ring-1 ring-border/20 hover:ring-foreground/20'
                       )}
                       aria-label={`Select ${asset.name} location reference`}
                     >
-                      <div className='h-10 w-14 overflow-hidden rounded-lg flex-shrink-0 bg-muted/20 border border-border/20'>
-                        <img src={asset.imageUrl} alt={asset.name} className='h-full w-full object-cover transition-transform duration-500 group-hover:scale-105' />
-                      </div>
-                      <div className='flex flex-col text-left overflow-hidden'>
-                        <span className={clsx(
-                          'text-xs font-medium truncate transition-colors',
-                          selectedAsset?.id === asset.id ? 'text-violet-700 dark:text-violet-300' : 'text-foreground/80'
-                        )}>{asset.name}</span>
-                        <span className='text-[10px] text-muted-foreground truncate'>{asset.subtitle}</span>
-                      </div>
-                      {selectedAsset?.id === asset.id && (
-                        <div className="ml-auto w-5 h-5 rounded-full bg-violet-500/10 flex items-center justify-center">
-                          <Check className='h-3 w-3 text-violet-500' strokeWidth={2} />
+                      <div className='relative w-full h-full overflow-hidden bg-muted/10'>
+                        <Image
+                          src={asset.imageUrl}
+                          alt={asset.name}
+                          fill
+                          className={clsx(
+                            'object-cover transition-transform duration-500 will-change-transform',
+                            selectedAsset?.id === asset.id ? 'scale-105' : 'group-hover:scale-105'
+                          )}
+                          sizes="(max-width: 640px) 33vw, 120px"
+                          quality={75}
+                          loading="lazy"
+                        />
+
+                        {/* Hover Overlay */}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                        {/* Name on Hover */}
+                        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-1 group-hover:translate-y-0">
+                          <p className="text-[10px] font-medium text-white truncate drop-shadow-md text-left">{asset.name}</p>
                         </div>
-                      )}
+
+                        {/* Selected Indicator */}
+                        {selectedAsset?.id === asset.id && (
+                          <div className="absolute inset-0 bg-foreground/5" />
+                        )}
+                      </div>
                     </button>
 
-                    {/* Delete Button - Only visible on hover */}
-                    <button
-                      onClick={(e) => handleDelete(e, asset.id)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover/item:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground z-10"
-                      title="Delete location"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    {/* Delete Button */}
+                    {!asset.isPublic && (
+                      <button
+                        onClick={(e) => handleDelete(e, asset.id)}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-red-500/90 hover:text-white transition-all z-10 backdrop-blur-sm"
+                        title="Delete location"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 ))}
-
               </div>
 
               {selectedAsset && (
-                <div className="px-1 pt-1 mt-1">
+                <div className="pt-4 mt-2 border-t border-border/10">
                   <Button
                     type='button'
                     variant='ghost'
                     size='sm'
-                    className='w-full h-8 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors'
+                    className='w-full h-10 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/5 transition-colors rounded-xl font-medium'
                     onClick={() => {
                       onClear()
                       onOpenChange?.(false)
@@ -202,8 +218,8 @@ const LocationLibraryDropdown: React.FC<LocationLibraryDropdownProps> = ({
               )}
             </div>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

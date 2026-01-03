@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/libraries/ModelLibraryDropdown";
+import LocationLibraryDropdown, { LocationLibraryAsset } from "@/components/libraries/LocationLibraryDropdown";
 import { CAMERA_PRESETS, CameraPreset } from "@/components/libraries/CameraLibrary";
 import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
 import Image from "next/image";
@@ -21,16 +22,20 @@ export default function FittingRoomCreatePage() {
     const { refresh: refreshCredits } = useUserCredits();
     const { push: toast } = useToast();
     const [selectedModels, setSelectedModels] = useState<ModelLibraryAsset[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<LocationLibraryAsset[]>([]);
     const [referenceImages, setReferenceImages] = useState<string[]>([]); // blob URLs for preview
     const [prompt, setPrompt] = useState("");
     const [isPromptOpen, setIsPromptOpen] = useState(false);
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+    const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [isLocationAddMenuOpen, setIsLocationAddMenuOpen] = useState(false);
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K'); // 해상도 선택
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
     const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]); // 카메라 프리셋
     const [modelTier, setModelTier] = useState<'standard' | 'pro'>('standard'); // 모델 티어 선택
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
+    const locationFileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Fix hydration mismatch
     const [isMounted, setIsMounted] = useState(false);
@@ -101,6 +106,18 @@ export default function FittingRoomCreatePage() {
         setSelectedModels((prev) => prev.filter(m => m.id !== modelId));
     };
 
+    const handleLocationSelect = (asset: LocationLibraryAsset) => {
+        setSelectedLocations([asset]);
+    };
+
+    const removeLocation = (locationId: string) => {
+        const locToRemove = selectedLocations.find(l => l.id === locationId);
+        if (locToRemove?.imageUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(locToRemove.imageUrl);
+        }
+        setSelectedLocations((prev) => prev.filter(l => l.id !== locationId));
+    };
+
     const handleGenerate = async () => {
         if (selectedModels.length === 0) {
             setError("Please select a model first");
@@ -112,9 +129,12 @@ export default function FittingRoomCreatePage() {
 
         try {
             const modelImageUrl = selectedModels[0]?.imageUrl;
+            const locationImageUrl = selectedLocations[0]?.imageUrl;
+
             const rawImageUrls = [
                 modelImageUrl,
-                ...referenceImages
+                ...referenceImages,
+                locationImageUrl
             ].filter(Boolean) as string[];
 
             // 모든 URL을 Fal AI가 접근 가능한 공개 URL로 변환
@@ -124,6 +144,9 @@ export default function FittingRoomCreatePage() {
                     return await ensureR2Url(url, uploadOptions);
                 })
             );
+
+            // Location URL 추출 (마지막에 추가했으므로)
+            const finalLocationUrl = locationImageUrl ? imageUrls[imageUrls.length - 1] : null;
 
 
 
@@ -146,6 +169,7 @@ export default function FittingRoomCreatePage() {
                     numImages,  // 생성 개수 (2 또는 4)
                     viewType: selectedCameraPreset.id as 'front' | 'behind' | 'side' | 'quarter',  // View 타입
                     cameraPrompt: selectedCameraPreset.prompt,   // 카메라 프리셋 프롬프트
+                    locationImageUrl: finalLocationUrl, // Location 이미지 URL 전달
                 }),
             });
 
@@ -283,7 +307,7 @@ export default function FittingRoomCreatePage() {
 
                     {/* Right: Controls */}
                     <div className="w-full lg:w-72 flex flex-col gap-4">
-                        <Accordion type="multiple" defaultValue={['model', 'outfit']} className="w-full pl-1 -ml-1">
+                        <Accordion type="multiple" defaultValue={['model', 'outfit', 'location']} className="w-full pl-1 -ml-1">
                             {/* Model */}
                             <AccordionItem value="model" className="border-b border-border/40">
                                 <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
@@ -422,6 +446,101 @@ export default function FittingRoomCreatePage() {
                                                 />
                                             </label>
                                         )}
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+
+                            {/* Location */}
+                            <AccordionItem value="location" className="border-b border-border/40">
+                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
+                                    Location
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-2 pb-6">
+                                    <div className="flex gap-3">
+                                        {selectedLocations.map((loc) => (
+                                            <div
+                                                key={loc.id}
+                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
+                                            >
+                                                <Image
+                                                    src={loc.imageUrl}
+                                                    alt={loc.name}
+                                                    fill
+                                                    className="object-cover object-center"
+                                                    sizes="80px"
+                                                    quality={75}
+                                                    loading="lazy"
+                                                />
+                                                <button
+                                                    onClick={() => removeLocation(loc.id)}
+                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-5 h-5 text-white" />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {selectedLocations.length === 0 && (
+                                            <Popover open={isLocationAddMenuOpen} onOpenChange={setIsLocationAddMenuOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
+                                                        <Plus className="w-5 h-5 text-muted-foreground" />
+                                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                                    </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
+                                                    <button
+                                                        onClick={() => {
+                                                            locationFileInputRef.current?.click();
+                                                            setIsLocationAddMenuOpen(false);
+                                                        }}
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                    >
+                                                        <Upload className="w-4 h-4 text-muted-foreground" />
+                                                        <span>Upload</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsLocationLibraryOpen(true);
+                                                            setIsLocationAddMenuOpen(false);
+                                                        }}
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                    >
+                                                        <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                                                        <span>Library</span>
+                                                    </button>
+                                                </PopoverContent>
+                                            </Popover>
+                                        )}
+
+                                        <input
+                                            ref={locationFileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const tempLoc: LocationLibraryAsset = {
+                                                    id: `temp-loc-${Date.now()}`,
+                                                    name: file.name.split('.')[0],
+                                                    subtitle: 'Uploaded',
+                                                    imageUrl: URL.createObjectURL(file),
+                                                };
+                                                setSelectedLocations([tempLoc]);
+                                                e.target.value = '';
+                                            }}
+                                        />
+
+                                        <div className="hidden">
+                                            <LocationLibraryDropdown
+                                                selectedAsset={selectedLocations[0] || null}
+                                                onSelect={handleLocationSelect}
+                                                onClear={() => setSelectedLocations([])}
+                                                open={isLocationLibraryOpen}
+                                                onOpenChange={setIsLocationLibraryOpen}
+                                            />
+                                        </div>
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>

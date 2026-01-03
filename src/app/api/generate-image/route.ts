@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     if (editModels.includes(effectiveModelId)) {
       const userPrompt = validated.prompt?.trim() || ''
       const viewType = validated.viewType || 'front'
+      const locationImageUrl = body.locationImageUrl // 스키마에 없을 수 있으므로 body에서 직접 참조
 
       // View별 포즈 설정
       const viewPoses: Record<string, string> = {
@@ -86,24 +87,24 @@ export async function POST(request: NextRequest) {
         subject: {
           model_source: 'Use the face and body of the model from the reference image',
           expression: 'neutral_expression, looking_straight_at_camera, confident',
-          pose,
           skin: 'natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed',
-          body_framing: 'COMPLETE full body from head to toes, MUST include feet and shoes',
+          pose,
         },
         apparel: {
           instruction: 'Wear the exact outfit provided in the reference image',
           fit: 'Maintain the original fit, silhouette, and volume of the reference outfit',
           details: 'Keep all details, materials, textures, and colors strictly from the reference outfit',
-          styling: 'High-end streetwear, minimalist styling',
           realism: 'natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body',
           footwear: 'If no shoes provided, add clean minimal white sneakers',
         },
         environment: {
-          background: 'seamless_pure_white_background, infinite_white, #FFFFFF',
+          background: locationImageUrl
+            ? 'Use the background from the provided reference image. Keep the environment exactly as shown in the location image.'
+            : 'seamless_pure_white_background, infinite_white, #FFFFFF',
         },
         technical_specs: {
           lighting: 'soft_even_lighting',
-          image_quality: 'high_resolution, photorealistic, sharp_focus, 8k, raw_photo',
+          image_quality: 'high_resolution, photorealistic, 8k',
           composition: 'centered_subject, leave_space_above_head_and_below_feet',
         },
         negative_prompt: 'cropped_body, partial_body, cut_off_legs, missing_feet, no_shoes',
