@@ -69,6 +69,8 @@ export async function POST(request: NextRequest) {
       const userPrompt = validated.prompt?.trim() || ''
       const viewType = validated.viewType || 'front'
       const locationImageUrl = body.locationImageUrl // 스키마에 없을 수 있으므로 body에서 직접 참조
+      const isModelAuto = body.isModelAuto === true // Model Auto 모드
+      const isLocationAuto = body.isLocationAuto === true // Location Auto 모드
 
       // View별 포즈 설정
       const viewPoses: Record<string, string> = {
@@ -82,12 +84,14 @@ export async function POST(request: NextRequest) {
 
       // JSON 구조 기반 프롬프트
       const promptData = {
-        image_type: 'commercial_fashion_photography',
-        sub_type: 'fashion_studio_lookbook, e-commerce_catalog, full_body_shot',
+        image_type: 'fashion_photography',
         subject: {
-          model_source: 'Use the face and body of the model from the reference image',
-          expression: 'neutral_expression, looking_straight_at_camera, confident',
-          skin: 'natural_skin_texture, realistic_pores, raw_photo_style, not_airbrushed',
+          model_source: isModelAuto
+            ? 'Generate a professional fashion model that naturally complements the outfit style, aesthetic, and vibe. Choose appropriate age, body type, and features that match the clothing style.'
+            : 'Use the face and body of the model from the reference image',
+          ...(!isModelAuto ? { face_id_strength: 0.9 } : {}),
+          expression: 'neutral_expression, confident',
+          skin: 'natural_skin_texture, raw_photo_style, not_airbrushed',
           pose,
         },
         apparel: {
@@ -95,24 +99,23 @@ export async function POST(request: NextRequest) {
           fit: 'Maintain the original fit, silhouette, and volume of the reference outfit',
           details: 'Keep all details, materials, textures, and colors strictly from the reference outfit',
           realism: 'natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body',
-          footwear: 'If no shoes provided, add clean minimal white sneakers',
         },
         environment: {
-          background: locationImageUrl
-            ? 'Use the background from the provided reference image. Keep the environment exactly as shown in the location image.'
-            : 'seamless_pure_white_background, infinite_white, #FFFFFF',
+          background: isLocationAuto
+            ? 'Generate a professional studio or lifestyle background that naturally complements the outfit aesthetic and style. Choose an appropriate setting that enhances the clothing presentation.'
+            : 'Use the background from the provided reference image. Keep the environment exactly as shown in the location image.',
         },
         technical_specs: {
-          lighting: 'soft_even_lighting',
+          lighting: 'Automatically determine the best lighting setup that complements the outfit style and background atmosphere. Ensure natural, flattering illumination.',
           image_quality: 'high_resolution, photorealistic, 8k',
-          composition: 'centered_subject, leave_space_above_head_and_below_feet',
+          composition: 'Automatically compose the shot to best showcase the outfit and model. Consider the background and overall aesthetic for optimal framing.',
+          aspect_ratio: '3:4',
         },
-        negative_prompt: 'cropped_body, partial_body, cut_off_legs, missing_feet, no_shoes',
         ...(userPrompt ? { user_details: userPrompt } : {}),
       }
 
       validated.prompt = JSON.stringify(promptData)
-      console.log(`[API] JSON prompt (${viewType}):`, validated.prompt.substring(0, 200) + '...')
+      console.log(`[API] JSON prompt (${viewType}, modelAuto=${isModelAuto}, locationAuto=${isLocationAuto}):`, validated.prompt.substring(0, 200) + '...')
     }
 
     if (effectiveModelId !== modelId) {

@@ -3,6 +3,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Switch } from "@/components/ui/switch"
 
 const Accordion = AccordionPrimitive.Root
 
@@ -52,4 +53,48 @@ const AccordionContent = React.forwardRef<
 ))
 AccordionContent.displayName = AccordionPrimitive.Content.displayName
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
+interface AccordionTriggerWithToggleProps
+    extends React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> {
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+    toggleLabel?: string
+}
+
+const AccordionTriggerWithToggle = React.forwardRef<
+    React.ElementRef<typeof AccordionPrimitive.Trigger>,
+    AccordionTriggerWithToggleProps
+>(({ className, children, checked, onCheckedChange, toggleLabel = "Auto", ...props }, ref) => (
+    <AccordionPrimitive.Header className="flex">
+        <AccordionPrimitive.Trigger
+            ref={ref}
+            className={cn(
+                "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:no-underline",
+                className
+            )}
+            {...props}
+        >
+            {children}
+            <div
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {checked !== undefined && (
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                        {toggleLabel}
+                    </span>
+                )}
+                {checked !== undefined && (
+                    <Switch
+                        checked={checked}
+                        onCheckedChange={onCheckedChange}
+                        className="h-4 w-7 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
+                    />
+                )}
+            </div>
+        </AccordionPrimitive.Trigger>
+    </AccordionPrimitive.Header>
+))
+AccordionTriggerWithToggle.displayName = "AccordionTriggerWithToggle"
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionTriggerWithToggle, AccordionContent }
+

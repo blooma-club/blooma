@@ -14,6 +14,7 @@ import { ensureR2Url, extractR2Key } from "@/lib/imageUpload";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Switch } from "@/components/ui/switch";
 
 // Maximum total images allowed (model + reference images)
 const MAX_TOTAL_IMAGES = 6;
@@ -34,8 +35,12 @@ export default function FittingRoomCreatePage() {
     const [numImages, setNumImages] = useState<2 | 4>(2); // 생성 개수
     const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]); // 카메라 프리셋
     const [modelTier, setModelTier] = useState<'standard' | 'pro'>('standard'); // 모델 티어 선택
+    const [isModelAuto, setIsModelAuto] = useState(false); // Model Auto 토글
+    const [isLocationAuto, setIsLocationAuto] = useState(false); // Location Auto 토글
+    const [isDraggingOutfit, setIsDraggingOutfit] = useState(false); // Outfit 드래그 상태
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
     const locationFileInputRef = React.useRef<HTMLInputElement>(null);
+    const outfitFileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Fix hydration mismatch
     const [isMounted, setIsMounted] = useState(false);
@@ -119,8 +124,9 @@ export default function FittingRoomCreatePage() {
     };
 
     const handleGenerate = async () => {
-        if (selectedModels.length === 0) {
-            setError("Please select a model first");
+        // Model이 Auto가 아닐 때만 모델 선택 필수
+        if (!isModelAuto && selectedModels.length === 0) {
+            setError("Please select a model or enable Auto mode");
             return;
         }
 
@@ -170,6 +176,8 @@ export default function FittingRoomCreatePage() {
                     viewType: selectedCameraPreset.id as 'front' | 'behind' | 'side' | 'quarter',  // View 타입
                     cameraPrompt: selectedCameraPreset.prompt,   // 카메라 프리셋 프롬프트
                     locationImageUrl: finalLocationUrl, // Location 이미지 URL 전달
+                    isModelAuto, // Model Auto 모드
+                    isLocationAuto, // Location Auto 모드
                 }),
             });
 
@@ -236,13 +244,46 @@ export default function FittingRoomCreatePage() {
                     {/* Left: Preview */}
                     <div className="flex flex-col">
                         {/* Preview Area */}
-                        <div className="w-[480px] aspect-[3/4] bg-secondary/30 rounded-2xl overflow-hidden flex items-center justify-center relative border border-border/40">
+                        <div
+                            className={cn(
+                                "w-[480px] aspect-[3/4] bg-secondary/80 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative border transition-all duration-300",
+                                isDraggingOutfit
+                                    ? "border-foreground/20 bg-secondary"
+                                    : "border-border/20 hover:border-border/40"
+                            )}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsDraggingOutfit(true);
+                            }}
+                            onDragLeave={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsDraggingOutfit(false);
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsDraggingOutfit(false);
+                                const files = e.dataTransfer.files;
+                                if (files && files.length > 0) {
+                                    const currentCount = (isModelAuto ? 0 : selectedModels.length) + referenceImages.length;
+                                    const remainingSlots = MAX_TOTAL_IMAGES - currentCount;
+                                    if (remainingSlots > 0) {
+                                        const filesToAdd = Array.from(files).slice(0, remainingSlots);
+                                        const newImages = filesToAdd.map((file) => URL.createObjectURL(file));
+                                        setReferenceImages((prev) => [...prev, ...newImages]);
+                                    }
+                                }
+                            }}
+                        >
+                            {/* Main Content */}
                             {isGenerating ? (
-                                <div className="flex flex-col items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-foreground/5 flex items-center justify-center">
-                                        <Loader2 className="w-6 h-6 animate-spin text-foreground/40" />
+                                <div className="flex flex-col items-center gap-4 animate-pulse">
+                                    <div className="w-10 h-10 rounded-full bg-foreground/5 flex items-center justify-center">
+                                        <Loader2 className="w-5 h-5 animate-spin text-foreground/40" />
                                     </div>
-                                    <p className="text-sm text-muted-foreground">Generating...</p>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Generating</p>
                                 </div>
                             ) : previewImage ? (
                                 <div className="relative w-full h-full">
@@ -252,21 +293,88 @@ export default function FittingRoomCreatePage() {
                                         fill
                                         className="object-contain"
                                         sizes="620px"
-                                        quality={90}
+                                        quality={95}
                                         priority
                                     />
                                 </div>
-                            ) : (
-                                <div className="flex flex-col items-center gap-3">
-                                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center">
-                                        <ImageIcon className="w-7 h-7 text-muted-foreground/40" />
+                            ) : isDraggingOutfit ? (
+                                <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center shadow-lg shadow-black/5">
+                                        <Upload className="w-6 h-6 text-foreground/70" />
                                     </div>
                                     <div className="text-center">
-                                        <p className="text-sm font-medium text-foreground/70">Preview</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            Your creation will appear here
-                                        </p>
+                                        <p className="text-sm font-medium text-foreground/80">Drop to upload</p>
                                     </div>
+                                </div>
+                            ) : (
+                                /* Outfit Upload - Centered & Minimal */
+                                <div className="flex flex-col items-center justify-center w-full h-full p-8 transition-all duration-300">
+                                    {referenceImages.length > 0 ? (
+                                        /* Outfit Thumbnails with Add button */
+                                        <div className="flex gap-4 items-center flex-wrap justify-center animate-in fade-in zoom-in-95 duration-300">
+                                            {referenceImages.map((img, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="relative w-20 aspect-[3/4] rounded-2xl overflow-hidden group shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.02] bg-background"
+                                                >
+                                                    <Image
+                                                        src={img}
+                                                        alt={`Outfit ${idx + 1}`}
+                                                        fill
+                                                        className="object-cover object-center"
+                                                        sizes="80px"
+                                                        quality={80}
+                                                        loading="lazy"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
+                                                    <button
+                                                        onClick={() => removeReferenceImage(idx)}
+                                                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0"
+                                                    >
+                                                        <X className="w-3 h-3 text-white" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {/* Minimal Add Button */}
+                                            {((isModelAuto ? 0 : selectedModels.length) + referenceImages.length) < MAX_TOTAL_IMAGES && (
+                                                <label className="w-20 aspect-[3/4] rounded-2xl border border-border/40 hover:border-foreground/20 bg-background/50 hover:bg-background flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 group">
+                                                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                                                        <Plus className="w-4 h-4 text-foreground/60" />
+                                                    </div>
+                                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider group-hover:text-foreground/70 transition-colors">Add</span>
+                                                    <input
+                                                        ref={outfitFileInputRef}
+                                                        type="file"
+                                                        multiple
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={handleImageUpload}
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Empty state - Very Minimal */
+                                        <label className="flex flex-col items-center gap-5 cursor-pointer group w-full h-full justify-center">
+                                            <div className="w-16 h-16 rounded-full bg-background border border-border/30 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all duration-500 flex items-center justify-center">
+                                                <Plus className="w-6 h-6 text-foreground/40 group-hover:text-foreground/70 transition-colors duration-300" />
+                                            </div>
+                                            <div className="text-center space-y-1.5">
+                                                <p className="text-sm font-medium text-foreground/60 group-hover:text-foreground/90 transition-colors duration-300">Add Outfit</p>
+                                                <p className="text-[11px] text-muted-foreground/60 uppercase tracking-widest group-hover:text-muted-foreground/80 transition-colors duration-300">
+                                                    Drop or click to upload
+                                                </p>
+                                            </div>
+                                            <input
+                                                ref={outfitFileInputRef}
+                                                type="file"
+                                                multiple
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={handleImageUpload}
+                                            />
+                                        </label>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -307,243 +415,217 @@ export default function FittingRoomCreatePage() {
 
                     {/* Right: Controls */}
                     <div className="w-full lg:w-72 flex flex-col gap-4">
-                        <Accordion type="multiple" defaultValue={['model', 'outfit', 'location']} className="w-full pl-1 -ml-1">
+                        <Accordion type="multiple" defaultValue={['model', 'location']} className="w-full pl-1 -ml-1">
                             {/* Model */}
-                            <AccordionItem value="model" className="border-b border-border/40">
-                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
-                                    Model
-                                </AccordionTrigger>
-                                <AccordionContent className="pt-2 pb-6">
-                                    <div className="flex gap-3">
-                                        {selectedModels.map((model) => (
-                                            <div
-                                                key={model.id}
-                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
-                                            >
-                                                <Image
-                                                    src={model.imageUrl}
-                                                    alt={model.name}
-                                                    fill
-                                                    className="object-cover object-center"
-                                                    sizes="80px"
-                                                    quality={75}
-                                                    loading="lazy"
-                                                />
-                                                <button
-                                                    onClick={() => removeModel(model.id)}
-                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-5 h-5 text-white" />
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {selectedModels.length === 0 && (
-                                            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
-                                                        <Plus className="w-5 h-5 text-muted-foreground" />
-                                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
-                                                    </button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
-                                                    <button
-                                                        onClick={() => {
-                                                            modelFileInputRef.current?.click();
-                                                            setIsAddMenuOpen(false);
-                                                        }}
-                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
-                                                    >
-                                                        <Upload className="w-4 h-4 text-muted-foreground" />
-                                                        <span>Upload</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setIsLibraryOpen(true);
-                                                            setIsAddMenuOpen(false);
-                                                        }}
-                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
-                                                    >
-                                                        <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                                                        <span>Library</span>
-                                                    </button>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
-
-                                        <input
-                                            ref={modelFileInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (!file) return;
-                                                const tempModel: ModelLibraryAsset = {
-                                                    id: `temp-${Date.now()}`,
-                                                    name: file.name.split('.')[0],
-                                                    subtitle: 'Uploaded',
-                                                    imageUrl: URL.createObjectURL(file),
-                                                };
-                                                setSelectedModels([tempModel]);
-                                                e.target.value = '';
-                                            }}
+                            <div className="border-b border-border/40">
+                                <div className="flex items-center justify-between py-3">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Model</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Auto</span>
+                                        <Switch
+                                            checked={isModelAuto}
+                                            onCheckedChange={setIsModelAuto}
+                                            className="h-4 w-7 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
                                         />
+                                    </div>
+                                </div>
+                                {!isModelAuto && (
+                                    <div className="pt-2 pb-6">
+                                        <div className="flex gap-3">
+                                            {selectedModels.map((model) => (
+                                                <div
+                                                    key={model.id}
+                                                    className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
+                                                >
+                                                    <Image
+                                                        src={model.imageUrl}
+                                                        alt={model.name}
+                                                        fill
+                                                        className="object-cover object-center"
+                                                        sizes="80px"
+                                                        quality={75}
+                                                        loading="lazy"
+                                                    />
+                                                    <button
+                                                        onClick={() => removeModel(model.id)}
+                                                        className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-5 h-5 text-white" />
+                                                    </button>
+                                                </div>
+                                            ))}
 
-                                        <div className="hidden">
-                                            <ModelLibraryDropdown
-                                                selectedAsset={selectedModels[0] || null}
-                                                onSelect={handleModelSelect}
-                                                onClear={() => setSelectedModels([])}
-                                                open={isLibraryOpen}
-                                                onOpenChange={setIsLibraryOpen}
+                                            {selectedModels.length === 0 && (
+                                                <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
+                                                            <Plus className="w-5 h-5 text-muted-foreground" />
+                                                            <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
+                                                        <button
+                                                            onClick={() => {
+                                                                modelFileInputRef.current?.click();
+                                                                setIsAddMenuOpen(false);
+                                                            }}
+                                                            className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                        >
+                                                            <Upload className="w-4 h-4 text-muted-foreground" />
+                                                            <span>Upload</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsLibraryOpen(true);
+                                                                setIsAddMenuOpen(false);
+                                                            }}
+                                                            className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                        >
+                                                            <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                                                            <span>Library</span>
+                                                        </button>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+
+                                            <input
+                                                ref={modelFileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    const tempModel: ModelLibraryAsset = {
+                                                        id: `temp-${Date.now()}`,
+                                                        name: file.name.split('.')[0],
+                                                        subtitle: 'Uploaded',
+                                                        imageUrl: URL.createObjectURL(file),
+                                                    };
+                                                    setSelectedModels([tempModel]);
+                                                    e.target.value = '';
+                                                }}
                                             />
+
+                                            <div className="hidden">
+                                                <ModelLibraryDropdown
+                                                    selectedAsset={selectedModels[0] || null}
+                                                    onSelect={handleModelSelect}
+                                                    onClear={() => setSelectedModels([])}
+                                                    open={isLibraryOpen}
+                                                    onOpenChange={setIsLibraryOpen}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </AccordionContent>
-                            </AccordionItem>
+                                )}
+                            </div>
 
-                            {/* Outfit */}
-                            <AccordionItem value="outfit" className="border-b border-border/40">
-                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
-                                    Outfit
-                                </AccordionTrigger>
-                                <AccordionContent className="pt-2 pb-6">
-                                    <div className="flex gap-3 flex-wrap">
-                                        {referenceImages.map((img, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
-                                            >
-                                                <Image
-                                                    src={img}
-                                                    alt={`Outfit ${idx + 1}`}
-                                                    fill
-                                                    className="object-cover object-center"
-                                                    sizes="80px"
-                                                    quality={75}
-                                                    loading="lazy"
-                                                />
-                                                <button
-                                                    onClick={() => removeReferenceImage(idx)}
-                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-5 h-5 text-white" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {/* Only show Add button if under limit */}
-                                        {(selectedModels.length + referenceImages.length) < MAX_TOTAL_IMAGES && (
-                                            <label className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all">
-                                                <Plus className="w-5 h-5 text-muted-foreground" />
-                                                <span className="text-[10px] text-muted-foreground font-medium">Add</span>
-                                                <input
-                                                    type="file"
-                                                    multiple
-                                                    accept="image/*"
-                                                    className="hidden"
-                                                    onChange={handleImageUpload}
-                                                />
-                                            </label>
-                                        )}
-                                    </div>
-                                </AccordionContent>
-                            </AccordionItem>
 
                             {/* Location */}
-                            <AccordionItem value="location" className="border-b border-border/40">
-                                <AccordionTrigger className="text-xs font-medium text-muted-foreground uppercase tracking-widest hover:no-underline py-3">
-                                    Location
-                                </AccordionTrigger>
-                                <AccordionContent className="pt-2 pb-6">
-                                    <div className="flex gap-3">
-                                        {selectedLocations.map((loc) => (
-                                            <div
-                                                key={loc.id}
-                                                className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
-                                            >
-                                                <Image
-                                                    src={loc.imageUrl}
-                                                    alt={loc.name}
-                                                    fill
-                                                    className="object-cover object-center"
-                                                    sizes="80px"
-                                                    quality={75}
-                                                    loading="lazy"
-                                                />
-                                                <button
-                                                    onClick={() => removeLocation(loc.id)}
-                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-5 h-5 text-white" />
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {selectedLocations.length === 0 && (
-                                            <Popover open={isLocationAddMenuOpen} onOpenChange={setIsLocationAddMenuOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
-                                                        <Plus className="w-5 h-5 text-muted-foreground" />
-                                                        <span className="text-[10px] text-muted-foreground font-medium">Add</span>
-                                                    </button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
-                                                    <button
-                                                        onClick={() => {
-                                                            locationFileInputRef.current?.click();
-                                                            setIsLocationAddMenuOpen(false);
-                                                        }}
-                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
-                                                    >
-                                                        <Upload className="w-4 h-4 text-muted-foreground" />
-                                                        <span>Upload</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setIsLocationLibraryOpen(true);
-                                                            setIsLocationAddMenuOpen(false);
-                                                        }}
-                                                        className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
-                                                    >
-                                                        <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                                                        <span>Library</span>
-                                                    </button>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
-
-                                        <input
-                                            ref={locationFileInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (!file) return;
-                                                const tempLoc: LocationLibraryAsset = {
-                                                    id: `temp-loc-${Date.now()}`,
-                                                    name: file.name.split('.')[0],
-                                                    subtitle: 'Uploaded',
-                                                    imageUrl: URL.createObjectURL(file),
-                                                };
-                                                setSelectedLocations([tempLoc]);
-                                                e.target.value = '';
-                                            }}
+                            <div className="border-b border-border/40">
+                                <div className="flex items-center justify-between py-3">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Location</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Auto</span>
+                                        <Switch
+                                            checked={isLocationAuto}
+                                            onCheckedChange={setIsLocationAuto}
+                                            className="h-4 w-7 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
                                         />
+                                    </div>
+                                </div>
+                                {!isLocationAuto && (
+                                    <div className="pt-2 pb-6">
+                                        <div className="flex gap-3">
+                                            {selectedLocations.map((loc) => (
+                                                <div
+                                                    key={loc.id}
+                                                    className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden group border border-border/50"
+                                                >
+                                                    <Image
+                                                        src={loc.imageUrl}
+                                                        alt={loc.name}
+                                                        fill
+                                                        className="object-cover object-center"
+                                                        sizes="80px"
+                                                        quality={75}
+                                                        loading="lazy"
+                                                    />
+                                                    <button
+                                                        onClick={() => removeLocation(loc.id)}
+                                                        className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-5 h-5 text-white" />
+                                                    </button>
+                                                </div>
+                                            ))}
 
-                                        <div className="hidden">
-                                            <LocationLibraryDropdown
-                                                selectedAsset={selectedLocations[0] || null}
-                                                onSelect={handleLocationSelect}
-                                                onClear={() => setSelectedLocations([])}
-                                                open={isLocationLibraryOpen}
-                                                onOpenChange={setIsLocationLibraryOpen}
+                                            {selectedLocations.length === 0 && (
+                                                <Popover open={isLocationAddMenuOpen} onOpenChange={setIsLocationAddMenuOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="w-16 aspect-[3/4] rounded-xl border border-dashed border-border hover:border-foreground/30 hover:bg-muted/30 flex flex-col items-center justify-center gap-1.5 transition-all">
+                                                            <Plus className="w-5 h-5 text-muted-foreground" />
+                                                            <span className="text-[10px] text-muted-foreground font-medium">Add</span>
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-44 p-1.5" align="start" sideOffset={8}>
+                                                        <button
+                                                            onClick={() => {
+                                                                locationFileInputRef.current?.click();
+                                                                setIsLocationAddMenuOpen(false);
+                                                            }}
+                                                            className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                        >
+                                                            <Upload className="w-4 h-4 text-muted-foreground" />
+                                                            <span>Upload</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsLocationLibraryOpen(true);
+                                                                setIsLocationAddMenuOpen(false);
+                                                            }}
+                                                            className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted rounded-lg transition-colors w-full text-left"
+                                                        >
+                                                            <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                                                            <span>Library</span>
+                                                        </button>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+
+                                            <input
+                                                ref={locationFileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    const tempLoc: LocationLibraryAsset = {
+                                                        id: `temp-loc-${Date.now()}`,
+                                                        name: file.name.split('.')[0],
+                                                        subtitle: 'Uploaded',
+                                                        imageUrl: URL.createObjectURL(file),
+                                                    };
+                                                    setSelectedLocations([tempLoc]);
+                                                    e.target.value = '';
+                                                }}
                                             />
+
+                                            <div className="hidden">
+                                                <LocationLibraryDropdown
+                                                    selectedAsset={selectedLocations[0] || null}
+                                                    onSelect={handleLocationSelect}
+                                                    onClear={() => setSelectedLocations([])}
+                                                    open={isLocationLibraryOpen}
+                                                    onOpenChange={setIsLocationLibraryOpen}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </AccordionContent>
-                            </AccordionItem>
+                                )}
+                            </div>
 
                             {/* View */}
                             <AccordionItem value="view" className="border-b border-border/40">
