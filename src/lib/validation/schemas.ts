@@ -136,10 +136,63 @@ export const imageGenerationSchema = z.object({
   height: z.number().int().min(128).max(4096).optional(),
   image_url: z.string().url().optional(),
   imageUrls: z.array(imageUrlSchema).max(10).optional(),
+  // Role-separated references (preferred)
+  modelImageUrl: imageUrlSchema.optional(),
+  outfitImageUrls: z.array(imageUrlSchema).max(10).optional(),
+  locationImageUrl: imageUrlSchema.optional(),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
   viewType: z.enum(['front', 'behind', 'side', 'quarter']).optional().default('front'), // deprecated, kept for backward compatibility
   cameraPrompt: z.string().max(1000, 'Camera prompt must be 1000 characters or less').optional(),
+}).superRefine((data, ctx) => {
+  const usesRoleSeparated =
+    typeof data.modelImageUrl === 'string' ||
+    (Array.isArray(data.outfitImageUrls) && data.outfitImageUrls.length > 0) ||
+    typeof data.locationImageUrl === 'string'
+
+  if (usesRoleSeparated) {
+    if (!data.modelImageUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['modelImageUrl'],
+        message: 'modelImageUrl is required',
+      })
+    }
+    if (!data.outfitImageUrls?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['outfitImageUrls'],
+        message: 'At least one outfit reference image is required',
+      })
+    }
+    return
+  }
+
+  if (data.imageUrls?.length) {
+    if (data.imageUrls.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['imageUrls'],
+        message: 'At least 2 reference images are required (model + outfit)',
+      })
+    }
+    return
+  }
+
+  if (data.image_url) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['image_url'],
+      message: 'image_url is not supported; provide modelImageUrl + outfitImageUrls (and optional locationImageUrl)',
+    })
+    return
+  }
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['outfitImageUrls'],
+    message: 'Reference images are required',
+  })
 })
 
 export type ImageGenerationValidated = z.infer<typeof imageGenerationSchema>

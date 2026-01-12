@@ -1,3 +1,11 @@
+/**
+ * @deprecated This module is no longer in use.
+ * Image generation has been migrated to Google Gemini API.
+ * Please use '@/lib/google-ai' instead.
+ * 
+ * This file is kept for reference but should not be imported.
+ */
+
 import { fal } from '@fal-ai/client'
 import type {
   FalAIModel,
@@ -24,6 +32,7 @@ function createPlaceholderImageResult(reason: string): FalAIGenerationResult {
 }
 
 // 지원하는 Fal AI 모델들
+// @deprecated - Use GEMINI_MODELS from '@/lib/google-ai' instead
 export const FAL_AI_MODELS: FalAIModel[] = [
   // Nano Banana Pro Series
   {

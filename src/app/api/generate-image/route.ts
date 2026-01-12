@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors/handlers'
 import { ApiError } from '@/lib/errors/api'
 import { imageGenerationSchema } from '@/lib/validation/schemas'
-import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/fal-ai'
+import { generateImageWithModel, getModelInfo, DEFAULT_MODEL } from '@/lib/google-ai'
 import { getCreditCostForModel } from '@/lib/credits-utils'
 import { consumeCredits, refundCredits } from '@/lib/credits'
 import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/lib/ratelimit'
@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const falKeyConfigured = !!process.env.FAL_KEY?.trim()?.length
-    if (!falKeyConfigured) {
-      console.warn('[API] FAL_KEY is not configured. Image requests will use placeholder output.')
+    const geminiKeyConfigured = !!process.env.GEMINI_API_KEY?.trim()?.length
+    if (!geminiKeyConfigured) {
+      console.warn('[API] GEMINI_API_KEY is not configured. Image requests will use placeholder output.')
     }
 
     const body = await request.json()
@@ -47,30 +47,64 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[API] Requested model: ${modelId}`)
-    // Log only if imageUrls exist
-    if (validated.imageUrls?.length) {
-      console.log(`[API] Reference images:`, validated.imageUrls.length)
+    const usesRoleSeparatedRefs =
+      typeof body.modelImageUrl === 'string' ||
+      Array.isArray(body.outfitImageUrls) ||
+      typeof body.locationImageUrl === 'string'
+
+    // Prepare input images for the model (order matters).
+    // Indexes are 1-based to match human-readable prompt references.
+    let inputImageUrls: string[] = []
+    let modelImageIndex: number | null = null
+    let locationImageIndex: number | null = null
+    let outfitImageIndexes: number[] = []
+
+    const addInputImage = (url: string) => {
+      inputImageUrls.push(url)
+      return inputImageUrls.length
     }
 
-    // Prepare image URLs for the generation
-    let inputImageUrls: string[] = []
-    if (validated.image_url) {
-      inputImageUrls = [validated.image_url]
-    } else if (validated.imageUrls && Array.isArray(validated.imageUrls)) {
+    if (usesRoleSeparatedRefs) {
+      if (validated.modelImageUrl) {
+        modelImageIndex = addInputImage(validated.modelImageUrl)
+      }
+
+      const outfitUrls = validated.outfitImageUrls ?? []
+      for (const url of outfitUrls) {
+        outfitImageIndexes.push(addInputImage(url))
+      }
+
+      if (validated.locationImageUrl) {
+        locationImageIndex = addInputImage(validated.locationImageUrl)
+      }
+
+      console.log('[API] Reference images (role-separated):', {
+        model: Boolean(modelImageIndex),
+        outfits: outfitImageIndexes.length,
+        location: Boolean(locationImageIndex),
+      })
+    } else if (validated.image_url) {
+      modelImageIndex = addInputImage(validated.image_url)
+      console.log('[API] Reference images:', 1)
+    } else if (validated.imageUrls?.length) {
       inputImageUrls = validated.imageUrls
+      modelImageIndex = inputImageUrls.length > 0 ? 1 : null
+      outfitImageIndexes = inputImageUrls.slice(1).map((_, idx) => idx + 2)
+      console.log('[API] Reference images:', inputImageUrls.length)
     }
 
     let effectiveModelId = modelId
     let modelOverrideWarning: string | undefined
+    let promptForModel = validated.prompt
 
     // 이미지 편집 모델 - JSON 기반 프롬프트 (GPT Image 1.5, Nano Banana Pro)
-    const editModels = ['fal-ai/gpt-image-1.5/edit', 'fal-ai/nano-banana-pro/edit']
+    // Gemini models support image editing natively
+    const editModels = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']
     if (editModels.includes(effectiveModelId)) {
       const userPrompt = validated.prompt?.trim() || ''
       const viewType = validated.viewType || 'front'
-      const locationImageUrl = body.locationImageUrl // 스키마에 없을 수 있으므로 body에서 직접 참조
-      const isModelAuto = body.isModelAuto === true // Model Auto 모드
-      const isLocationAuto = body.isLocationAuto === true // Location Auto 모드
+
+      const cameraPrompt = validated.cameraPrompt // 카메라 프롬프트 (렌즈, 조명, 앵글 등)
 
       // View별 포즈 설정
       const viewPoses: Record<string, string> = {
@@ -83,43 +117,95 @@ export async function POST(request: NextRequest) {
       const pose = viewPoses[viewType] || viewPoses.front
 
       // JSON 구조 기반 프롬프트
+
+      if (!modelImageIndex) {
+
+        throw ApiError.badRequest('Model reference image is required')
+
+      }
+
+      if (outfitImageIndexes.length === 0) {
+
+        throw ApiError.badRequest('At least one outfit reference image is required')
+
+      }
+
+
+      const references = {
+        note: 'Image indexes are 1-based and refer to the order of input images provided with this request.',
+        model: { mode: 'reference', image_index: modelImageIndex, face_id_strength: 0.9 },
+        outfits: { mode: 'reference', image_indexes: outfitImageIndexes },
+        location: locationImageIndex
+          ? { mode: 'reference', image_index: locationImageIndex }
+          : { mode: 'studio_neutral' },
+      }
+
+      const modelRefInstruction = `Use the face and body identity from reference Image #${modelImageIndex}.`
+
+      const outfitRefInstruction = `Wear the exact outfit from reference Image(s): ${outfitImageIndexes.map((n) => `#${n}`).join(', ')}.`
+
+      const backgroundInstruction = locationImageIndex
+        ? `Match the environment/background from reference Image #${locationImageIndex}.`
+        : 'Use a clean, neutral studio background.'
+
       const promptData = {
+        version: '1.0',
         image_type: 'fashion_photography',
+        intent: 'high_end_editorial_product_showcase',
+        priorities: [
+          'apparel_fidelity',
+          'identity_fidelity',
+          'pose_fidelity',
+          'lighting_consistency',
+          'background_consistency',
+        ],
+        references,
         subject: {
-          model_source: isModelAuto
-            ? 'Generate a professional fashion model that naturally complements the outfit style, aesthetic, and vibe. Choose appropriate age, body type, and features that match the clothing style.'
-            : 'Use the face and body of the model from the reference image',
-          ...(!isModelAuto ? { face_id_strength: 0.9 } : {}),
+          model_source: modelRefInstruction,
           expression: 'neutral_expression, confident',
           skin: 'natural_skin_texture, raw_photo_style, not_airbrushed',
           pose,
         },
         apparel: {
-          instruction: 'Wear the exact outfit provided in the reference image',
+          instruction: outfitRefInstruction,
           fit: 'Maintain the original fit, silhouette, and volume of the reference outfit',
           details: 'Keep all details, materials, textures, and colors strictly from the reference outfit',
           realism: 'natural_fabric_drape, realistic_folds, soft_wrinkles, fabric_weight, interaction_with_body',
         },
         environment: {
-          background: isLocationAuto
-            ? 'Generate a professional studio or lifestyle background that naturally complements the outfit aesthetic and style. Choose an appropriate setting that enhances the clothing presentation.'
-            : 'Use the background from the provided reference image. Keep the environment exactly as shown in the location image.',
+          background: backgroundInstruction,
         },
         technical_specs: {
-          lighting: 'Automatically determine the best lighting setup that complements the outfit style and background atmosphere. Ensure natural, flattering illumination.',
-          image_quality: 'high_resolution, photorealistic, 8k',
-          composition: 'Automatically compose the shot to best showcase the outfit and model. Consider the background and overall aesthetic for optimal framing.',
+          camera_settings: cameraPrompt || 'Professional editorial fashion photography setup. 50mm lens, clean focus, controlled contrast.',
+          lighting: 'Soft editorial lighting, flattering but realistic. Avoid harsh specular highlights and muddy shadows.',
+          image_quality: 'high_resolution, photorealistic, clean detail, no oversharpening',
+          composition: 'Full-body or outfit-focused framing that clearly showcases fit and fabric details. Keep proportions natural.',
           aspect_ratio: '3:4',
         },
+        quality_gates: [
+          'logos_and_patterns_not_warped',
+          'fabric_texture_realistic_not_painted',
+          'no_extra_accessories_or_garments',
+          'no_text_or_watermarks',
+          'anatomy_correct_no_extra_limbs',
+          'colors_match_reference_no_hue_shift',
+        ],
+        negative_constraints: [
+          'Do not add text, captions, or watermarks',
+          'Do not change the outfit design, layers, or branding',
+          'Avoid plastic skin or heavy beauty retouching',
+          'Avoid exaggerated wide-angle distortion or unnatural proportions',
+          'Do not introduce extra props unless explicitly requested',
+        ],
         ...(userPrompt ? { user_details: userPrompt } : {}),
       }
 
-      validated.prompt = JSON.stringify(promptData)
-      console.log(`[API] JSON prompt (${viewType}, modelAuto=${isModelAuto}, locationAuto=${isLocationAuto}):`, validated.prompt.substring(0, 200) + '...')
+      promptForModel = JSON.stringify(promptData)
+      console.log(`[API] JSON prompt (${viewType}):`, promptForModel.substring(0, 200) + '...')
     }
 
     if (effectiveModelId !== modelId) {
-      console.log('[API] Overriding requested model due to missing reference image', {
+      console.log('[API] Overriding requested model', {
         requestedModel: modelId,
         effectiveModel: effectiveModelId,
       })
@@ -134,7 +220,7 @@ export async function POST(request: NextRequest) {
 
     // 모델 크레딧 기반 선차감 (실패/플레이스홀더 시 환불)
     // numImages? ?? ? ??? ??
-    const fallbackCategory = modelInfo.category === 'inpainting'
+    const fallbackCategory = modelInfo.category === 'image-editing'
       ? 'IMAGE_EDIT'
       : 'IMAGE'
     const baseCreditCost = getCreditCostForModel(effectiveModelId, fallbackCategory, {
@@ -145,7 +231,7 @@ export async function POST(request: NextRequest) {
     console.log(`[API] Credit cost: ${baseCreditCost} per image × ${numImages} = ${creditCost} total`)
     await consumeCredits(userId, creditCost)
 
-    const result = await generateImageWithModel(validated.prompt, effectiveModelId, {
+    const result = await generateImageWithModel(promptForModel, effectiveModelId, {
       style: validated.style,
       aspectRatio: validated.aspectRatio,
       width: validated.width,
@@ -194,7 +280,7 @@ export async function POST(request: NextRequest) {
     return createApiResponse({
       imageUrl: r2ImageUrls[0] || result.imageUrl,
       imageUrls: r2ImageUrls.length > 0 ? r2ImageUrls : result.imageUrls,
-      prompt: validated.prompt,
+      prompt: promptForModel,
       modelUsed: effectiveModelId,
       modelInfo: {
         name: modelInfo.name,
