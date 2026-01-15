@@ -153,11 +153,11 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
   )
 
   const handleAddPreset = async () => {
-    const title = window.prompt('Preset name', 'My camera angle')
+    const title = window.prompt('Preset name', 'My composition')
     if (!title?.trim()) return
 
     const prompt = window.prompt(
-      'Camera prompt (include angle, lens, lighting, etc.)',
+      'Composition prompt (include angle, lens, lighting, etc.)',
       'medium shot, 35mm lens, soft natural lighting, shallow depth of field'
     )
     if (!prompt?.trim()) return
@@ -217,7 +217,7 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
           ) : (
             <div className="flex items-center gap-2">
               <Camera className="w-3.5 h-3.5" />
-              <span>Camera</span>
+              <span>Composition</span>
             </div>
           )}
         </Button>
@@ -227,7 +227,7 @@ const CameraLibrary: React.FC<CameraLibraryProps> = ({
         sideOffset={8}
       >
         <div className="px-3 py-2.5 border-b border-border/30 flex items-center justify-between">
-          <h4 className="text-xs font-medium text-muted-foreground">Camera Presets</h4>
+          <h4 className="text-xs font-medium text-muted-foreground">Composition Presets</h4>
           <button
             onClick={handleAddPreset}
             disabled={saving}

@@ -1,4 +1,5 @@
-import { getModelInfo } from '@/lib/fal-ai'
+import { getModelInfo as getFalModelInfo } from '@/lib/fal-ai'
+import { getModelInfo as getGeminiModelInfo } from '@/lib/google-ai'
 
 export class InsufficientCreditsError extends Error {
   constructor(message = 'Insufficient credits') {
@@ -32,13 +33,15 @@ export function getCreditCostForModel(
     resolution?: string
   }
 ): number {
-  const info = getModelInfo(modelId)
+  const info = getGeminiModelInfo(modelId) ?? getFalModelInfo(modelId)
   if (info && typeof info.credits === 'number' && Number.isFinite(info.credits) && info.credits > 0) {
     let cost = Math.ceil(info.credits)
 
-    // Nano Banana Pro (nanobanana 2) 4K resolution multiplier
+    // 4K resolution multiplier for Pro models
     if (
-      (modelId === 'fal-ai/nano-banana-pro' || modelId === 'fal-ai/nano-banana-pro/edit') &&
+      (modelId === 'fal-ai/nano-banana-pro' ||
+        modelId === 'fal-ai/nano-banana-pro/edit' ||
+        modelId === 'gemini-3-pro-image-preview') &&
       options?.resolution === '4K'
     ) {
       cost *= 2

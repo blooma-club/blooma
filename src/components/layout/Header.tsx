@@ -55,8 +55,8 @@ export function Header() {
                         </div>
                     </Link>
 
-                    {/* Navigation - Segmented Control Style */}
-                    <nav className="hidden md:flex items-center absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-neutral-100/80 p-1 rounded-full">
+                    {/* Navigation - Minimal Tabs */}
+                    <nav className="hidden md:flex items-center gap-6 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
                         {navLinks.map((link) => (
                             <HeaderNavLink key={link.href} link={link} />
                         ))}
@@ -111,7 +111,7 @@ export function Header() {
                             </div>
                         </Link>
 
-                        <nav className="flex flex-col gap-2 flex-1">
+    <nav className="flex flex-col gap-1 flex-1">
                             {navLinks.map((link) => (
                                 <MobileNavLink key={link.href} link={link} onNavigate={() => setMobileOpen(false)} />
                             ))}
@@ -153,10 +153,10 @@ const HeaderNavLink = memo(function HeaderNavLink({
         <Link
             href={link.href}
             className={cn(
-                "flex items-center justify-center px-4 py-1.5 rounded-full transition-all duration-200 text-sm font-medium",
+                "flex items-center justify-center px-1 py-1 text-sm font-medium transition-colors border-b-2 border-transparent",
                 isActive
-                    ? "bg-black text-white shadow-md"
-                    : "text-neutral-500 hover:text-black hover:bg-black/5"
+                    ? "text-foreground border-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:border-foreground/20"
             )}
         >
             {link.label}
@@ -179,10 +179,10 @@ const MobileNavLink = memo(function MobileNavLink({
             href={link.href}
             onClick={onNavigate}
             className={cn(
-                "flex items-center py-4 px-6 rounded-lg transition-colors border-b border-border/10 last:border-0",
+                "flex items-center py-3 px-2 text-base font-medium transition-colors border-b border-transparent",
                 isActive
-                    ? "text-foreground font-semibold text-lg"
-                    : "text-muted-foreground hover:text-foreground text-lg"
+                    ? "text-foreground border-foreground/30"
+                    : "text-muted-foreground hover:text-foreground hover:border-foreground/10"
             )}
         >
             <span>{link.label}</span>

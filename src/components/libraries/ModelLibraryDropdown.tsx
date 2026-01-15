@@ -109,7 +109,7 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
             {selectedAsset ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-sm overflow-hidden relative ring-1 ring-border/20 shadow-sm">
-                  <Image src={selectedAsset.imageUrl} alt="" fill className="object-cover" sizes="16px" />
+                  <Image src={selectedAsset.imageUrl} alt="" fill className="object-cover" sizes="16px" quality={50} />
                 </div>
                 <span className="truncate max-w-[100px] font-medium">{selectedAsset.name}</span>
               </div>
@@ -167,7 +167,7 @@ const ModelLibraryDropdown: React.FC<ModelLibraryDropdownProps> = ({
                             selectedAsset?.id === asset.id ? 'scale-105' : 'group-hover:scale-105'
                           )}
                           sizes="(max-width: 640px) 33vw, 120px"
-                          quality={75}
+                          quality={60}
                           loading="lazy"
                         />
 

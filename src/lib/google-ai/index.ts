@@ -45,6 +45,55 @@ export const GEMINI_MODELS: GeminiModel[] = [
 
 // 기본 모델 설정
 export const DEFAULT_MODEL = 'gemini-2.5-flash-image'
+const PROMPT_ENHANCE_MODEL = process.env.GEMINI_PROMPT_MODEL || 'gemini-3-flash-preview'
+const PROMPT_SYSTEM_INSTRUCTION = `You are a creative director for a fashion brand studio.
+
+Your role is to craft a single, vivid prompt that will guide an AI image generator
+to produce a beautiful, photorealistic fashion editorial image.
+
+You will receive:
+- A model portrait (use this to understand the person's features and presence)
+- Outfit reference(s) (capture the clothing details: colors, materials, silhouette, any logos or patterns)
+- A location/background reference (analyze its lighting, atmosphere, and environment)
+- An optional user prompt with additional creative direction
+
+Study these references carefully, then write one cohesive prompt.
+
+CRITICAL: LIGHTING COHERENCE
+
+When a background/location reference is provided, you must analyze its lighting characteristics:
+- Light direction (where is the sun or light source coming from?)
+- Light quality (harsh midday sun, soft overcast, golden hour, studio lighting?)
+- Shadow direction and intensity
+- Color temperature (warm, cool, neutral?)
+
+Then describe the model as if they are ACTUALLY IN that environment with MATCHING lighting.
+The model should have the same light direction, shadow patterns, and color temperature as the background.
+This is essential — without it, the result will look like a Photoshop cutout.
+
+OUTPUT FORMAT
+
+Start your prompt with this structure:
+[Image style/genre] of [person description] + [action or pose]
+
+Then continue describing the scene naturally — outfit details, environment, and especially
+how the lighting falls on both the model AND the environment consistently.
+
+EXAMPLE:
+"A fashion lookbook photography of a young woman with sleek black hair standing in a modernist concrete courtyard. Strong directional sunlight from the upper right casts sharp geometric shadows across the walls and falls across her left shoulder, creating the same angular shadow patterns on her olive green sweater..."
+
+GUIDING PRINCIPLES
+
+- Preserve the model's identity and the outfit's exact details
+- The model must feel like they BELONG in the environment, not placed on top
+- Match lighting direction, shadow quality, and color temperature between model and background
+- If the user gives specific direction, weave it into your vision
+
+TONE & STYLE
+
+Write like you're describing a vision to a collaborator.
+Clear, evocative, professional. No bullet points, no JSON, no labels.
+Just a flowing, descriptive prompt ready to generate a stunning, cohesive image.`
 
 // Gemini 클라이언트 인스턴스
 let geminiClient: GoogleGenAI | null = null
@@ -208,7 +257,7 @@ export async function generateImageWithModel(
             : undefined
 
         const config: Record<string, unknown> = {
-            responseModalities: ['Image'],
+            responseModalities: ['IMAGE'],
         }
 
         // 이미지 설정 추가
@@ -284,6 +333,60 @@ export async function generateImageWithModel(
             error: errorMessage,
             status: 500,
         }
+    }
+}
+
+export async function generatePromptFromImages(options: {
+    modelImageUrl?: string
+    outfitImageUrls?: string[]
+    locationImageUrl?: string
+    userPrompt?: string
+}): Promise<string | null> {
+    if (!initializeGeminiAI() || !geminiClient) {
+        return null
+    }
+
+    const contents: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = []
+    const userHint = options.userPrompt?.trim() || ''
+    contents.push({ text: `User prompt: ${userHint || 'none'}` })
+
+    const addImage = async (label: string, url?: string) => {
+        if (!url) return
+        const imageData = await fetchImageAsBase64(url)
+        if (!imageData) return
+        contents.push({ text: label })
+        contents.push({
+            inlineData: {
+                mimeType: imageData.mimeType,
+                data: imageData.data,
+            },
+        })
+    }
+
+    await addImage('Model reference image:', options.modelImageUrl)
+    for (const url of options.outfitImageUrls || []) {
+        await addImage('Outfit reference image:', url)
+    }
+    await addImage('Background reference image:', options.locationImageUrl)
+
+    if (contents.length === 1 && !userHint) {
+        return null
+    }
+
+    try {
+        const response = await geminiClient.models.generateContent({
+            model: PROMPT_ENHANCE_MODEL,
+            contents,
+            config: {
+                responseModalities: ['TEXT'],
+                systemInstruction: PROMPT_SYSTEM_INSTRUCTION,
+            },
+        })
+        const text = response.text?.trim()
+        return text || null
+    } catch (error) {
+        console.warn('[GEMINI] Prompt generation failed:', error)
+        return null
     }
 }
 

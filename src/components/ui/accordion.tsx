@@ -64,7 +64,7 @@ const AccordionTriggerWithToggle = React.forwardRef<
     React.ElementRef<typeof AccordionPrimitive.Trigger>,
     AccordionTriggerWithToggleProps
 >(({ className, children, checked, onCheckedChange, toggleLabel = "Auto", ...props }, ref) => (
-    <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Header className="flex items-center">
         <AccordionPrimitive.Trigger
             ref={ref}
             className={cn(
@@ -74,24 +74,22 @@ const AccordionTriggerWithToggle = React.forwardRef<
             {...props}
         >
             {children}
+        </AccordionPrimitive.Trigger>
+        {checked !== undefined && (
             <div
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 pr-4"
                 onClick={(e) => e.stopPropagation()}
             >
-                {checked !== undefined && (
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                        {toggleLabel}
-                    </span>
-                )}
-                {checked !== undefined && (
-                    <Switch
-                        checked={checked}
-                        onCheckedChange={onCheckedChange}
-                        className="h-4 w-7 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
-                    />
-                )}
+                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                    {toggleLabel}
+                </span>
+                <Switch
+                    checked={checked}
+                    onCheckedChange={onCheckedChange}
+                    className="h-4 w-7 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
+                />
             </div>
-        </AccordionPrimitive.Trigger>
+        )}
     </AccordionPrimitive.Header>
 ))
 AccordionTriggerWithToggle.displayName = "AccordionTriggerWithToggle"
