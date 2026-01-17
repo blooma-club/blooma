@@ -2,34 +2,34 @@
 
 ## 1. Executive Summary
 Blooma is a Next.js-based AI image generation platform focused on fashion lookbook workflows.
-It integrates Fal AI for image generation, Cloudflare D1 for data, and R2 for asset storage.
+It integrates Google Gemini for image generation, Supabase (Postgres) for data, and R2 for asset storage.
 
 ## 2. Tech Stack
 - **Framework**: Next.js 16 App Router, React 19, TypeScript
 - **Styling**: Tailwind CSS, shadcn/ui
-- **Database**: Cloudflare D1 (SQLite)
+- **Database**: Supabase (Postgres)
 - **Storage**: Cloudflare R2 (S3-compatible)
-- **AI**: Fal AI (image generation)
-- **Auth**: Clerk
+- **AI**: Google Gemini (image generation)
+- **Auth**: Supabase Auth
 - **Billing**: Polar
 
 ## 3. System Architecture
 ```
 Client (Studio UI)
    -> /api/generate-image
-      -> Fal AI (GPT Image 1.5 Edit / Nano Banana Pro)
+      -> Google Gemini (Gemini 2.5 Flash Image / Gemini 3 Pro Image Preview)
       -> R2 (generated image cache)
    -> /api/studio/generated (save metadata)
-   -> D1 (generated_images)
+   -> Supabase (generated_images)
 
 Assets
    -> /api/upload-image
       -> R2 (models storage)
    -> /api/models
-      -> D1 (uploaded_models)
+      -> Supabase (uploaded_models)
 ```
 
-## 4. Data Model (D1)
+## 4. Data Model (Supabase)
 
 ### users
 - `credits`, `credits_used`: 크레딧 관리
@@ -52,7 +52,7 @@ Assets
 ### Image Generation
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/generate-image` | POST | Generate image via Fal AI, cache to R2 |
+| `/api/generate-image` | POST | Generate image via Gemini, cache to R2 |
 | `/api/studio/generated` | GET/POST/DELETE | Gallery CRUD |
 | `/api/studio/generated/[id]` | GET | Get single image detail |
 
@@ -72,18 +72,18 @@ Assets
 
 ## 6. Image Generation Flow
 
-### Standard Mode (GPT Image 1.5 Edit)
+### Standard Mode (Gemini 2.5 Flash Image)
 1. Client collects: model image + outfit refs + view type + prompt
-2. `POST /api/generate-image` with `modelId: 'fal-ai/gpt-image-1.5/edit'`
-3. Server builds JSON prompt with view-specific pose
-4. Fal AI generates images
+2. `POST /api/generate-image` with `modelId: 'gemini-2.5-flash-image'`
+3. Server builds prompt with view-specific pose
+4. Gemini generates images
 5. Images cached to R2
-6. Client saves to D1 via `/api/studio/generated`
+6. Client saves to Supabase via `/api/studio/generated`
 
-### Pro Mode (Nano Banana Pro)
-- Same flow with `modelId: 'fal-ai/nano-banana-pro/edit'`
+### Pro Mode (Gemini 3 Pro Image Preview)
+- Same flow with `modelId: 'gemini-3-pro-image-preview'`
 - Supports 2K/4K resolution selection
-- Higher credit cost (50 vs 10)
+- Higher credit cost (50 vs 15)
 
 ## 7. Prompt System
 JSON-based structured prompt:
@@ -109,9 +109,9 @@ JSON-based structured prompt:
 ## 8. Credit System
 | Tier | Model | Credits/Image |
 |------|-------|-------------:|
-| Standard | GPT Image 1.5 Edit | 10 |
-| Pro | Nano Banana Pro Edit | 50 |
-| Pro 4K | Nano Banana Pro Edit (4K) | 100 |
+| Standard | Gemini 2.5 Flash Image | 15 |
+| Pro | Gemini 3 Pro Image Preview | 50 |
+| Pro 4K | Gemini 3 Pro Image Preview (4K) | 100 |
 
 ## 9. Storage Conventions
 - Generated images: `projects/studio/storyboard/generated-{uuid}-{index}.png`

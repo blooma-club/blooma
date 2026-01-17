@@ -1,4 +1,4 @@
-export type ClerkUserProfile = {
+export type AuthUserProfile = {
   id: string
   email: string | null
   name: string | null

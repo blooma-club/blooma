@@ -1,14 +1,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { listUploadedAssets, deleteUploadedAsset, insertUploadedAsset } from '@/lib/db/customAssets'
 import { deleteImageFromR2 } from '@/lib/r2'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const projectId = searchParams.get('projectId') || undefined
 
   try {
-    const assets = await listUploadedAssets('uploaded_locations', userId, projectId)
+    const assets = await listUploadedAssets('uploaded_locations', sessionUser.id, projectId)
     return NextResponse.json({ success: true, data: assets })
   } catch (error) {
     console.error('Failed to list locations:', error)
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const newLocation = await insertUploadedAsset('uploaded_locations', {
       id: id || `location-${Date.now()}`,
-      user_id: userId,
+      user_id: sessionUser.id,
       project_id: projectId,
       name,
       subtitle,
@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -67,7 +67,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const imageKey = await deleteUploadedAsset('uploaded_locations', id, userId)
+    const imageKey = await deleteUploadedAsset('uploaded_locations', id, sessionUser.id)
 
     if (imageKey) {
       await deleteImageFromR2(imageKey).catch(console.error)
@@ -79,3 +79,4 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete location' }, { status: 500 })
   }
 }
+

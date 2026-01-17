@@ -6,8 +6,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useUser } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 import CreditsIndicator from '@/components/ui/CreditsIndicator'
 import ProfileMenu from '@/components/layout/ProfileMenu'
@@ -37,8 +37,14 @@ const navLinks = [
 // --- Header Component ---
 export function Header() {
     const [mobileOpen, setMobileOpen] = useState(false)
-    const { user } = useUser()
+    const { user } = useSupabaseUser()
     const isMobile = useIsMobile()
+    const metadata = (user?.user_metadata || {}) as Record<string, unknown>
+    const displayName =
+        (typeof metadata.full_name === 'string' && metadata.full_name) ||
+        (typeof metadata.name === 'string' && metadata.name) ||
+        user?.email ||
+        'User'
 
     // Always use light mode black logo
     const logoSrc = '/blooma_logo_black.webp'
@@ -124,8 +130,8 @@ export function Header() {
                                 <div className="flex items-center gap-3">
                                     <ProfileMenu />
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-medium">{user?.fullName || "User"}</span>
-                                        <span className="text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</span>
+                                        <span className="text-sm font-medium">{displayName}</span>
+                                        <span className="text-xs text-muted-foreground">{user?.email ?? ''}</span>
                                     </div>
                                 </div>
                             </div>

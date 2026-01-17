@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
@@ -16,9 +16,9 @@ const EMPTY_SUBSCRIPTION = {
 const respondWithFallback = () => NextResponse.json(EMPTY_SUBSCRIPTION)
 
 export async function GET() {
-  const { userId } = await auth()
+  const sessionUser = await getSupabaseUserAndSync()
 
-  if (!userId) {
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -38,7 +38,7 @@ export async function GET() {
   try {
     const iterator = await polar.subscriptions.list(
       {
-        externalCustomerId: userId,
+        externalCustomerId: sessionUser.id,
         limit: 10,
       },
       customServerUrl ? { serverURL: customServerUrl } : undefined
@@ -77,3 +77,4 @@ export async function GET() {
     return respondWithFallback()
   }
 }
+

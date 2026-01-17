@@ -1,2 +1,0 @@
-x
-  return compact.length > maxLength ? ${compact.slice(0, maxLength)}?? : compact

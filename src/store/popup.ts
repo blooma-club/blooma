@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type PopupType = 'notEnoughCredit' | null
+export type PopupType = 'notEnoughCredit' | 'login' | null
 
 interface PopupState {
   activePopup: PopupType

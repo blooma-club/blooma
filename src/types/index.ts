@@ -7,7 +7,7 @@ export interface User {
   email: string
   name: string
   avatar_url?: string
-  subscription_tier: 'basic' | 'pro' | 'enterprise' // 구독 플랜
+  subscription_tier: 'free' | 'Small Brands' | 'Agency' | 'Studio' | 'basic' | 'pro' | 'enterprise'
   created_at: string
   updated_at: string
 }

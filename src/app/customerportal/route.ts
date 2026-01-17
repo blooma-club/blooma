@@ -1,7 +1,7 @@
-import { auth, currentUser } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { NextResponse } from 'next/server'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 const polarServer =
   process.env.POLAR_SERVER?.toLowerCase() === 'sandbox' ? 'sandbox' : 'production'
@@ -16,9 +16,9 @@ function resolveAppBaseUrl() {
 }
 
 export async function GET() {
-  const { userId } = await auth()
+  const sessionUser = await getSupabaseUserAndSync()
 
-  if (!userId) {
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -36,12 +36,12 @@ export async function GET() {
   const appBaseUrl = resolveAppBaseUrl()
 
   try {
-    console.log('[customerportal] Creating session for userId:', userId)
+    console.log('[customerportal] Creating session for userId:', sessionUser.id)
     console.log('[customerportal] Using customServerUrl:', customServerUrl ?? 'default')
     
-    // Polar SDK 호출 - customServerUrl이 없으면 두 번째 파라미터 생략
+    // Polar SDK ?몄텧 - customServerUrl???놁쑝硫???踰덉㎏ ?뚮씪誘명꽣 ?앸왂
     const sessionOptions = {
-      externalCustomerId: userId,
+      externalCustomerId: sessionUser.id,
       returnUrl: `${appBaseUrl}/studio/create?billing=portal`,
     }
     
@@ -58,8 +58,8 @@ export async function GET() {
       throw new Error('Missing customer portal URL in Polar response.')
     }
 
-    // Polar.sh Customer Portal로 리다이렉트
-    // 302 Found: 일반적인 리다이렉트 (브라우저가 GET 요청으로 변경)
+    // Polar.sh Customer Portal濡?由щ떎?대젆??
+    // 302 Found: ?쇰컲?곸씤 由щ떎?대젆??(釉뚮씪?곗?媛 GET ?붿껌?쇰줈 蹂寃?
     console.log('[customerportal] Redirecting to:', session.customerPortalUrl)
     return NextResponse.redirect(session.customerPortalUrl, { status: 302 })
   } catch (error: any) {
@@ -70,7 +70,7 @@ export async function GET() {
       name: error?.name,
     })
     
-    // 고객이 존재하지 않는 경우 - 고객을 직접 생성 후 재시도
+    // 怨좉컼??議댁옱?섏? ?딅뒗 寃쎌슦 - 怨좉컼??吏곸젒 ?앹꽦 ???ъ떆??
     const isCustomerNotFoundError =
       error?.statusCode === 422 ||
       error?.body?.includes('Customer does not exist') ||
@@ -80,12 +80,15 @@ export async function GET() {
       console.log('[customerportal] Customer not found, creating new customer')
       
       try {
-        // Clerk에서 사용자 정보 가져오기
-        const user = await currentUser()
-        const email = user?.emailAddresses?.[0]?.emailAddress
-        const name = user?.fullName || user?.firstName || undefined
+        // Supabase?먯꽌 ?ъ슜???뺣낫 媛?몄삤湲?
+        const email = sessionUser.email
+        const metadata = (sessionUser.user_metadata || {}) as Record<string, unknown>
+        const name =
+          (typeof metadata.full_name === 'string' && metadata.full_name) ||
+          (typeof metadata.name === 'string' && metadata.name) ||
+          undefined
 
-        console.log('[customerportal] User info:', { email, name, userId })
+        console.log('[customerportal] User info:', { email, name, userId: sessionUser.id })
 
         if (!email) {
           console.error('[customerportal] User email not found for customer creation')
@@ -95,11 +98,11 @@ export async function GET() {
           )
         }
 
-        // Polar.sh에 고객 직접 생성
+        // Polar.sh??怨좉컼 吏곸젒 ?앹꽦
         const createParams = {
           email,
           name: name ?? undefined,
-          externalId: userId,
+          externalId: sessionUser.id,
         }
         
         const newCustomer = customServerUrl
@@ -108,9 +111,9 @@ export async function GET() {
         
         console.log('[customerportal] Customer created:', newCustomer.id)
 
-        // 고객 생성 후 다시 세션 생성 시도
+        // 怨좉컼 ?앹꽦 ???ㅼ떆 ?몄뀡 ?앹꽦 ?쒕룄
         const sessionOptions = {
-          externalCustomerId: userId,
+          externalCustomerId: sessionUser.id,
           returnUrl: `${appBaseUrl}/studio/create?billing=portal`,
         }
         
@@ -122,7 +125,7 @@ export async function GET() {
           return NextResponse.redirect(session.customerPortalUrl, { status: 302 })
         }
 
-        // 고객은 생성되었지만 포털 URL이 없는 경우 대시보드로 리다이렉트
+        // 怨좉컼? ?앹꽦?섏뿀吏留??ы꽭 URL???녿뒗 寃쎌슦 ??쒕낫?쒕줈 由щ떎?대젆??
         console.log('[customerportal] No portal URL, redirecting to studio create')
         return NextResponse.redirect(`${appBaseUrl}/studio/create?billing=portal`)
       } catch (createError: any) {
@@ -144,3 +147,4 @@ export async function GET() {
     )
   }
 }
+

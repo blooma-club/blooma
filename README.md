@@ -1,33 +1,34 @@
 # Blooma
 
-Blooma is an AI media studio for creators to generate image assets with consistent models, locations, and camera presets. It includes asset libraries, generation history, and credit-based billing.
+Blooma is an AI media studio for creators to generate image assets with consistent models, locations, and composition presets. It includes asset libraries, generation history, and credit-based billing.
 
 ## Product Overview
 
 - Studio for image generation
 - Model library (custom and public)
 - Location library (custom and public)
-- Camera presets
+- Composition presets
 - Generation history for review and reuse
 - Credits and billing (Polar)
-- Authentication and user accounts (Clerk)
+- Authentication and user accounts (Supabase Auth)
 
 ## Tech Stack
 
 - Next.js App Router, React, TypeScript, Tailwind CSS
-- Cloudflare D1 (SQLite) and R2 storage
-- Fal AI for generation
+- Supabase (Postgres) and Cloudflare R2 storage
+- Google Gemini for generation
 - Polar for billing
-- Clerk for auth
+- Supabase Auth
 
 ## Local Development
 
 ### Prerequisites
 
 - Node.js 20+
-- Cloudflare account (D1 and R2)
-- Clerk account
-- Fal AI account
+- Cloudflare account (R2)
+- Supabase project
+- Supabase Auth (Google OAuth)
+- Google AI Studio (Gemini) account
 - Polar account (optional, billing)
 
 ### Setup
@@ -52,12 +53,11 @@ npm run dev
 
 Required for core features:
 
-- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-- CLERK_SECRET_KEY
-- FAL_KEY
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- GEMINI_API_KEY
+- SUPABASE_DATABASE_URL
 - CLOUDFLARE_ACCOUNT_ID
-- CLOUDFLARE_D1_DATABASE_ID
-- CLOUDFLARE_D1_API_TOKEN
 - R2_ACCOUNT_ID
 - R2_ACCESS_KEY_ID
 - R2_SECRET_ACCESS_KEY
@@ -93,7 +93,7 @@ npm run test:e2e:headed  # Playwright headed mode
 ```
 blooma/
   docs/                 # Product and engineering docs
-  migrations/           # D1 migrations
+  supabase/             # Supabase migrations
   public/               # Static assets
   src/
     app/                # Next.js App Router
@@ -112,9 +112,8 @@ blooma/
 - /studio/generated
 - /assets/models
 - /assets/locations
-- /assets/camera-settings
 - /pricing
-- /sign-in, /sign-up
+- /auth
 
 ## API Routes
 
@@ -122,7 +121,6 @@ blooma/
 - /api/image-edit
 - /api/models
 - /api/locations
-- /api/camera-presets
 - /api/upload-image
 - /api/studio/generated
 - /api/studio/generated/[id]
@@ -140,16 +138,12 @@ blooma/
 
 ## Database and Migrations
 
-Migrations live in `migrations/`. Apply them to D1 with:
-
-```bash
-npx wrangler d1 migrations apply blooma --remote
-```
+Supabase migrations live in `supabase/migrations/`. Apply `supabase/migrations/0001_init.sql` to your Supabase project (SQL editor or `psql`).
 
 ## Deployment
 
 - Vercel is a common deployment target for the Next.js app.
-- Ensure D1 and R2 environment variables are configured in your host.
+- Ensure Supabase and R2 environment variables are configured in your host.
 
 ## License
 

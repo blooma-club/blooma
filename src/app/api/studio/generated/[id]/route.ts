@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { getGeneratedImage, GeneratedImage } from '@/lib/db/generatedImages'
 import { reconstructR2Url } from '@/lib/imageUpload'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
@@ -14,21 +14,26 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const { id } = await params
 
-        const image = await getGeneratedImage(id, userId)
+        const image = await getGeneratedImage(id, sessionUser.id)
 
         if (!image) {
             return NextResponse.json({ error: 'Image not found' }, { status: 404 })
         }
 
         // 상세 정보: JSON 필드 파싱 및 URL 처리
-        const outfitKeys = image.source_outfit_urls ? JSON.parse(image.source_outfit_urls) : null
+        const outfitKeys =
+            Array.isArray(image.source_outfit_urls)
+                ? image.source_outfit_urls
+                : (typeof image.source_outfit_urls === 'string'
+                    ? JSON.parse(image.source_outfit_urls)
+                    : null)
 
         // URL 처리 함수: 이미 완전한 URL이면 그대로, R2 키이면 재구성
         const resolveUrl = (url: string | null): string | null => {
@@ -49,7 +54,9 @@ export async function GET(
             ...image,
             source_model_url: resolveUrl(image.source_model_url),
             source_outfit_urls: outfitKeys ? outfitKeys.map((key: string) => resolveUrl(key)) : null,
-            generation_params: image.generation_params ? JSON.parse(image.generation_params) : null,
+            generation_params: image.generation_params && typeof image.generation_params === 'string'
+                ? JSON.parse(image.generation_params)
+                : image.generation_params ?? null,
         }
 
         return NextResponse.json({ success: true, data })

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import {
     createGeneratedImage,
     listGeneratedImages,
@@ -8,17 +7,18 @@ import {
 } from '@/lib/db/generatedImages'
 import { deleteImageFromR2 } from '@/lib/r2'
 import { extractR2Key } from '@/lib/imageUpload'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 /**
  * GET /api/studio/generated
- * 사용자의 생성 이미지 목록 조회 (그리드용 슬림 응답)
+ * ?ъ슜?먯쓽 ?앹꽦 ?대?吏 紐⑸줉 議고쉶 (洹몃━?쒖슜 ?щ┝ ?묐떟)
  */
 export async function GET(request: NextRequest) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
         const offset = parseInt(searchParams.get('offset') || '0', 10)
         const favoritesOnly = searchParams.get('favorites') === 'true'
 
-        const images = await listGeneratedImages(userId, { limit, offset, favoritesOnly })
+        const images = await listGeneratedImages(sessionUser.id, { limit, offset, favoritesOnly })
 
-        // 슬림 응답: 그리드에 필요한 필드만 반환 (id, group_id, image_url, prompt, created_at)
+        // ?щ┝ ?묐떟: 洹몃━?쒖뿉 ?꾩슂???꾨뱶留?諛섑솚 (id, group_id, image_url, prompt, created_at)
         return NextResponse.json({
             success: true,
             data: images,
-            hasMore: images.length === limit // 다음 페이지 존재 여부
+            hasMore: images.length === limit // ?ㅼ쓬 ?섏씠吏 議댁옱 ?щ?
         })
     } catch (error) {
         console.error('[api/studio/generated] GET error:', error)
@@ -44,12 +44,12 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/studio/generated
- * 새 생성 이미지 저장
+ * ???앹꽦 ?대?吏 ???
  */
 export async function POST(request: NextRequest) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -84,15 +84,15 @@ export async function POST(request: NextRequest) {
 
         const image = await createGeneratedImage({
             id,
-            user_id: userId,
+            user_id: sessionUser.id,
             group_id,
             image_url,
             image_key,
             prompt,
             model_id,
-            // source_model_url: 시스템 모델 경로 또는 R2 URL
+            // source_model_url: ?쒖뒪??紐⑤뜽 寃쎈줈 ?먮뒗 R2 URL
             source_model_url: source_model_url || null,
-            // source_outfit_urls: 배열로 저장 (blob URL은 제외됨)
+            // source_outfit_urls: 諛곗뿴濡????(blob URL? ?쒖쇅??
             source_outfit_urls: normalizeOutfitUrls(source_outfit_urls),
             generation_params,
             credit_cost,
@@ -107,12 +107,12 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/studio/generated
- * 이미지 삭제
+ * ?대?吏 ??젣
  */
 export async function DELETE(request: NextRequest) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -121,13 +121,13 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'id is required' }, { status: 400 })
         }
 
-        const result = await deleteGeneratedImage(id, userId)
+        const result = await deleteGeneratedImage(id, sessionUser.id)
 
         if (!result) {
             return NextResponse.json({ error: 'Image not found' }, { status: 404 })
         }
 
-        // R2에서 이미지 삭제 (있는 경우)
+        // R2?먯꽌 ?대?吏 ??젣 (?덈뒗 寃쎌슦)
         if (result.imageKey) {
             await deleteImageFromR2(result.imageKey).catch(console.error)
         }
@@ -141,12 +141,12 @@ export async function DELETE(request: NextRequest) {
 
 /**
  * PATCH /api/studio/generated
- * 즐겨찾기 토글
+ * 利먭꺼李얘린 ?좉?
  */
 export async function PATCH(request: NextRequest) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -157,7 +157,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (action === 'toggle_favorite') {
-            const isFavorite = await toggleFavorite(id, userId)
+            const isFavorite = await toggleFavorite(id, sessionUser.id)
 
             if (isFavorite === null) {
                 return NextResponse.json({ error: 'Image not found' }, { status: 404 })
@@ -172,3 +172,4 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to update image' }, { status: 500 })
     }
 }
+

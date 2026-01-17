@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import { Upload, Image as ImageIcon, X, Plus, FolderOpen, Loader2, Camera } from "lucide-react";
 import { useUserCredits } from "@/hooks/useUserCredits";
 import { Button } from "@/components/ui/button";
@@ -8,17 +9,28 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import ModelLibraryDropdown, { ModelLibraryAsset } from "@/components/libraries/ModelLibraryDropdown";
-import LocationLibraryDropdown, { LocationLibraryAsset } from "@/components/libraries/LocationLibraryDropdown";
-import { CAMERA_PRESETS, CameraPreset } from "@/components/libraries/CameraLibrary";
+import type { ModelLibraryAsset } from "@/components/libraries/ModelLibraryDropdown";
+import type { LocationLibraryAsset } from "@/components/libraries/LocationLibraryDropdown";
+import { COMPOSITION_PRESETS, type CompositionPreset } from "@/lib/compositionPresets";
 import { ensureR2Url } from "@/lib/imageUpload";
 import Image from "next/image";
 import { useToast } from "@/components/ui/toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useHandleCreditError } from "@/hooks/useHandleCreditError";
+import { Switch } from "@/components/ui/switch";
+
+const ModelLibraryDropdown = dynamic(
+    () => import("@/components/libraries/ModelLibraryDropdown"),
+    { ssr: false }
+);
+const LocationLibraryDropdown = dynamic(
+    () => import("@/components/libraries/LocationLibraryDropdown"),
+    { ssr: false }
+);
 
 
 // Maximum total images allowed (model + reference images)
-const MAX_TOTAL_IMAGES = 6;
+const MAX_TOTAL_IMAGES = 8;
 const VIEW_TYPES = ['front', 'behind', 'side', 'quarter'] as const;
 type ViewType = typeof VIEW_TYPES[number];
 const SHOT_SIZE_OPTIONS = [
@@ -34,8 +46,9 @@ const glassCardClass =
     "rounded-2xl border border-transparent bg-white/60 backdrop-blur-md shadow-sm ring-1 ring-border/50 overflow-hidden";
 
 export default function FittingRoomCreatePage() {
-    const { refresh: refreshCredits } = useUserCredits();
+    const { refresh: refreshCredits, subscriptionTier } = useUserCredits();
     const { push: toast } = useToast();
+    const { handleCreditError } = useHandleCreditError();
     const [selectedModels, setSelectedModels] = useState<ModelLibraryAsset[]>([]);
     const [selectedLocations, setSelectedLocations] = useState<LocationLibraryAsset[]>([]);
     const [referenceImages, setReferenceImages] = useState<string[]>([]); // blob URLs for preview
@@ -44,9 +57,10 @@ export default function FittingRoomCreatePage() {
     const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
     const [isLocationAddMenuOpen, setIsLocationAddMenuOpen] = useState(false);
+    const [isInpaintEnabled, setIsInpaintEnabled] = useState(false);
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K');
     const [numImages, setNumImages] = useState<1 | 2 | 4>(2);
-    const [selectedCameraPreset, setSelectedCameraPreset] = useState<CameraPreset>(CAMERA_PRESETS[0]);
+    const [selectedCameraPreset, setSelectedCameraPreset] = useState<CompositionPreset>(COMPOSITION_PRESETS[0]);
     const [shotSize, setShotSize] = useState<ShotSize>('medium-shot');
     const [modelTier, setModelTier] = useState<'standard' | 'pro'>('standard'); // Model Tier (Standard = Nano Banana, Pro = Nano Banana Pro)
     const modelFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -59,6 +73,19 @@ export default function FittingRoomCreatePage() {
         setIsMounted(true);
     }, []);
 
+    const isFreeTier = !subscriptionTier || subscriptionTier === 'free';
+    const isSmallBrands = subscriptionTier === 'Small Brands';
+    const isPro4kRestricted = isFreeTier || isSmallBrands;
+    const hasLocation = selectedLocations.length > 0;
+    const defaultInpaintPrompt =
+        'Place the model into the background. Preserve the background, lighting, and outfit details.';
+
+    React.useEffect(() => {
+        if (!hasLocation && isInpaintEnabled) {
+            setIsInpaintEnabled(false);
+        }
+    }, [hasLocation, isInpaintEnabled]);
+
     const handleModelTierChange = (tier: 'standard' | 'pro') => {
         setModelTier(tier);
 
@@ -69,8 +96,19 @@ export default function FittingRoomCreatePage() {
         }
 
         setNumImages(1);
-        setResolution((prev) => (prev === '1K' ? '2K' : prev));
+        setResolution((prev) => {
+            if (isPro4kRestricted) {
+                return '2K';
+            }
+            return prev === '1K' ? '2K' : prev;
+        });
     };
+
+    React.useEffect(() => {
+        if (modelTier === 'pro' && isPro4kRestricted && resolution === '4K') {
+            setResolution('2K');
+        }
+    }, [modelTier, isPro4kRestricted, resolution]);
 
 
 
@@ -82,8 +120,14 @@ export default function FittingRoomCreatePage() {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const estimatedCredits =
-        (modelTier === 'pro' ? (resolution === '4K' ? 100 : 50) : 15) * numImages;
+    const estimatedCredits = React.useMemo(() => {
+        const baseCost = modelTier === 'pro' ? (resolution === '4K' ? 100 : 50) : 15;
+        return baseCost * numImages;
+    }, [modelTier, resolution, numImages]);
+    const availableProResolutions = React.useMemo(
+        () => (isPro4kRestricted ? ['2K'] : ['2K', '4K']),
+        [isPro4kRestricted]
+    );
 
     if (!isMounted) {
         return null;
@@ -181,35 +225,39 @@ export default function FittingRoomCreatePage() {
             const userPrompt = prompt?.trim() || '';
             let finalPrompt = userPrompt;
 
-            try {
-                const promptResponse = await fetch('/api/generate-image-prompt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userPrompt,
-                        modelImageUrl: modelImageUrlPublic || undefined,
-                        outfitImageUrls: outfitImageUrlsPublic,
-                        locationImageUrl: locationImageUrlPublic || undefined,
-                    }),
-                });
+            if (isInpaintEnabled) {
+                finalPrompt = finalPrompt || defaultInpaintPrompt;
+            } else {
+                try {
+                    const promptResponse = await fetch('/api/generate-image-prompt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userPrompt,
+                            modelImageUrl: modelImageUrlPublic || undefined,
+                            outfitImageUrls: outfitImageUrlsPublic,
+                            locationImageUrl: locationImageUrlPublic || undefined,
+                        }),
+                    });
 
-                const promptResult = await promptResponse.json();
-                const generatedPrompt = promptResult.data?.prompt;
+                    const promptResult = await promptResponse.json();
+                    const generatedPrompt = promptResult.data?.prompt;
 
-                if (promptResponse.ok && generatedPrompt) {
-                    finalPrompt = generatedPrompt;
-                } else {
+                    if (promptResponse.ok && generatedPrompt) {
+                        finalPrompt = generatedPrompt;
+                    } else {
+                        toast({
+                            title: 'Prompt generation failed',
+                            description: 'Using your prompt instead.',
+                        });
+                    }
+                } catch (promptError) {
+                    console.error('Prompt generation failed:', promptError);
                     toast({
                         title: 'Prompt generation failed',
                         description: 'Using your prompt instead.',
                     });
                 }
-            } catch (promptError) {
-                console.error('Prompt generation failed:', promptError);
-                toast({
-                    title: 'Prompt generation failed',
-                    description: 'Using your prompt instead.',
-                });
             }
 
 
@@ -230,6 +278,7 @@ export default function FittingRoomCreatePage() {
                     modelImageUrl: modelImageUrlPublic || undefined,
                     outfitImageUrls: outfitImageUrlsPublic,
                     locationImageUrl: locationImageUrlPublic || undefined,
+                    inpaint: isInpaintEnabled,
                     resolution,
                     numImages,
                     viewType,
@@ -240,6 +289,9 @@ export default function FittingRoomCreatePage() {
 
             const result = await response.json();
 
+            if (!result.success && handleCreditError(result)) {
+                return;
+            }
 
             const generatedImageUrls = [
                 ...(result.data?.imageUrls ?? []),
@@ -464,6 +516,16 @@ export default function FittingRoomCreatePage() {
                                 Location
                             </AccordionTrigger>
                             <AccordionContent className="px-4 pt-2 pb-6">
+                                <div className="mb-3 flex items-center justify-between rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                        Inpaint
+                                    </span>
+                                    <Switch
+                                        checked={isInpaintEnabled}
+                                        onCheckedChange={setIsInpaintEnabled}
+                                        disabled={!hasLocation}
+                                    />
+                                </div>
                                 <div className="flex gap-3">
                                     {selectedLocations.map((loc) => (
                                         <div
@@ -657,17 +719,20 @@ export default function FittingRoomCreatePage() {
                                             View
                                         </p>
                                         <div className="flex gap-2">
-                                            {CAMERA_PRESETS.map((preset) => (
+                                            {COMPOSITION_PRESETS.map((preset) => (
                                                 <button
                                                     key={preset.id}
                                                     onClick={() => setSelectedCameraPreset(preset)}
                                                     className={cn(
                                                         "relative w-16 aspect-[3/4] rounded-xl overflow-hidden transition-all",
                                                         selectedCameraPreset.id === preset.id
-                                                            ? "border-[1.5px] border-foreground"
-                                                            : "border border-border/50 hover:border-foreground/30"
+                                                            ? "border border-foreground/40 bg-foreground/5 shadow-sm"
+                                                            : "border border-transparent hover:bg-muted/40"
                                                     )}
                                                 >
+                                                    {selectedCameraPreset.id === preset.id && (
+                                                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-foreground/70" />
+                                                    )}
                                                     {preset.image ? (
                                                         <Image
                                                             src={preset.image}
@@ -785,7 +850,7 @@ export default function FittingRoomCreatePage() {
                                             </button>
                                         ))
                                     ) : (
-                                        ['2K', '4K'].map((res) => (
+                                        availableProResolutions.map((res) => (
                                             <button
                                                 key={res}
                                                 onClick={() => setResolution(res as '2K' | '4K')}

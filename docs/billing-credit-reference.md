@@ -14,9 +14,9 @@
 ## 월별 크레딧 (PLAN_CREDIT_TOPUPS)
 | PlanId | 월별 크레딧 |
 |---|---:|
-| Small Brands | 2,000 |
-| Agency | 5,000 |
-| Studio | 10,000 |
+| Small Brands | 3,000 |
+| Agency | 7,000 |
+| Studio | 14,000 |
 
 ---
 
@@ -42,7 +42,15 @@
 |---|---:|---|
 | IMAGE | 1 | `CREDIT_COST_IMAGE` |
 | IMAGE_EDIT | 1 | `CREDIT_COST_IMAGE_EDIT` |
-| STORYBOARD_FRAME | 1 | `CREDIT_COST_STORYBOARD_FRAME` (legacy) |
+
+## 모델별 기본 크레딧
+> 모델 정의에 `credits`가 있으면 해당 값을 사용하고, 없을 때만 `CREDIT_COSTS`로 폴백합니다.
+
+| 모델 | 크레딧/장 |
+|---|---:|
+| Gemini 2.5 Flash Image (Standard) | 15 |
+| Gemini 3 Pro Image Preview (Pro) | 50 |
+| Gemini 3 Pro Image Preview (4K) | 100 |
 
 ---
 
@@ -77,8 +85,8 @@
 ```json
 {
   "success": true,
-  "data": {
-    "total": 5000,
+    "data": {
+    "total": 7000,
     "used": 1200,
     "remaining": 3800,
     "percentage": 76,

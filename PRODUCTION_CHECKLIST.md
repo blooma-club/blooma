@@ -4,7 +4,7 @@
 
 - [x] Customer Portal 리다이렉트 작동 확인
 - [x] Pricing 페이지에서 Checkout 작동 확인
-- [x] PlanId 매핑 정확히 설정 (Starter, Pro, Studio)
+- [x] PlanId 매핑 정확히 설정 (Small Brands, Agency, Studio)
 - [x] Webhook 핸들러 개선 (external_id 사용)
 - [x] 구독 상태별 처리 로직 구현 (canceled, revoked, active 등)
 - [x] 구독 취소/해지 시 subscription_tier를 null로 설정
@@ -25,7 +25,7 @@
   - ✅ `subscription.active` - 구독 갱신 시 크레딧 지급 + 플랜 업데이트
   - ✅ `subscription.canceled` - 구독 취소 시 subscription_tier를 null로 설정
   - ✅ `subscription.revoked` - 구독 즉시 해지 시 subscription_tier를 null로 설정
-  - ✅ `order.created` - 일회성 구매 처리 (필요시 크레딧 지급)
+  - ✅ `order.paid` - 일회성 구매 처리 (필요시 크레딧 지급)
 
 **Webhook 처리 로직:**
 - `subscription.created`: 크레딧 지급 + 플랜 업데이트
@@ -43,7 +43,7 @@
 ### 구독 플로우 테스트
 
 1. **Pricing 페이지 접근**
-   - [ ] Starter, Pro, Studio 플랜이 정상 표시되는지 확인
+   - [ ] Small Brands, Agency, Studio 플랜이 정상 표시되는지 확인
    - [ ] 각 플랜의 가격과 크레딧이 정확한지 확인
 
 2. **Checkout 테스트**
@@ -81,15 +81,14 @@ POLAR_API_BASE_URL=https://api.polar.sh  # ✅ 올바른 API URL
 POLAR_WEBHOOK_SECRET=<YOUR_POLAR_WEBHOOK_SECRET>  # Webhook 검증용 Secret
 POLAR_SERVER=production  # 또는 sandbox (테스트 환경)
 
-# Product IDs (Starter, Pro, Studio)
-POLAR_BLOOMA_STARTER_PRODUCT_ID=<YOUR_STARTER_PRODUCT_ID>  # $19/month, 2,200 credits
-POLAR_BLOOMA_PRO_PRODUCT_ID=<YOUR_PRO_PRODUCT_ID>      # $49/month, 6,000 credits
-POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>   # $99/month, 13,000 credits
+# Product IDs (Small Brands, Agency, Studio)
+POLAR_BLOOMA_SMALL_BRANDS_PRODUCT_ID=<YOUR_SMALL_BRANDS_PRODUCT_ID>  # $49/month, 2,000 credits
+POLAR_BLOOMA_AGENCY_PRODUCT_ID=<YOUR_AGENCY_PRODUCT_ID>              # $99/month, 5,000 credits
+POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>              # $189/month, 10,000 credits
 
-# Legacy 환경변수 (호환성 유지)
-# POLAR_BLOOMA_1000_PRODUCT_ID (Starter로 매핑)
-# POLAR_BLOOMA_3000_PRODUCT_ID (Pro로 매핑)
-# POLAR_BLOOMA_5000_PRODUCT_ID (Studio로 매핑)
+# Legacy 환경변수 (월간 fallback)
+# POLAR_BLOOMA_STARTER_PRODUCT_ID (Small Brands로 매핑)
+# POLAR_BLOOMA_PRO_PRODUCT_ID (Agency로 매핑)
 ```
 
 **중요:** 
@@ -122,7 +121,7 @@ POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>   # $99/month, 13,000 cr
 - `subscription.updated`: Status 기반 처리 (canceled/revoked 감지)
 - `subscription.canceled`: subscription_tier → null
 - `subscription.revoked`: subscription_tier → null
-- `isActiveTier`: 실제 플랜만 확인 (Starter, Pro, Studio)
+- `isActiveTier`: 실제 플랜만 확인 (Small Brands, Agency, Studio)
 
 ### 구독 상태 처리
 - **활성 구독**: `active`, `trialing` → 플랜 정보 업데이트

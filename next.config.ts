@@ -66,11 +66,6 @@ remotePatterns.push(
     hostname: 'lh6.googleusercontent.com',
     pathname: '/**'
   },
-  {
-    protocol: 'https',
-    hostname: 'img.clerk.com',
-    pathname: '/**'
-  },
   // FAL AI 이미지 도메인
   {
     protocol: 'https',
@@ -110,6 +105,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['geist'],
   images: {
     remotePatterns,
+    qualities: [50, 75],
     dangerouslyAllowSVG: true,
     contentDispositionType: 'inline',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",

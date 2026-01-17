@@ -1,12 +1,11 @@
-'use server'
+import 'server-only'
 
-import { currentUser } from '@clerk/nextjs/server'
-import { getUserById, type D1UserRecord } from '@/lib/db/users'
+import { getUserById, type UserRecord } from '@/lib/db/users'
 
 /**
  * Checks if a subscription tier represents an active paid plan.
  */
-function isActiveTier(tier: D1UserRecord['subscription_tier']): boolean {
+function isActiveTier(tier: UserRecord['subscription_tier']): boolean {
   if (!tier) return false
   const normalized = tier.toLowerCase()
   // 실제 플랜: 'Small Brands', 'Agency', 'Studio'만 활성 구독으로 간주
@@ -39,10 +38,10 @@ function isPeriodValid(periodEnd: string | null | undefined): boolean {
 }
 
 /**
- * Evaluates subscription status from D1 user record with full metadata.
+ * Evaluates subscription status from the user record with full metadata.
  * Supports cancel_at_period_end: subscription is still active until period ends.
  */
-function evaluateD1Subscription(user: D1UserRecord | null): boolean {
+function evaluateSubscription(user: UserRecord | null): boolean {
   if (!user) return false
 
   const { subscription_tier, subscription_status, current_period_end, cancel_at_period_end } = user
@@ -74,62 +73,27 @@ function evaluateD1Subscription(user: D1UserRecord | null): boolean {
   return false
 }
 
-function extractMetadataFlag(metadata: Record<string, unknown> | undefined | null): boolean {
-  if (!metadata) return false
-
-  if (metadata.subscriptionActive === true) {
-    return true
-  }
-
-  if (typeof metadata.subscription_status === 'string') {
-    return metadata.subscription_status === 'active'
-  }
-
-  if (typeof metadata.subscriptionTier === 'string') {
-    return isActiveTier(metadata.subscriptionTier)
-  }
-
-  return false
-}
-
 /**
  * Determines if a user has an active subscription.
  * 
  * Uses the following logic:
- * 1. Check D1 database for subscription_status + current_period_end
+ * 1. Check database for subscription_status + current_period_end
  * 2. Support cancel_at_period_end - user retains access until period ends
- * 3. Fallback to Clerk metadata if D1 check fails
  * 
- * @param userId Clerk user ID
+ * @param userId Supabase auth user ID
  * @returns true if user has an active subscription
  */
 export async function hasActiveSubscription(userId: string): Promise<boolean> {
-  let userRecord: D1UserRecord | null = null
+  let userRecord: UserRecord | null = null
 
   try {
     userRecord = await getUserById(userId)
   } catch (error) {
-    console.error('Unable to load user from D1 when resolving subscription status', error)
+    console.error('Unable to load user when resolving subscription status', error)
   }
 
-  // Primary check: D1 database with full subscription metadata
-  const dbActive = evaluateD1Subscription(userRecord)
-
-  // Secondary check: Clerk metadata (fallback)
-  let clerkActive = false
-
-  try {
-    const user = await currentUser()
-    if (user) {
-      clerkActive =
-        extractMetadataFlag(user.privateMetadata as Record<string, unknown> | null | undefined) ||
-        extractMetadataFlag(user.publicMetadata as Record<string, unknown> | null | undefined)
-    }
-  } catch (error) {
-    console.warn('Unable to load Clerk user metadata when resolving subscription status', error)
-  }
-
-  return dbActive || clerkActive
+  // Primary check: database with full subscription metadata
+  return evaluateSubscription(userRecord)
 }
 
 /**
@@ -143,7 +107,7 @@ export async function getSubscriptionDetails(userId: string): Promise<{
   periodEnd: string | null
   willCancel: boolean
 }> {
-  let userRecord: D1UserRecord | null = null
+  let userRecord: UserRecord | null = null
 
   try {
     userRecord = await getUserById(userId)
@@ -152,7 +116,7 @@ export async function getSubscriptionDetails(userId: string): Promise<{
   }
 
   return {
-    isActive: evaluateD1Subscription(userRecord),
+    isActive: evaluateSubscription(userRecord),
     tier: userRecord?.subscription_tier ?? null,
     status: userRecord?.subscription_status ?? null,
     periodEnd: userRecord?.current_period_end ?? null,

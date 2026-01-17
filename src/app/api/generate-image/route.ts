@@ -7,6 +7,7 @@ import { getCreditCostForModel } from '@/lib/credits-utils'
 import { consumeCredits, refundCredits } from '@/lib/credits'
 import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/lib/ratelimit'
 import { uploadImageToR2 } from '@/lib/r2'
+import { getUserById } from '@/lib/db/users'
 
 const handleError = createErrorHandler('api/generate-image')
 
@@ -40,6 +41,22 @@ export async function POST(request: NextRequest) {
     const validated = imageGenerationSchema.parse(body)
 
     const modelId = validated.modelId || DEFAULT_MODEL
+    const userRecord = await getUserById(userId)
+    if (!userRecord) {
+      throw ApiError.notFound('User not found')
+    }
+
+    const tier = userRecord.subscription_tier ?? null
+    const isFreeTier = !tier || tier === 'free'
+    const isSmallBrands = tier === 'Small Brands'
+    const isProModel = [
+      'gemini-3-pro-image-preview',
+      'fal-ai/nano-banana-pro',
+      'fal-ai/nano-banana-pro/edit',
+    ].includes(modelId)
+    if ((isFreeTier || isSmallBrands) && isProModel && validated.resolution === '4K') {
+      throw ApiError.forbidden('This plan does not support 4K on Nano Banana Pro.')
+    }
 
     if (!getModelInfo(modelId)) {
       throw ApiError.badRequest(`Unsupported model: ${modelId}`)
@@ -96,6 +113,9 @@ export async function POST(request: NextRequest) {
     let modelOverrideWarning: string | undefined
     let promptForModel = validated.prompt
     let aspectRatioForModel = validated.aspectRatio
+    const inpaintEnabled = validated.inpaint === true
+    const defaultInpaintPrompt =
+      'Place the model into the background. Preserve the background, lighting, and outfit details.'
 
     if (validated.shotSize) {
       const shotSizeMap: Record<string, string> = {
@@ -116,24 +136,30 @@ export async function POST(request: NextRequest) {
       const desiredAspectRatio = validated.aspectRatio || "3:4"
       aspectRatioForModel = desiredAspectRatio
 
-      // Use LLM to generate structured JSON prompt from images + user hint
-      const llmGeneratedPrompt = await generatePromptFromImages({
-        modelImageUrl: validated.modelImageUrl,
-        outfitImageUrls: validated.outfitImageUrls,
-        locationImageUrl: validated.locationImageUrl,
-        userPrompt: validated.prompt,
-      })
+      if (!inpaintEnabled) {
+        // Use LLM to generate structured JSON prompt from images + user hint
+        const llmGeneratedPrompt = await generatePromptFromImages({
+          modelImageUrl: validated.modelImageUrl,
+          outfitImageUrls: validated.outfitImageUrls,
+          locationImageUrl: validated.locationImageUrl,
+          userPrompt: validated.prompt,
+        })
 
-      if (llmGeneratedPrompt) {
-        promptForModel = llmGeneratedPrompt
-        console.log('[API] Using LLM-generated JSON prompt.')
-        console.log('[API] JSON prompt length:', llmGeneratedPrompt.length)
-      } else {
-        // Fallback to user prompt if LLM fails
-        promptForModel = validated.prompt?.trim() || ""
-        console.log('[API] LLM prompt generation failed, using raw user prompt.')
+        if (llmGeneratedPrompt) {
+          promptForModel = llmGeneratedPrompt
+          console.log('[API] Using LLM-generated JSON prompt.')
+          console.log('[API] JSON prompt length:', llmGeneratedPrompt.length)
+        } else {
+          // Fallback to user prompt if LLM fails
+          promptForModel = validated.prompt?.trim() || ""
+          console.log('[API] LLM prompt generation failed, using raw user prompt.')
+        }
+        console.log('[API] Prompt for model:', promptForModel?.substring(0, 200) + '...')
       }
-      console.log('[API] Prompt for model:', promptForModel?.substring(0, 200) + '...')
+    }
+
+    if (inpaintEnabled && (!promptForModel || !promptForModel.trim())) {
+      promptForModel = defaultInpaintPrompt
     }
 
     if (effectiveModelId !== modelId) {

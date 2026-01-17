@@ -7,6 +7,48 @@ import {
   markWebhookEventProcessed,
   markWebhookEventFailed,
 } from '@/lib/db/webhookEvents'
+import { recordCreditTransaction, hasTransactionWithReference } from '@/lib/db/creditTransactions'
+
+export const runtime = 'nodejs'
+
+type PolarWebhookEvent = {
+  id?: string
+  type: string
+  data?: Record<string, unknown>
+  created_at?: string
+}
+
+type PolarCustomer = {
+  id?: string
+  external_id?: string | null
+}
+
+type PolarProduct = {
+  id?: string
+  name?: string | null
+}
+
+type PolarSubscription = {
+  id?: string
+  status?: string
+  customer?: PolarCustomer
+  product_id?: string
+  product?: PolarProduct
+  current_period_start?: string | null
+  current_period_end?: string | null
+  cancel_at_period_end?: boolean
+}
+
+type PolarOrder = {
+  id?: string
+  amount?: number
+  currency?: string
+  billing_reason?: string | null
+  subscription_id?: string | null
+  product_id?: string
+  product?: PolarProduct
+  customer?: PolarCustomer
+}
 
 let cachedWebhook: Webhook | null | undefined
 
@@ -44,235 +86,40 @@ function resolveWebhook(): Webhook | null {
   }
 }
 
-/**
- * Extracts the webhook event ID from headers.
- * Standard Webhooks spec uses 'webhook-id' header.
- */
-function extractWebhookId(headers: Record<string, string>): string | null {
-  // Standard Webhooks spec: webhook-id header (lowercase due to HTTP/2)
-  return headers['webhook-id'] || headers['Webhook-Id'] || null
-}
+function getWebhookHeaders(request: Request): Record<string, string> | null {
+  const webhookId = request.headers.get('webhook-id')
+  const webhookTimestamp = request.headers.get('webhook-timestamp')
+  const webhookSignature = request.headers.get('webhook-signature')
 
-export async function POST(request: Request) {
-  const webhook = resolveWebhook()
-  if (!webhook) {
-    console.error('POLAR_WEBHOOK_SECRET is not configured')
-    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  if (!webhookId || !webhookTimestamp || !webhookSignature) {
+    return null
   }
 
-  // Extract headers early for idempotency check
-  const headers = Object.fromEntries(request.headers)
-  const webhookId = extractWebhookId(headers)
-
-  // If no webhook-id, we cannot guarantee idempotency but still process
-  if (!webhookId) {
-    console.warn('[webhook] No webhook-id header found - idempotency cannot be guaranteed')
-  }
-
-  let eventType: string | null = null
-
-  try {
-    const payload = await request.text()
-
-    const parsedEvent = webhook.verify(payload, headers)
-    if (!isPolarWebhookEvent(parsedEvent)) {
-      console.warn('Received webhook payload without a type property; ignoring event.')
-      return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 })
-    }
-
-    const event = parsedEvent
-    eventType = event.type
-    console.log(`[webhook] Received event: ${event.type}`, webhookId ? `(id: ${webhookId})` : '')
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Idempotency Check: Claim the event before processing
-    // ─────────────────────────────────────────────────────────────────────────
-    if (webhookId) {
-      const claimResult = await tryClaimWebhookEvent(webhookId, event.type)
-
-      if (!claimResult.claimed) {
-        // Event already processed or being processed - return 200 to prevent retries
-        console.log(`[webhook] Duplicate event ${webhookId} - already ${claimResult.existingStatus}`)
-        return NextResponse.json({
-          received: true,
-          duplicate: true,
-          existingStatus: claimResult.existingStatus
-        })
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Process the event
-    // ─────────────────────────────────────────────────────────────────────────
-    switch (event.type) {
-      case 'checkout.created':
-        console.log('[webhook] Checkout created', extractLogInfo(event))
-        break
-
-      case 'checkout.updated':
-        console.log('[webhook] Checkout updated', extractLogInfo(event))
-        break
-
-      case 'subscription.created':
-        await handleSubscriptionCreated(event)
-        break
-
-      case 'subscription.updated':
-        await handleSubscriptionUpdated(event)
-        break
-
-      case 'subscription.active':
-        await handleSubscriptionActive(event)
-        break
-
-      case 'subscription.canceled':
-        await handleSubscriptionCanceled(event)
-        break
-
-      case 'subscription.revoked':
-        await handleSubscriptionRevoked(event)
-        break
-
-      case 'subscription.uncanceled':
-        await handleSubscriptionUncanceled(event)
-        break
-
-      case 'order.created':
-        console.log('[webhook] Order created', extractLogInfo(event))
-        break
-
-      case 'order.paid':
-        await handleOrderPaid(event)
-        break
-
-      default:
-        console.log(`[webhook] Unhandled event type: ${event.type}`)
-    }
-
-    // Mark event as successfully processed
-    if (webhookId) {
-      await markWebhookEventProcessed(webhookId)
-    }
-
-    return NextResponse.json({ received: true })
-  } catch (error) {
-    console.error('[webhook] Processing error:', error)
-
-    // Mark event as failed if we have a webhook ID
-    if (webhookId && eventType) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      try {
-        await markWebhookEventFailed(webhookId, errorMessage)
-      } catch (markError) {
-        console.error('[webhook] Failed to mark event as failed:', markError)
-      }
-    }
-
-    // Return 500 to trigger retry from Polar
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+  return {
+    'webhook-id': webhookId,
+    'webhook-timestamp': webhookTimestamp,
+    'webhook-signature': webhookSignature,
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Type definitions
-// ─────────────────────────────────────────────────────────────────────────────
-
-type PolarWebhookEvent = {
-  type: string
-  data?: Record<string, unknown>
+function isSubscriptionEvent(event: PolarWebhookEvent): event is PolarWebhookEvent & { data: PolarSubscription } {
+  return Boolean(event.data && typeof event.data === 'object')
 }
 
-type PolarCustomer = {
-  id: string
-  external_id?: string
-  email?: string
-  name?: string
+function isOrderEvent(event: PolarWebhookEvent): event is PolarWebhookEvent & { data: PolarOrder } {
+  return Boolean(event.data && typeof event.data === 'object')
 }
-
-type PolarProduct = {
-  id: string
-  name?: string
-}
-
-type PolarSubscription = {
-  id: string
-  status: string
-  customer_id: string
-  customer?: PolarCustomer
-  product_id: string
-  product?: PolarProduct
-  current_period_start?: string
-  current_period_end?: string
-  cancel_at_period_end?: boolean
-}
-
-type SubscriptionEventPayload = PolarWebhookEvent & {
-  data: PolarSubscription
-}
-
-type OrderEventPayload = PolarWebhookEvent & {
-  data: {
-    id: string
-    customer_id: string
-    customer?: PolarCustomer
-    product_id: string
-    product?: PolarProduct
-    amount: number
-    currency: string
-    /** Billing reason: 'purchase', 'subscription_create', 'subscription_cycle', 'subscription_update' */
-    billing_reason?: string
-    /** Associated subscription ID if this order is for a subscription */
-    subscription_id?: string
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Type guards
-// ─────────────────────────────────────────────────────────────────────────────
-
-function isPolarWebhookEvent(value: unknown): value is PolarWebhookEvent {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { type?: unknown }).type === 'string'
-  )
-}
-
-function isSubscriptionEvent(event: PolarWebhookEvent): event is SubscriptionEventPayload {
-  const data = event.data as Record<string, unknown> | undefined
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    (typeof data.customer_id === 'string' || typeof data.customer === 'object')
-  )
-}
-
-function isOrderEvent(event: PolarWebhookEvent): event is OrderEventPayload {
-  const data = event.data as Record<string, unknown> | undefined
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    typeof data.id === 'string' &&
-    (typeof data.customer_id === 'string' || typeof data.customer === 'object')
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper functions
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Polar webhook payload에서 Clerk userId (external_id) 추출
- * Polar 내부 customer_id가 아닌 external_id를 사용해야 함
+ * Extract Supabase auth user ID (external_id) from Polar webhook payload.
+ * Polar customer payload includes external_id when available.
  */
 function extractUserId(data: Record<string, unknown>): string | null {
-  // customer 객체에서 external_id 추출
   const customer = data.customer as PolarCustomer | undefined
   if (customer?.external_id) {
     return customer.external_id
   }
 
-  // subscription 객체 내 customer에서 추출
   const subscription = data as PolarSubscription | undefined
   if (subscription?.customer?.external_id) {
     return subscription.customer.external_id
@@ -303,9 +150,7 @@ function extractLogInfo(event: PolarWebhookEvent): Record<string, unknown> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Event handlers
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function handleSubscriptionCreated(event: PolarWebhookEvent) {
   if (!isSubscriptionEvent(event)) {
@@ -313,7 +158,7 @@ async function handleSubscriptionCreated(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
 
@@ -328,19 +173,17 @@ async function handleSubscriptionCreated(event: PolarWebhookEvent) {
     return
   }
 
-  // 구독 생성 시 크레딧 지급
   const planId = getPlanIdForProductId(productId)
   if (!planId) {
     console.warn('[webhook] subscription.created: Unknown productId', { productId })
     return
   }
 
-  // 구독 정보를 DB에 전체 동기화
   await updateUserSubscription(userId, {
     subscriptionTier: planId,
-    polarSubscriptionId: data.id,
+    polarSubscriptionId: data.id ?? null,
     polarCustomerId: data.customer?.id ?? null,
-    subscriptionStatus: data.status,
+    subscriptionStatus: data.status ?? null,
     currentPeriodStart: data.current_period_start ?? null,
     currentPeriodEnd: data.current_period_end ?? null,
     cancelAtPeriodEnd: data.cancel_at_period_end ?? false,
@@ -353,7 +196,7 @@ async function handleSubscriptionUpdated(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
   const status = data.status?.toLowerCase()
@@ -373,12 +216,9 @@ async function handleSubscriptionUpdated(event: PolarWebhookEvent) {
 
   const planId = productId ? getPlanIdForProductId(productId) : null
 
-  // 구독 상태에 따라 처리
   if (status === 'canceled' || status === 'revoked' || status === 'ended') {
-    // 구독이 취소/해지된 경우 - 상태만 업데이트, tier는 period_end까지 유지 가능
     await updateUserSubscription(userId, {
       subscriptionStatus: status,
-      // tier는 cancel_at_period_end가 true면 유지, 즉시 revoke면 null
       subscriptionTier: status === 'revoked' ? null : (planId ?? undefined),
       currentPeriodEnd: data.current_period_end ?? null,
       cancelAtPeriodEnd: data.cancel_at_period_end ?? false,
@@ -386,10 +226,9 @@ async function handleSubscriptionUpdated(event: PolarWebhookEvent) {
     return
   }
 
-  // 활성 구독인 경우 전체 정보 업데이트
   await updateUserSubscription(userId, {
     subscriptionTier: planId ?? undefined,
-    polarSubscriptionId: data.id,
+    polarSubscriptionId: data.id ?? null,
     polarCustomerId: data.customer?.id ?? null,
     subscriptionStatus: status ?? null,
     currentPeriodStart: data.current_period_start ?? null,
@@ -404,7 +243,7 @@ async function handleSubscriptionActive(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
 
@@ -416,7 +255,6 @@ async function handleSubscriptionActive(event: PolarWebhookEvent) {
     currentPeriodEnd: data.current_period_end,
   })
 
-  // 구독 활성화/갱신 시 크레딧 지급 (매월 갱신)
   if (!userId || !productId) {
     console.warn('[webhook] subscription.active: Missing userId or productId')
     return
@@ -428,15 +266,14 @@ async function handleSubscriptionActive(event: PolarWebhookEvent) {
     return
   }
 
-  // 구독 활성화 시 전체 정보 업데이트
   await updateUserSubscription(userId, {
     subscriptionTier: planId,
-    polarSubscriptionId: data.id,
+    polarSubscriptionId: data.id ?? null,
     polarCustomerId: data.customer?.id ?? null,
     subscriptionStatus: 'active',
     currentPeriodStart: data.current_period_start ?? null,
     currentPeriodEnd: data.current_period_end ?? null,
-    cancelAtPeriodEnd: false, // 활성화되면 취소 플래그 해제
+    cancelAtPeriodEnd: false,
   })
 }
 
@@ -446,7 +283,7 @@ async function handleSubscriptionCanceled(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
   const planId = productId ? getPlanIdForProductId(productId) : null
@@ -459,12 +296,9 @@ async function handleSubscriptionCanceled(event: PolarWebhookEvent) {
     cancelAtPeriodEnd: data.cancel_at_period_end,
   })
 
-  // 구독 취소 시: cancel_at_period_end가 true면 기간 끝까지 유효
-  // tier는 유지하되 상태만 업데이트
   if (userId) {
     await updateUserSubscription(userId, {
       subscriptionStatus: 'canceled',
-      // 기간말 취소인 경우 tier 유지, 즉시 취소면 null
       subscriptionTier: data.cancel_at_period_end ? (planId ?? undefined) : null,
       currentPeriodEnd: data.current_period_end ?? null,
       cancelAtPeriodEnd: data.cancel_at_period_end ?? true,
@@ -478,7 +312,7 @@ async function handleSubscriptionRevoked(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
 
   console.log('[webhook] subscription.revoked', {
@@ -486,7 +320,6 @@ async function handleSubscriptionRevoked(event: PolarWebhookEvent) {
     status: data.status,
   })
 
-  // 구독 즉시 해지 - 모든 권한 박탈
   if (userId) {
     await updateUserSubscription(userId, {
       subscriptionTier: null,
@@ -496,17 +329,13 @@ async function handleSubscriptionRevoked(event: PolarWebhookEvent) {
   }
 }
 
-/**
- * PR-3: subscription.uncanceled 이벤트 처리
- * 사용자가 취소를 철회했을 때 구독 상태를 복구합니다.
- */
 async function handleSubscriptionUncanceled(event: PolarWebhookEvent) {
   if (!isSubscriptionEvent(event)) {
     console.warn('[webhook] subscription.uncanceled: Invalid payload structure')
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
   const planId = productId ? getPlanIdForProductId(productId) : null
@@ -523,23 +352,18 @@ async function handleSubscriptionUncanceled(event: PolarWebhookEvent) {
     return
   }
 
-  // 취소 철회: 구독 상태를 active로 복구하고 cancel_at_period_end를 false로
   await updateUserSubscription(userId, {
     subscriptionTier: planId ?? undefined,
-    polarSubscriptionId: data.id,
+    polarSubscriptionId: data.id ?? null,
     polarCustomerId: data.customer?.id ?? null,
     subscriptionStatus: data.status ?? 'active',
     currentPeriodStart: data.current_period_start ?? null,
     currentPeriodEnd: data.current_period_end ?? null,
-    cancelAtPeriodEnd: false, // 취소 철회됨
+    cancelAtPeriodEnd: false,
   })
 
   console.log(`[webhook] Subscription uncanceled for user ${userId}`)
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Credit Policy Constants (PR-4)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Credit granting policy:
@@ -556,10 +380,10 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
     return
   }
 
-  const { data } = event
+  const data = event.data
   const userId = extractUserId(data)
   const productId = extractProductId(data)
-  const billingReason = data.billing_reason
+  const billingReason = data.billing_reason ?? undefined
 
   console.log('[webhook] order.paid', {
     orderId: data.id,
@@ -571,8 +395,11 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
     subscriptionId: data.subscription_id,
   })
 
-  // PR-4: Grant credits only when payment is complete (order.paid)
-  // Avoid duplicate grants by relying on billing_reason
+  if (!data.id) {
+    console.warn('[webhook] order.paid: Missing order id')
+    return
+  }
+
   if (
     billingReason &&
     CREDIT_GRANTING_BILLING_REASONS.includes(
@@ -581,25 +408,49 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
     userId &&
     productId
   ) {
+    let userRecord: Awaited<ReturnType<typeof getUserById>> = null
+
+    try {
+      userRecord = await getUserById(userId)
+    } catch (error) {
+      console.warn('[webhook] order.paid: Unable to resolve user for credit grant', error)
+    }
+
+    if (!userRecord) {
+      console.warn('[webhook] order.paid: User not found for credit grant', { userId })
+      return
+    }
+
+    const targetUserId = userRecord.id
+    const alreadyGranted = await hasTransactionWithReference(targetUserId, data.id)
+    if (alreadyGranted) {
+      console.log('[webhook] order.paid: Credits already granted for order', { orderId: data.id })
+      return
+    }
+
     const planId = getPlanIdForProductId(productId)
     if (planId) {
       const creditAmount = getCreditsForPlan(planId)
       const interval = getIntervalForProductId(productId)
       if (interval === 'year') {
         if (creditAmount > 0) {
-          try {
-            const user = await getUserById(userId)
-            const hasPeriod = Boolean(user?.current_period_start && user?.current_period_end)
-            if (!hasPeriod) {
-              const nextResetDate = addMonths(new Date(), 1).toISOString()
-              await grantCreditsWithResetDate(userId, creditAmount, nextResetDate)
-              console.log(
-                `[webhook] order.paid: Granted initial credits for yearly plan (missing period metadata) for user ${userId}`
-              )
-              return
-            }
-          } catch (error) {
-            console.warn('[webhook] order.paid: Unable to load user for yearly credit guard', error)
+          const hasPeriod = Boolean(
+            userRecord.current_period_start && userRecord.current_period_end
+          )
+          if (!hasPeriod) {
+            const nextResetDate = addMonths(new Date(), 1).toISOString()
+            await grantCreditsWithResetDate(targetUserId, creditAmount, nextResetDate)
+            await recordCreditTransaction({
+              user_id: targetUserId,
+              amount: creditAmount,
+              type: 'grant',
+              description: 'subscription_create_yearly_initial',
+              reference_id: data.id,
+            }).catch(err => console.warn('[webhook] Failed to record transaction:', err))
+            console.log(
+              `[webhook] order.paid: Granted initial credits for yearly plan (missing period metadata) for user ${targetUserId}`
+            )
+            return
           }
         }
 
@@ -609,7 +460,14 @@ async function handleOrderPaid(event: PolarWebhookEvent) {
 
       if (creditAmount > 0) {
         const nextResetDate = addMonths(new Date(), 1).toISOString()
-        await grantCreditsWithResetDate(userId, creditAmount, nextResetDate)
+        await grantCreditsWithResetDate(targetUserId, creditAmount, nextResetDate)
+        await recordCreditTransaction({
+          user_id: targetUserId,
+          amount: creditAmount,
+          type: 'grant',
+          description: `${billingReason}`,
+          reference_id: data.id,
+        }).catch(err => console.warn('[webhook] Failed to record transaction:', err))
         console.log(
           `[webhook] order.paid: Granted ${creditAmount} credits for user ${userId} (billing_reason: ${billingReason})`
         )
@@ -628,4 +486,73 @@ function addMonths(date: Date, months: number): Date {
   const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
   next.setDate(Math.min(day, lastDay))
   return next
+}
+
+export async function POST(request: Request) {
+  const webhook = resolveWebhook()
+  if (!webhook) {
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  }
+
+  const rawBody = await request.text()
+  const headers = getWebhookHeaders(request)
+
+  if (!headers) {
+    return NextResponse.json({ error: 'Missing webhook headers' }, { status: 400 })
+  }
+
+  let event: PolarWebhookEvent
+  try {
+    event = webhook.verify(rawBody, headers) as PolarWebhookEvent
+  } catch (error) {
+    console.error('[webhook] signature verification failed', error)
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+  }
+
+  const eventId = headers['webhook-id'] || event.id || `${event.type}:${Date.now()}`
+  const claim = await tryClaimWebhookEvent(eventId, event.type)
+  if (!claim.claimed) {
+    return NextResponse.json({
+      ok: true,
+      duplicate: true,
+      status: claim.existingStatus ?? 'unknown',
+    })
+  }
+
+  try {
+    switch (event.type) {
+      case 'subscription.created':
+        await handleSubscriptionCreated(event)
+        break
+      case 'subscription.updated':
+        await handleSubscriptionUpdated(event)
+        break
+      case 'subscription.active':
+        await handleSubscriptionActive(event)
+        break
+      case 'subscription.canceled':
+        await handleSubscriptionCanceled(event)
+        break
+      case 'subscription.revoked':
+        await handleSubscriptionRevoked(event)
+        break
+      case 'subscription.uncanceled':
+        await handleSubscriptionUncanceled(event)
+        break
+      case 'order.paid':
+        await handleOrderPaid(event)
+        break
+      default:
+        console.log('[webhook] Unhandled event type', event.type, extractLogInfo(event))
+        break
+    }
+
+    await markWebhookEventProcessed(eventId)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown webhook handler error'
+    await markWebhookEventFailed(eventId, message)
+    console.error('[webhook] Handler failed', error)
+    return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
+  }
 }

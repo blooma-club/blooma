@@ -1,69 +1,48 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { SignIn, SignedIn, SignedOut, useAuth } from '@clerk/nextjs'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AuthShell from '@/components/auth/AuthShell'
-
-
-const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+import { Button } from '@/components/ui/button'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function AuthPage() {
-  if (!clerkPublishableKey) {
-    return (
-      <AuthShell>
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold text-black">Authentication unavailable</h2>
-          <p className="text-base text-neutral-600">
-            Clerk is not configured for this environment. Set the{' '}
-            <span className="font-mono text-neutral-800">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</span>{' '}
-            environment variable to enable sign in and try again.
-          </p>
-        </div>
-      </AuthShell>
-    )
-  }
-
-  return (
-    <>
-      <SignedOut>
-        <AuthShell>
-          <SignIn
-            routing="path"
-            path="/auth"
-            signUpUrl="/sign-up"
-            afterSignInUrl="/dashboard"
-            afterSignUpUrl="/dashboard"
-            appearance={{
-              elements: {
-                rootBox: 'w-full',
-              },
-            }}
-          />
-        </AuthShell>
-      </SignedOut>
-
-      <SignedIn>
-        <ClerkSyncGate />
-      </SignedIn>
-    </>
-  )
-}
-
-function ClerkSyncGate() {
   const router = useRouter()
-  const { isLoaded, userId } = useAuth()
+  const searchParams = useSearchParams()
+  const { user, isLoading } = useSupabaseUser()
+  const nextPath = searchParams.get('next') ?? '/studio/create'
 
   useEffect(() => {
-    if (isLoaded && userId) {
-      router.push('/dashboard')
+    if (!isLoading && user) {
+      router.push(nextPath)
     }
-  }, [isLoaded, userId, router])
+  }, [isLoading, nextPath, router, user])
 
   return (
     <AuthShell>
-      <div className="space-y-6 text-center">
-        <p className="text-base text-neutral-600">Redirecting to your dashboard...</p>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-black">Sign in</h2>
+          <p className="text-base text-neutral-600">Continue with Google to access your workspace.</p>
+        </div>
+        <Button
+          className="h-11 w-full rounded-xl bg-black text-white hover:bg-black/90"
+          onClick={async () => {
+            try {
+              const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+              await getSupabaseBrowserClient().auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo },
+              })
+            } catch (error) {
+              console.error('Failed to start Google sign-in', error)
+            }
+          }}
+          disabled={isLoading}
+        >
+          Continue with Google
+        </Button>
       </div>
     </AuthShell>
   )

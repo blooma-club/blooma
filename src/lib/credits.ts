@@ -1,18 +1,11 @@
-'use server'
+import 'server-only'
 
-import { queryD1, queryD1Single } from '@/lib/db/d1'
+import { getSupabaseAdminClient, throwIfSupabaseError } from '@/lib/db/db'
 import { getCreditsForPlan, isPlanId } from '@/lib/billing/plans'
-import { grantCreditsWithResetDate, type D1UserRecord } from '@/lib/db/users'
+import { grantCreditsWithResetDate, type UserRecord } from '@/lib/db/users'
 import { ensureUserExists } from '@/lib/db/sync'
 import { InsufficientCreditsError } from '@/lib/credits-utils'
-
-async function getUsersIdColumn(): Promise<'id' | 'user_id'> {
-  const rows = await queryD1<{ name?: string }>('PRAGMA table_info(users)')
-  const names = new Set(rows.map(r => r.name).filter(Boolean) as string[])
-  if (names.has('id')) return 'id'
-  if (names.has('user_id')) return 'user_id'
-  throw new Error('users table is missing an identifier column ("id" or "user_id")')
-}
+import { recordCreditTransaction, hasTransactionWithReference } from '@/lib/db/creditTransactions'
 
 function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null
@@ -48,7 +41,7 @@ function isPeriodValid(periodEnd: string | null | undefined): boolean {
   return end > new Date()
 }
 
-function isActiveSubscriptionRecord(user: D1UserRecord): boolean {
+function isActiveSubscriptionRecord(user: UserRecord): boolean {
   const status = user.subscription_status
 
   if (isActiveStatus(status)) return true
@@ -68,7 +61,7 @@ function isActiveSubscriptionRecord(user: D1UserRecord): boolean {
   return false
 }
 
-function isYearlySubscription(user: D1UserRecord): boolean {
+function isYearlySubscription(user: UserRecord): boolean {
   const start = parseDate(user.current_period_start ?? null)
   const end = parseDate(user.current_period_end ?? null)
   if (!start || !end) return false
@@ -76,7 +69,7 @@ function isYearlySubscription(user: D1UserRecord): boolean {
   return days >= 300
 }
 
-export async function syncSubscriptionCredits(user: D1UserRecord): Promise<D1UserRecord> {
+export async function syncSubscriptionCredits(user: UserRecord): Promise<UserRecord> {
   if (!isActiveSubscriptionRecord(user)) return user
   if (!isYearlySubscription(user)) return user
   if (!isPlanId(user.subscription_tier)) return user
@@ -157,8 +150,13 @@ export async function ensureCredits(userId: string, required: number): Promise<{
 
 /**
  * Atomically consume credits if available. Throws InsufficientCreditsError if not enough.
+ * Records the transaction for audit purposes.
  */
-export async function consumeCredits(userId: string, amount: number): Promise<{
+export async function consumeCredits(
+  userId: string,
+  amount: number,
+  options?: { description?: string; referenceId?: string }
+): Promise<{
   total: number
   used: number
   remaining: number
@@ -170,19 +168,18 @@ export async function consumeCredits(userId: string, amount: number): Promise<{
   // Ensure user exists before attempting UPDATE
   const user = await ensureUserExists(userId)
   await syncSubscriptionCredits(user)
+  const targetUserId = user.id
 
-  const idColumn = await getUsersIdColumn()
-  const sql = `UPDATE users
-SET credits_used = COALESCE(credits_used, 0) + ?1
-WHERE ${idColumn} = ?2
-  AND (COALESCE(credits, 0) - COALESCE(credits_used, 0)) >= ?3
-RETURNING COALESCE(credits, 0) AS credits, COALESCE(credits_used, 0) AS credits_used`
+  const supabase = getSupabaseAdminClient()
+  const { data, error } = await supabase.rpc('consume_credits', {
+    p_user_id: targetUserId,
+    p_amount: amount,
+  })
+  throwIfSupabaseError(error, { action: 'consumeCredits', userId: targetUserId })
 
-  const updated = await queryD1Single<{ credits: number; credits_used: number }>(sql, [
-    amount,
-    userId,
-    amount,
-  ])
+  const updated = Array.isArray(data) && data.length > 0
+    ? (data[0] as { credits: number; credits_used: number })
+    : null
 
   if (!updated) {
     throw new InsufficientCreditsError()
@@ -191,13 +188,29 @@ RETURNING COALESCE(credits, 0) AS credits, COALESCE(credits_used, 0) AS credits_
   const total = typeof updated.credits === 'number' ? updated.credits : 0
   const used = typeof updated.credits_used === 'number' ? updated.credits_used : 0
   const remaining = Math.max(total - used, 0)
+
+  // Record transaction for audit
+  await recordCreditTransaction({
+    user_id: targetUserId,
+    amount: -amount, // Negative for consumption
+    type: 'consume',
+    description: options?.description ?? 'credit_consumption',
+    reference_id: options?.referenceId,
+    balance_after: remaining,
+  }).catch(err => console.warn('[consumeCredits] Failed to record transaction:', err))
+
   return { total, used, remaining }
 }
 
 /**
  * Refund previously consumed credits (best-effort). Ensures credits_used does not go negative.
+ * Records the transaction for audit purposes.
  */
-export async function refundCredits(userId: string, amount: number): Promise<{
+export async function refundCredits(
+  userId: string,
+  amount: number,
+  options?: { description?: string; referenceId?: string }
+): Promise<{
   total: number
   used: number
   remaining: number
@@ -206,20 +219,34 @@ export async function refundCredits(userId: string, amount: number): Promise<{
     return ensureCredits(userId, 0)
   }
 
-  const idColumn = await getUsersIdColumn()
-  const sql = `UPDATE users
-SET credits_used = MAX(COALESCE(credits_used, 0) - ?1, 0)
-WHERE ${idColumn} = ?2
-RETURNING COALESCE(credits, 0) AS credits, COALESCE(credits_used, 0) AS credits_used`
+  const user = await ensureUserExists(userId)
+  const targetUserId = user.id
 
-  const updated = await queryD1Single<{ credits: number; credits_used: number }>(sql, [
-    amount,
-    userId,
-  ])
+  const supabase = getSupabaseAdminClient()
+  const { data, error } = await supabase.rpc('refund_credits', {
+    p_user_id: targetUserId,
+    p_amount: amount,
+  })
+  throwIfSupabaseError(error, { action: 'refundCredits', userId: targetUserId })
+
+  const updated = Array.isArray(data) && data.length > 0
+    ? (data[0] as { credits: number; credits_used: number })
+    : null
 
   const total = typeof updated?.credits === 'number' ? updated.credits : 0
   const used = typeof updated?.credits_used === 'number' ? updated.credits_used : 0
   const remaining = Math.max(total - used, 0)
+
+  // Record transaction for audit
+  await recordCreditTransaction({
+    user_id: targetUserId,
+    amount: amount, // Positive for refund
+    type: 'refund',
+    description: options?.description ?? 'credit_refund',
+    reference_id: options?.referenceId,
+    balance_after: remaining,
+  }).catch(err => console.warn('[refundCredits] Failed to record transaction:', err))
+
   return { total, used, remaining }
 }
 

@@ -140,12 +140,21 @@ export const imageGenerationSchema = z.object({
   modelImageUrl: imageUrlSchema.optional(),
   outfitImageUrls: z.array(imageUrlSchema).max(10).optional(),
   locationImageUrl: imageUrlSchema.optional(),
+  inpaint: z.boolean().optional().default(false),
   numImages: z.number().int().min(1).max(4).optional(),
   resolution: z.enum(['1K', '2K', '4K']).optional(),
   viewType: z.enum(['front', 'behind', 'side', 'quarter']).optional().default('front'), // deprecated, kept for backward compatibility
   cameraPrompt: z.string().max(1000, 'Camera prompt must be 1000 characters or less').optional(),
   shotSize: z.enum(['extreme-close-up', 'close-up', 'medium-shot', 'full-body']).optional(),
 }).superRefine((data, ctx) => {
+  if (data.inpaint && !data.locationImageUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['locationImageUrl'],
+      message: 'locationImageUrl is required when inpaint is enabled',
+    })
+  }
+
   const usesRoleSeparated =
     typeof data.modelImageUrl === 'string' ||
     (Array.isArray(data.outfitImageUrls) && data.outfitImageUrls.length > 0) ||

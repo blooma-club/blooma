@@ -19,8 +19,9 @@ src/
 │  └─ libraries/            # 모델 라이브러리 등
 ├─ hooks/                    # 커스텀 훅
 ├─ lib/                      # 유틸리티/비즈니스 로직
-│  ├─ db/                   # D1 데이터베이스 레이어
-│  ├─ fal-ai/               # Fal AI 클라이언트
+│  ├─ db/                   # Supabase 데이터베이스 레이어
+│  ├─ google-ai/            # Gemini 클라이언트
+│  ├─ fal-ai/               # Fal AI 클라이언트 (deprecated)
 │  ├─ billing/              # 결제 로직
 │  └─ errors/               # 에러 핸들링
 └─ store/                    # Zustand UI 상태
@@ -59,8 +60,8 @@ export async function POST(request: Request) {
 ### 모델 티어
 | 티어 | 모델 ID | 크레딧 |
 |------|---------|------:|
-| Standard | `fal-ai/gpt-image-1.5/edit` | 10 |
-| Pro | `fal-ai/nano-banana-pro/edit` | 50 |
+| Standard | `gemini-2.5-flash-image` | 15 |
+| Pro | `gemini-3-pro-image-preview` | 50 |
 
 ### 프롬프트 시스템
 - JSON 구조 기반 프롬프트 사용
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
 1. 클라이언트: 모델 + 의류 이미지 수집
 2. ensureR2Url()로 blob URL을 R2 URL로 변환
 3. POST /api/generate-image 호출
-4. Fal AI에서 이미지 생성
+4. Gemini에서 이미지 생성
 5. 결과를 R2에 캐시
 6. POST /api/studio/generated로 메타데이터 저장
 ```
@@ -118,19 +119,20 @@ const r2Url = await ensureR2Url(blobUrl, { projectId: 'studio' })
 
 ---
 
-## 6. 데이터베이스 (D1)
+## 6. 데이터베이스 (Supabase)
 
-### 쿼리 함수
+### 쿼리 방식
 ```ts
-import { queryD1, queryD1Single } from '@/lib/db/d1'
+import { getSupabaseAdminClient } from '@/lib/db/db'
 
-const rows = await queryD1<User>('SELECT * FROM users WHERE id = ?', [id])
-const user = await queryD1Single<User>('SELECT * FROM users WHERE id = ?', [id])
+const supabase = getSupabaseAdminClient()
+const { data: rows } = await supabase.from('users').select('*').eq('id', id)
+const { data: user } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
 ```
 
-### 테이블 자동 생성
-- 각 모듈에서 `ensure*Table()` 함수로 테이블 존재 보장
-- 첫 쿼리 시 자동 생성
+### 테이블 관리
+- 테이블 변경은 Supabase 마이그레이션으로 관리
+- 런타임 자동 테이블 생성은 사용하지 않음
 
 ---
 

@@ -1,62 +1,4 @@
-import { queryD1, queryD1Single } from './d1'
-
-let assetsTablesEnsured = false
-let ensureAssetsTablesPromise: Promise<void> | null = null
-
-const ASSET_TABLE_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS uploaded_models (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    project_id TEXT,
-    name TEXT NOT NULL,
-    subtitle TEXT,
-    image_url TEXT NOT NULL,
-    image_key TEXT,
-    image_size INTEGER,
-    image_content_type TEXT,
-    is_public INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS uploaded_models_user_id_idx ON uploaded_models(user_id)`,
-  `CREATE INDEX IF NOT EXISTS uploaded_models_project_id_idx ON uploaded_models(project_id)`,
-
-  `CREATE TABLE IF NOT EXISTS uploaded_locations (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    project_id TEXT,
-    name TEXT NOT NULL,
-    subtitle TEXT,
-    image_url TEXT NOT NULL,
-    image_key TEXT,
-    image_size INTEGER,
-    image_content_type TEXT,
-    is_public INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS uploaded_locations_user_id_idx ON uploaded_locations(user_id)`,
-  `CREATE INDEX IF NOT EXISTS uploaded_locations_project_id_idx ON uploaded_locations(project_id)`
-]
-
-export async function ensureAssetsTables(): Promise<void> {
-  if (assetsTablesEnsured) return
-
-  if (!ensureAssetsTablesPromise) {
-    ensureAssetsTablesPromise = (async () => {
-      for (const statement of ASSET_TABLE_STATEMENTS) {
-        await queryD1(statement)
-      }
-      assetsTablesEnsured = true
-      ensureAssetsTablesPromise = null
-    })().catch(error => {
-      ensureAssetsTablesPromise = null
-      throw error
-    })
-  }
-
-  return ensureAssetsTablesPromise
-}
+import { getSupabaseAdminClient, throwIfSupabaseError } from './db'
 
 export type UploadedAsset = {
   id: string
@@ -67,7 +9,7 @@ export type UploadedAsset = {
   image_url: string
   image_key?: string | null
   created_at: string
-  is_public?: number // 0 or 1
+  is_public?: boolean
 }
 
 export async function insertUploadedAsset(
@@ -77,32 +19,24 @@ export async function insertUploadedAsset(
     image_content_type?: string | null
   }
 ) {
-  await ensureAssetsTables()
-
   const now = new Date().toISOString()
-  const sql = `
-    INSERT INTO ${table} (
-      id, user_id, project_id, name, subtitle, 
-      image_url, image_key, image_size, image_content_type, 
-      is_public,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `
 
-  await queryD1(sql, [
-    asset.id,
-    asset.user_id,
-    asset.project_id || null,
-    asset.name,
-    asset.subtitle || null,
-    asset.image_url,
-    asset.image_key || null,
-    asset.image_size || null,
-    asset.image_content_type || null,
-    asset.is_public || 0,
-    now,
-    now
-  ])
+  const supabase = getSupabaseAdminClient()
+  const { error } = await supabase.from(table).insert({
+    id: asset.id,
+    user_id: asset.user_id,
+    project_id: asset.project_id || null,
+    name: asset.name,
+    subtitle: asset.subtitle || null,
+    image_url: asset.image_url,
+    image_key: asset.image_key || null,
+    image_size: asset.image_size || null,
+    image_content_type: asset.image_content_type || null,
+    is_public: asset.is_public ?? false,
+    created_at: now,
+    updated_at: now,
+  })
+  throwIfSupabaseError(error, { action: 'insertUploadedAsset', table, userId: asset.user_id })
 
   return { ...asset, created_at: now, updated_at: now }
 }
@@ -112,30 +46,38 @@ export async function listUploadedAssets(
   userId: string,
   projectId?: string
 ): Promise<UploadedAsset[]> {
-  await ensureAssetsTables()
-
-  // Fetch user's own assets OR public assets
-  let sql = `SELECT * FROM ${table} WHERE (user_id = ? OR is_public = 1)`
-  const params: any[] = [userId]
+  const supabase = getSupabaseAdminClient()
+  let userQuery = supabase.from(table).select('*').eq('user_id', userId)
 
   if (projectId) {
-    // If project_id is provided, we still want public assets, 
-    // but for private assets, we might want to filter by project?
-    // Usually public assets are global, so they don't have project_id or we ignore it.
-    // Let's keep it simple: (My Assets) OR (Public Assets)
-    // The original logic was: WHERE user_id = ? AND (project_id = ? OR project_id IS NULL)
-
-    // New logic:
-    // (user_id = ? AND (project_id = ? OR project_id IS NULL)) OR (is_public = 1)
-
-    sql = `SELECT * FROM ${table} WHERE (user_id = ? AND (project_id = ? OR project_id IS NULL)) OR is_public = 1`
-    params.push(projectId)
+    userQuery = userQuery.or(`project_id.eq.${projectId},project_id.is.null`)
   }
 
-  sql += ` ORDER BY created_at DESC`
+  const { data: userAssets, error: userError } = await userQuery
+  throwIfSupabaseError(userError, { action: 'listUploadedAssets', table, userId })
 
-  const results = await queryD1<UploadedAsset>(sql, params)
-  return results || []
+  const { data: publicAssets, error: publicError } = await supabase
+    .from(table)
+    .select('*')
+    .eq('is_public', true)
+  throwIfSupabaseError(publicError, { action: 'listUploadedAssetsPublic', table })
+
+  const merged = new Map<string, UploadedAsset>()
+  for (const asset of userAssets ?? []) {
+    merged.set(asset.id, asset)
+  }
+  for (const asset of publicAssets ?? []) {
+    if (!merged.has(asset.id)) {
+      merged.set(asset.id, asset)
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) => {
+    const aTime = Date.parse(a.created_at)
+    const bTime = Date.parse(b.created_at)
+    if (Number.isNaN(aTime) || Number.isNaN(bTime)) return 0
+    return bTime - aTime
+  })
 }
 
 export async function deleteUploadedAsset(
@@ -143,30 +85,29 @@ export async function deleteUploadedAsset(
   id: string,
   userId: string
 ) {
-  await ensureAssetsTables()
-
-  // Get asset first to verify ownership and check public status
-  // We explicitly check user_id matches, which prevents deleting system/public assets owned by others
-  const asset = await queryD1Single<{ image_key?: string; user_id: string; is_public: number }>(
-    `SELECT image_key, user_id, is_public FROM ${table} WHERE id = ?`,
-    [id]
-  )
+  const supabase = getSupabaseAdminClient()
+  const { data: asset, error } = await supabase
+    .from(table)
+    .select('image_key, user_id, is_public')
+    .eq('id', id)
+    .maybeSingle()
+  throwIfSupabaseError(error, { action: 'deleteUploadedAsset', table, id, userId })
 
   if (!asset) return null
 
-  // Security check: Only allow deletion if the user owns the asset
   if (asset.user_id !== userId) {
-    console.warn(`[deleteUploadedAsset] Unauthorized deletion attempt: User ${userId} tried to delete asset ${id} owned by ${asset.user_id}`)
+    console.warn(
+      `[deleteUploadedAsset] Unauthorized deletion attempt: User ${userId} tried to delete asset ${id} owned by ${asset.user_id}`
+    )
     return null
   }
 
-  await queryD1(`DELETE FROM ${table} WHERE id = ? AND user_id = ?`, [id, userId])
+  const { error: deleteError } = await supabase
+    .from(table)
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId)
+  throwIfSupabaseError(deleteError, { action: 'deleteUploadedAssetDelete', table, id, userId })
 
   return asset.image_key
 }
-
-
-
-
-
-

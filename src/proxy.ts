@@ -1,9 +1,5 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Security Headers
-// ─────────────────────────────────────────────────────────────────────────────
+import { createServerClient } from '@supabase/ssr'
 
 const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
@@ -13,6 +9,18 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 } as const
 
+const PROTECTED_ROUTES = [
+  /^\/studio(.*)/,
+  /^\/assets(.*)/,
+  /^\/api\/studio(.*)/,
+  /^\/api\/models(.*)/,
+  /^\/api\/locations(.*)/,
+  /^\/api\/generate-image(.*)/,
+  /^\/api\/user(.*)/,
+]
+
+const AUTH_ROUTES = [/^\/auth(.*)/]
+
 function addSecurityHeaders(response: NextResponse): NextResponse {
   Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
     response.headers.set(key, value)
@@ -20,66 +28,58 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   return response
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Route Matchers
-// ─────────────────────────────────────────────────────────────────────────────
+function matchesRoute(patterns: RegExp[], pathname: string): boolean {
+  return patterns.some((pattern) => pattern.test(pathname))
+}
 
-const isProtectedRoute = createRouteMatcher([
-  '/studio(.*)',
-  '/assets(.*)',
-  '/api/studio(.*)',
-  '/api/models(.*)',
-  '/api/locations(.*)',
-  '/api/generate-image(.*)',
-  '/api/user(.*)',
-])
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request })
 
-const isAuthRoute = createRouteMatcher([
-  '/auth(.*)',
-])
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Middleware
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default clerkMiddleware(async (auth, req) => {
-  // 인증 관련 라우트는 미들웨어에서 건드리지 않음
-  if (isAuthRoute(req)) {
-    const response = NextResponse.next()
+  if (!supabaseUrl || !supabaseAnonKey) {
     return addSecurityHeaders(response)
   }
 
-  // 보호되지 않은 라우트는 그대로 통과
-  if (!isProtectedRoute(req)) {
-    const response = NextResponse.next()
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name) {
+        return request.cookies.get(name)?.value
+      },
+      set(name, value, options) {
+        response.cookies.set({ name, value, ...options })
+      },
+      remove(name, options) {
+        response.cookies.set({ name, value: '', ...options })
+      },
+    },
+  })
+
+  const pathname = request.nextUrl.pathname
+
+  if (matchesRoute(AUTH_ROUTES, pathname)) {
     return addSecurityHeaders(response)
   }
 
-  const authResult = await auth()
-
-  // 인증된 사용자는 통과
-  if (authResult.userId) {
-    const response = NextResponse.next()
+  if (!matchesRoute(PROTECTED_ROUTES, pathname)) {
     return addSecurityHeaders(response)
   }
 
-  // API 라우트는 401 반환
-  if (req.nextUrl.pathname.startsWith('/api')) {
-    const response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data } = await supabase.auth.getUser()
+
+  if (data.user) {
     return addSecurityHeaders(response)
   }
 
-  // 무한 리다이렉트 방지: 이미 auth 페이지로 가는 중이면 리다이렉트하지 않음
-  if (req.nextUrl.pathname === '/auth') {
-    const response = NextResponse.next()
-    return addSecurityHeaders(response)
+  if (pathname.startsWith('/api')) {
+    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
   }
 
-  // 그 외의 경우 pricing 페이지로 리다이렉트 (Clerk 모달로 로그인 유도)
-  const pricingUrl = new URL('/pricing', req.url)
-  pricingUrl.searchParams.set('redirect_url', req.url)
+  const pricingUrl = new URL('/pricing', request.url)
+  pricingUrl.searchParams.set('redirect_url', request.url)
   return addSecurityHeaders(NextResponse.redirect(pricingUrl))
-})
+}
 
 export const config = {
   matcher: [
@@ -87,4 +87,3 @@ export const config = {
     '/(api|trpc)(.*)',
   ],
 }
-

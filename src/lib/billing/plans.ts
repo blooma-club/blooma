@@ -33,9 +33,9 @@ const PLAN_PRODUCT_CONFIGS: Record<PlanId, PlanProductConfig> = {
 }
 
 export const PLAN_CREDIT_TOPUPS: Record<PlanId, number> = {
-  'Small Brands': 2000,
-  'Agency': 5000,
-  'Studio': 10000,
+  'Small Brands': 3000,
+  'Agency': 7000,
+  'Studio': 14000,
 }
 
 const PLAN_IDS: PlanId[] = ['Small Brands', 'Agency', 'Studio']
@@ -99,4 +99,103 @@ export function getIntervalForProductId(
   }
 
   return undefined
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan Upgrade/Downgrade Policy
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Plan tier order for comparison (higher index = higher tier)
+ */
+const PLAN_TIER_ORDER: PlanId[] = ['Small Brands', 'Agency', 'Studio']
+
+/**
+ * Gets the tier level for a plan (0 = lowest, 2 = highest)
+ */
+export function getPlanTierLevel(planId: PlanId): number {
+  return PLAN_TIER_ORDER.indexOf(planId)
+}
+
+/**
+ * Compares two plans and returns:
+ * - 'upgrade' if tooPlan is higher tier than fromPlan
+ * - 'downgrade' if toPlan is lower tier than fromPlan
+ * - 'same' if they are the same tier
+ * - 'unknown' if either plan is not recognized
+ */
+export function comparePlans(
+  fromPlan: PlanId | null | undefined,
+  toPlan: PlanId | null | undefined
+): 'upgrade' | 'downgrade' | 'same' | 'unknown' {
+  if (!fromPlan || !toPlan) return 'unknown'
+  if (!isPlanId(fromPlan) || !isPlanId(toPlan)) return 'unknown'
+
+  const fromLevel = getPlanTierLevel(fromPlan)
+  const toLevel = getPlanTierLevel(toPlan)
+
+  if (toLevel > fromLevel) return 'upgrade'
+  if (toLevel < fromLevel) return 'downgrade'
+  return 'same'
+}
+
+/**
+ * Credit Policy for Plan Changes:
+ * 
+ * UPGRADE: No immediate credit adjustment.
+ *          The user already paid and will get new tier credits at next cycle.
+ *          Optional: Could grant prorated difference (not implemented by default).
+ * 
+ * DOWNGRADE: Credits are NOT reduced.
+ *            Users keep remaining credits; new tier applies at next renewal.
+ * 
+ * This function returns the credit adjustment (can be 0 or a positive value).
+ * It does NOT handle billing; Polar handles proration.
+ */
+export function calculatePlanChangeCreditAdjustment(
+  fromPlan: PlanId | null | undefined,
+  toPlan: PlanId | null | undefined,
+  options?: {
+    /** If true, grant prorated credits on upgrade (default: false) */
+    grantProratedOnUpgrade?: boolean
+    /** Days remaining in current period (for proration) */
+    daysRemaining?: number
+    /** Total days in current period */
+    totalDays?: number
+  }
+): { adjustment: number; reason: string } {
+  const comparison = comparePlans(fromPlan, toPlan)
+
+  if (comparison === 'unknown' || comparison === 'same') {
+    return { adjustment: 0, reason: 'no_change' }
+  }
+
+  if (comparison === 'downgrade') {
+    // On downgrade, we do NOT reduce credits
+    // Credits remain until used; new tier applies at next billing cycle
+    return { adjustment: 0, reason: 'downgrade_credits_retained' }
+  }
+
+  // comparison === 'upgrade'
+  if (!options?.grantProratedOnUpgrade) {
+    // Default behavior: No immediate credit grant on upgrade
+    // User gets new tier's credits at their next billing cycle
+    return { adjustment: 0, reason: 'upgrade_credits_at_renewal' }
+  }
+
+  // Optional: Grant prorated credit difference
+  if (fromPlan && toPlan && options.daysRemaining && options.totalDays) {
+    const fromCredits = getCreditsForPlan(fromPlan)
+    const toCredits = getCreditsForPlan(toPlan)
+    const creditDifference = toCredits - fromCredits
+    const prorationFactor = options.daysRemaining / options.totalDays
+    const proratedAdjustment = Math.floor(creditDifference * prorationFactor)
+
+    return {
+      adjustment: Math.max(0, proratedAdjustment),
+      reason: 'upgrade_prorated_credit_grant',
+    }
+  }
+
+  return { adjustment: 0, reason: 'upgrade_missing_proration_data' }
 }

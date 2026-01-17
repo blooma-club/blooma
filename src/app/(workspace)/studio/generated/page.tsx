@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import useSWRInfinite from 'swr/infinite'
-import { useUser } from '@clerk/nextjs'
 import { Search, MoreHorizontal, Trash2, Image as ImageIcon, RefreshCw, Eye, X, Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
 import { useToast } from '@/components/ui/toast'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 const formatDate = (dateString: string, style: 'short' | 'long' = 'short') => {
     const date = new Date(dateString)
@@ -41,7 +41,7 @@ type GeneratedImageDetail = GeneratedImageSlim & {
 const BLUR_DATA_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAPEAAB/cAf/Z'
 
 export default function GeneratedPage() {
-    const { user, isLoaded } = useUser()
+    const { user, isLoading: userLoading } = useSupabaseUser()
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedImage, setSelectedImage] = useState<GeneratedImageSlim | null>(null)
     const [imageDetail, setImageDetail] = useState<GeneratedImageDetail | null>(null)
@@ -217,7 +217,7 @@ export default function GeneratedPage() {
         return images.filter(img => img.group_id === groupId)
     }
 
-    if (!isLoaded) {
+    if (userLoading) {
         return (
             <div className="min-h-[calc(100vh-7rem)] bg-background flex items-center justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

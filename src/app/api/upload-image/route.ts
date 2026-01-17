@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { uploadImageToR2, uploadModelImageToR2, deleteImageFromR2 } from '@/lib/r2'
-import { queryD1, queryD1Single, D1ConfigurationError, D1QueryError } from '@/lib/db/d1'
+import { uploadImageToR2, uploadModelImageToR2 } from '@/lib/r2'
+import { DbConfigurationError, DbQueryError } from '@/lib/db/db'
 import { insertUploadedAsset } from '@/lib/db/customAssets'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const sessionUser = await getSupabaseUserAndSync()
 
-    if (!userId) {
+    if (!sessionUser) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
         const savedAsset = await insertUploadedAsset(tableName, {
           id: targetId!,
-          user_id: userId,
+          user_id: sessionUser.id,
           project_id: projectId,
           name: assetName,
           subtitle: assetSubtitle,
@@ -125,13 +125,13 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    if (error instanceof D1ConfigurationError) {
-      console.error('[upload-image] D1 not configured', error)
+    if (error instanceof DbConfigurationError) {
+      console.error('[upload-image] Database not configured', error)
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    if (error instanceof D1QueryError) {
-      console.error('[upload-image] D1 query failed', error)
+    if (error instanceof DbQueryError) {
+      console.error('[upload-image] Database query failed', error)
       return NextResponse.json({ error: 'Database query failed' }, { status: 500 })
     }
 
@@ -158,3 +158,4 @@ function parseBoolean(value: FormDataEntryValue | null): boolean {
   }
   return Boolean(value)
 }
+

@@ -11,7 +11,6 @@ export default function AssetsLayout({ children }: { children: ReactNode }) {
   const tabs = [
     { href: '/assets/models', label: 'Models' },
     { href: '/assets/locations', label: 'Locations' },
-    { href: '/assets/camera-settings', label: 'Camera settings' },
   ] as const
 
   return (

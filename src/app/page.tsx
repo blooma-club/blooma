@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
-import { useUser, useClerk } from '@clerk/nextjs'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -24,6 +23,8 @@ import SiteFooter from '@/components/layout/footer'
 import SiteNavbarSignedOut from '@/components/layout/SiteNavbarSignedOut'
 import { useToast } from '@/components/ui/toast'
 import { useUserCredits } from '@/hooks/useUserCredits'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
+import { usePopupStore } from '@/store/popup'
 import { useState, useRef, useEffect } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -31,10 +32,10 @@ import ModelLibraryDropdown, { ModelLibraryAsset } from '@/components/libraries/
 
 export default function Home() {
   const router = useRouter()
-  const { user, isLoaded } = useUser()
-  const { openSignIn } = useClerk()
+  const { user, isLoading: userLoading } = useSupabaseUser()
   const { push: showToast } = useToast()
   const { remaining: creditsRemaining, isLoading: creditsLoading } = useUserCredits()
+  const { openPopup } = usePopupStore()
 
   // Landing page interactive state
   const [modelImage, setModelImage] = useState<string | null>('/system-models/model_247.png')
@@ -94,13 +95,11 @@ export default function Home() {
 
   // Handle Get Started button click
   const handleGetStarted = () => {
-    if (!isLoaded) return
+    if (userLoading) return
 
     // Not logged in -> open sign in modal
     if (!user) {
-      openSignIn({
-        forceRedirectUrl: '/studio/create',
-      })
+      openPopup('login')
       return
     }
 

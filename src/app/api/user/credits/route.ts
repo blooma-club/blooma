@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { getUserById } from '@/lib/db/users'
 import { syncSubscriptionCredits } from '@/lib/credits'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    const sessionUser = await getSupabaseUserAndSync()
+    if (!sessionUser) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const user = await getUserById(userId)
+    const user = await getUserById(sessionUser.id)
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -52,3 +52,4 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to load credits' }, { status: 500 })
   }
 }
+

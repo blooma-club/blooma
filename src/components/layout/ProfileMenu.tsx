@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo } from 'react'
-import { useClerk, useUser } from '@clerk/nextjs'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,16 +20,16 @@ type ProfileMenuProps = {
 }
 
 export default function ProfileMenu({ className }: ProfileMenuProps) {
-  const { user } = useUser()
-  const { signOut, redirectToUserProfile } = useClerk()
+  const { user } = useSupabaseUser()
   const router = useRouter()
 
-  const primaryEmail = user?.primaryEmailAddress?.emailAddress ?? ''
+  const primaryEmail = user?.email ?? ''
+  const metadata = (user?.user_metadata || {}) as Record<string, unknown>
   const displayName = useMemo(() => {
-    if (user?.fullName) return user.fullName
-    if (user?.firstName) return user.firstName
+    if (typeof metadata.full_name === 'string' && metadata.full_name) return metadata.full_name
+    if (typeof metadata.name === 'string' && metadata.name) return metadata.name
     return primaryEmail || 'Blooma user'
-  }, [primaryEmail, user?.firstName, user?.fullName])
+  }, [metadata.full_name, metadata.name, primaryEmail])
 
   if (!user) {
     return null
@@ -69,9 +70,7 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
           <DropdownMenuItem
             className="flex gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted/60 focus:bg-muted/60"
             onClick={() => {
-              redirectToUserProfile?.().catch(() => {
-                router.push('/account')
-              })
+              router.push('/account')
             }}
           >
             <User className="h-4 w-4 text-muted-foreground" />
@@ -79,7 +78,7 @@ export default function ProfileMenu({ className }: ProfileMenuProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex gap-2 rounded-lg px-3 py-2 text-sm text-red-500 hover:bg-red-50/80 focus:bg-red-50/80 dark:hover:bg-red-500/10 dark:focus:bg-red-500/10"
-            onClick={() => signOut()}
+            onClick={() => getSupabaseBrowserClient().auth.signOut()}
           >
             <LogOut className="h-4 w-4" />
             Log out

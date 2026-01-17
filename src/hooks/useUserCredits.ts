@@ -1,7 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
-import { useAuth } from '@clerk/nextjs'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 type CreditsResponse = {
   success?: boolean
@@ -33,8 +33,8 @@ const EMPTY_DATA: NonNullable<CreditsResponse['data']> = {
 }
 
 export function useUserCredits() {
-  const { userId } = useAuth()
-  const { data, error, isLoading, mutate } = useSWR(userId ? '/api/user/credits' : null, fetcher, {
+  const { user, isLoading: userLoading } = useSupabaseUser()
+  const { data, error, isLoading, mutate } = useSWR(user ? '/api/user/credits' : null, fetcher, {
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
   })
@@ -43,10 +43,10 @@ export function useUserCredits() {
 
   return {
     ...credits,
-    isLoading,
+    isLoading: isLoading || userLoading,
     error,
     refresh: mutate,
     hasError: Boolean(error),
-    isAvailable: Boolean(userId),
+    isAvailable: Boolean(user),
   }
 }

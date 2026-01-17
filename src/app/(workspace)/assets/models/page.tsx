@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react'
 import useSWR from 'swr'
-import { useUser } from '@clerk/nextjs'
 import { Plus, Upload, Search, MoreHorizontal, Trash2, Loader2, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -15,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Image from 'next/image'
 import { useToast } from '@/components/ui/toast'
-import { uploadFileToR2 } from '@/lib/imageUpload'
 
 type ModelAsset = {
   id: string
@@ -26,7 +24,6 @@ type ModelAsset = {
 }
 
 export default function ModelsPage() {
-  const { user, isLoaded } = useUser()
   const { push: toast } = useToast()
 
   const fetcher = (url: string) => fetch(url).then((res) => res.json())

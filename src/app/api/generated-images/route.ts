@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { listGeneratedImages } from '@/lib/db/generatedImages'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
@@ -15,8 +15,8 @@ export const runtime = 'nodejs'
  */
 export async function GET(request: NextRequest) {
     try {
-        const { userId } = await auth()
-        if (!userId) {
+        const sessionUser = await getSupabaseUserAndSync()
+        if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         const offset = parseInt(searchParams.get('offset') || '0', 10)
         const favoritesOnly = searchParams.get('favorites') === 'true'
 
-        const images = await listGeneratedImages(userId, { limit, offset, favoritesOnly })
+        const images = await listGeneratedImages(sessionUser.id, { limit, offset, favoritesOnly })
 
         return NextResponse.json({
             success: true,
@@ -44,3 +44,4 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to list images' }, { status: 500 })
     }
 }
+

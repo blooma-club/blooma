@@ -50,7 +50,7 @@ sequenceDiagram
 sequenceDiagram
     participant Polar
     participant Webhook as /api/billing/webhook
-    participant DB as D1 users table
+    participant DB as Supabase users table
     
     Polar->>Webhook: POST (signed payload)
     Webhook->>Webhook: webhook.verify(payload, headers)
@@ -84,8 +84,8 @@ flowchart LR
 ### users 테이블 현재 구조
 | 필드 | 존재여부 | 비고 |
 |------|----------|------|
-| `id` (PK) | ✅ | Clerk user ID 사용 |
-| `clerk_user_id` | ✅ | 동일 값 저장 |
+| `id` (PK) | ✅ | Supabase auth user ID 사용 |
+| `legacy_user_id` | ✅ | 동일 값 저장 |
 | `subscription_tier` | ✅ | 'Starter'/'Pro'/'Studio'/null |
 | `credits` | ✅ | 총 크레딧 |
 | `credits_used` | ✅ | 사용 크레딧 |

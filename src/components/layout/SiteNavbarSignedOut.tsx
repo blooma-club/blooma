@@ -1,16 +1,16 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { useUser, SignInButton } from '@clerk/nextjs'
 import ProfileMenu from '@/components/layout/ProfileMenu'
-import { cn } from '@/lib/utils'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
+import { usePopupStore } from '@/store/popup'
 
 import { useState, useEffect } from 'react'
 
 export default function SiteNavbarSignedOut() {
-  const { user } = useUser()
+  const { user } = useSupabaseUser()
+  const { openPopup } = usePopupStore()
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -50,16 +50,15 @@ export default function SiteNavbarSignedOut() {
           {/* Right Actions */}
           <div className="flex-shrink-0 flex items-center gap-4">
             {!user ? (
-              <SignInButton mode="modal" signUpForceRedirectUrl="/dashboard">
-                <Button
-                  variant="ghost"
-                  className="px-5 py-2 h-9 text-sm font-medium text-background bg-foreground hover:bg-foreground/90 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-full"
-                  aria-label="Login"
-                  tabIndex={0}
-                >
-                  Login
-                </Button>
-              </SignInButton>
+              <Button
+                variant="ghost"
+                className="px-5 py-2 h-9 text-sm font-medium text-background bg-foreground hover:bg-foreground/90 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-full"
+                aria-label="Login"
+                tabIndex={0}
+                onClick={() => openPopup('login')}
+              >
+                Login
+              </Button>
             ) : (
               <ProfileMenu />
             )}

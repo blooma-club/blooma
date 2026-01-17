@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { hasActiveSubscription } from '@/lib/billing/subscription'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const { userId } = await auth()
+  const sessionUser = await getSupabaseUserAndSync()
 
-  if (!userId) {
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const active = await hasActiveSubscription(userId)
+    const active = await hasActiveSubscription(sessionUser.id)
     return NextResponse.json({ hasActiveSubscription: active })
   } catch (error) {
     console.error('Unable to determine subscription status', error)
@@ -22,3 +22,4 @@ export async function GET() {
     )
   }
 }
+

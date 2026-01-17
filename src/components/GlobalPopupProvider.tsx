@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { NotEnoughCreditModal } from '@/components/NotEnoughCreditModal'
+import { LoginModal } from '@/components/auth/LoginModal'
 import { usePopupStore } from '@/store/popup'
 
 /**
@@ -28,6 +29,7 @@ export function GlobalPopupProvider() {
   return (
     <>
       <NotEnoughCreditModal />
+      <LoginModal />
     </>
   )
 }

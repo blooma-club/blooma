@@ -46,10 +46,10 @@ const COMPARISON_DATA: ComparisonRow[] = [
     },
     {
         feature: 'Est. Images',
-        description: 'Number of images you can generate per month (10 credits/image).',
-        smallBrands: '~200',
-        agency: '~500',
-        studio: '~1,000',
+        description: 'Number of images you can generate per month (15 credits/image).',
+        smallBrands: '~130',
+        agency: '~330',
+        studio: '~660',
     },
     {
         feature: 'Standard Models',

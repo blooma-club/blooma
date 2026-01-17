@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { useRouter, usePathname } from 'next/navigation'
-import { useUser, SignInButton } from '@clerk/nextjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
+import { usePopupStore } from '@/store/popup'
 import {
   Card,
   CardContent,
@@ -27,8 +27,8 @@ export type PlanOption = {
   features: string[]
 }
 
-const STANDARD_CREDIT_COST = 10  // GPT Image 1.5 Edit
-const PRO_CREDIT_COST = 50       // Nano Banana Pro Edit
+const STANDARD_CREDIT_COST = 15  // Gemini 2.5 Flash Image
+const PRO_CREDIT_COST = 50       // Gemini 3 Pro Image Preview
 const CTA_LABEL = 'Choose plan'
 
 function formatImageCount(value: number): string {
@@ -67,9 +67,8 @@ async function fetchSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
 }
 
 export default function PricingCard({ className, plan, interval = 'month' }: PricingCardProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { user, isLoaded } = useUser()
+  const { user, isLoading: userLoading } = useSupabaseUser()
+  const { openPopup } = usePopupStore()
 
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -88,7 +87,7 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
     return () => window.removeEventListener('pageshow', handlePageShow)
   }, [])
 
-  const shouldFetchStatus = isLoaded && Boolean(user)
+  const shouldFetchStatus = !userLoading && Boolean(user)
   const {
     data: subscriptionStatus,
     error: subscriptionError,
@@ -128,7 +127,7 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
     // Plan-specific features
     const planFeatures: Record<PlanId, string[]> = {
       'Small Brands': [
-        'Standard resolution (2K)',
+        'Standard resolution (1K)',
         'Commercial license',
       ],
       'Agency': [
@@ -144,12 +143,9 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
     return [...baseFeatures, ...planFeatures[plan.id], ...plan.features]
   }, [plan.features, plan.id])
 
-  // Clerk 모달로 로그인 처리 (별도 페이지 없이)
-
   const handleSubscribe = useCallback(
     async (planId: PlanId) => {
-      if (!isLoaded || activeCheckoutPlan) return
-      // 로그인 안 된 상태면 SignInButton이 처리하므로 여기서 return
+      if (userLoading || activeCheckoutPlan) return
       if (!user) return
 
       if (hasActiveSubscription) {
@@ -190,10 +186,10 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
         setActiveCheckoutPlan(null)
       }
     },
-    [activeCheckoutPlan, hasActiveSubscription, isLoaded, user, interval]
+    [activeCheckoutPlan, hasActiveSubscription, userLoading, user, interval]
   )
 
-  const isLoadingState = !isLoaded || statusLoading
+  const isLoadingState = userLoading || statusLoading
 
   const getButtonLabel = useCallback(
     (planId: PlanId, fallbackLabel: string) => {
@@ -252,19 +248,18 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
         </AnimatePresence>
 
         {!user ? (
-          <SignInButton mode="modal">
-            <Button
-              size="lg"
-              variant={isHighlighted ? 'default' : 'outline'}
-              className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
-                : 'border-border bg-transparent hover:bg-foreground hover:text-background'
-                }`}
-              disabled={isLoadingState}
-            >
-              {isLoadingState ? 'Loading...' : 'Sign in to subscribe'}
-            </Button>
-          </SignInButton>
+          <Button
+            size="lg"
+            variant={isHighlighted ? 'default' : 'outline'}
+            className={`h-12 w-full rounded-xl font-medium transition-all ${isHighlighted
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20'
+              : 'border-border bg-transparent hover:bg-foreground hover:text-background'
+              }`}
+            disabled={isLoadingState}
+            onClick={() => openPopup('login')}
+          >
+            {isLoadingState ? 'Loading...' : 'Sign in to subscribe'}
+          </Button>
         ) : (
           <Button
             size="lg"

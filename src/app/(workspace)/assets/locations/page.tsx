@@ -2,13 +2,11 @@
 
 import { useRef, useState } from 'react'
 import useSWR from 'swr'
-import { useUser } from '@clerk/nextjs'
 import { Plus, Search, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
-import { uploadFileToR2 } from '@/lib/imageUpload'
 
 type LocationAsset = {
   id: string
@@ -19,8 +17,6 @@ type LocationAsset = {
 }
 
 export default function LocationsPage() {
-  const { user, isLoaded } = useUser()
-
   const [uploading, setUploading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)

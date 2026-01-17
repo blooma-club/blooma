@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
                 analysis, and customer support. The third-party services we use include:
                 <ul className="list-disc space-y-2 pl-6">
                   <li>
-                    <strong>Clerk:</strong> Authentication and user account management
+                    <strong>Supabase Auth:</strong> Authentication and user account management
                   </li>
                   <li>
                     <strong>Cloudflare:</strong> Content delivery network (CDN), security, and DDoS

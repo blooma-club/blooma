@@ -2,8 +2,8 @@
 
 > 최종 업데이트: 2025-02-01
 > 결제 프로바이더: Polar
-> 인증: Clerk
-> 데이터베이스: Cloudflare D1
+> 인증: Supabase Auth
+> 데이터베이스: Supabase (Postgres)
 
 ---
 
@@ -17,7 +17,7 @@
 
 ---
 
-## 데이터 모델 (D1)
+## 데이터 모델 (Supabase)
 ### users
 - `subscription_tier`: Small Brands | Agency | Studio | null
 - `subscription_status`: active | trialing | canceled | revoked | ended | null
@@ -77,13 +77,26 @@
 
 ---
 
+## 검증 시나리오 (필수)
+1) 신규 결제: `order.paid`(subscription_create) 수신 → 크레딧 지급 + 트랜잭션 기록
+2) 월간 갱신: `order.paid`(subscription_cycle) 수신 → 매월 크레딧 지급
+3) 연간 결제: `order.paid` 수신 → 일괄 지급 없음 (필요 시 1회 초기 지급만)
+4) 구독 취소: `subscription.canceled` → `cancel_at_period_end` 반영
+5) 구독 복구: `subscription.uncanceled` → 상태 복구 + 취소 플래그 해제
+6) 구독 회수: `subscription.revoked` → 즉시 비활성화
+7) 웹훅 중복: 같은 `webhook-id` 재전송 시 중복 처리 없음
+
+---
+
 ## 환경 변수
 - `POLAR_ACCESS_TOKEN` (또는 `POLAR_API_KEY`)
 - `POLAR_WEBHOOK_SECRET`
 - `POLAR_SERVER` (`sandbox` | `production`)
 - `POLAR_BLOOMA_*_PRODUCT_ID`
 - `POLAR_BLOOMA_*_YEARLY_PRODUCT_ID`
-- `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_D1_API_TOKEN`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 ---
 

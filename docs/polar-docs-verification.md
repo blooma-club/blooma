@@ -16,8 +16,8 @@
 | **subscription.canceled** | `cancel_at_period_end` 플래그 | ✅ 플래그 저장 + 기간말까지 유효 | ✅ PASS |
 | **subscription.uncanceled** | 취소 철회 | ✅ `handleSubscriptionUncanceled` 구현 | ✅ PASS |
 | **subscription.revoked** | 즉시 해지 | ✅ tier=null 처리 | ✅ PASS |
-| **order.created** | `billing_reason` 확인 | ✅ `subscription_cycle`만 크레딧 지급 | ✅ PASS |
-| **externalCustomerId** | 체크아웃 시 전달 | ✅ Clerk userId 전달 | ✅ PASS |
+| **order.paid** | `billing_reason` 확인 | ✅ `subscription_cycle`만 크레딧 지급 | ✅ PASS |
+| **externalCustomerId** | 체크아웃 시 전달 | ✅ Supabase auth user id 전달 | ✅ PASS |
 | **Customer Portal** | customerId로 세션 생성 | ✅ polar_customer_id 사용 | ✅ PASS |
 
 ---
@@ -57,10 +57,10 @@ const parsedEvent = webhook.verify(payload, headers)
 
 ---
 
-### 3. order.created의 billing_reason
+### 3. order.paid의 billing_reason
 
 **공식 문서:**
-> In case you want to do logic when a subscription is renewed, listen to order.created 
+> In case you want to do logic when a subscription is renewed, listen to order.paid 
 > and the billing_reason field. It can be: purchase, subscription_create, 
 > subscription_cycle, subscription_update. subscription_cycle is used when subscriptions renew.
 
@@ -103,11 +103,11 @@ await polar.customerSessions.create({ customerId: polarCustomerId })
 // src/app/api/billing/checkout/route.ts
 const checkout = await polar.checkouts.create({
   products: [productId],
-  externalCustomerId: userId,  // Clerk userId
+  externalCustomerId: userId,  // Supabase auth user id
   successUrl: `${appBaseUrl}/dashboard?checkout=success`,
 })
 ```
-✅ `externalCustomerId`로 Clerk userId 전달
+✅ `externalCustomerId`로 Supabase auth user id 전달
 
 ---
 
@@ -127,7 +127,7 @@ const checkout = await polar.checkouts.create({
 
 1. ✅ 웹훅 서명 검증 (Standard Webhooks)
 2. ✅ 모든 구독 이벤트 처리 (created, active, canceled, uncanceled, revoked)
-3. ✅ order.created의 billing_reason 분기
+3. ✅ order.paid의 billing_reason 분기
 4. ✅ cancel_at_period_end 지원
 5. ✅ 멱등성 처리 (webhook-id)
 6. ✅ Customer Portal 세션 생성

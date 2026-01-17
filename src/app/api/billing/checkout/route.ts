@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { Polar } from '@polar-sh/sdk'
 import { hasActiveSubscription } from '@/lib/billing/subscription'
 import { resolvePolarServerURL } from '@/lib/server/polar-config'
 import { getProductIdForPlan, isPlanId, type PlanId } from '@/lib/billing/plans'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 const DEFAULT_PLAN: PlanId = 'Small Brands'
 const polarServer =
@@ -14,9 +14,9 @@ function resolveAppBaseUrl() {
 }
 
 export async function POST(request: Request) {
-  const { userId } = await auth()
+  const sessionUser = await getSupabaseUserAndSync()
 
-  if (!userId) {
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -25,14 +25,14 @@ export async function POST(request: Request) {
     const requestedPlan = typeof body.plan === 'string' ? body.plan : DEFAULT_PLAN
     const interval = (body.interval === 'year' ? 'year' : 'month') as 'month' | 'year'
 
-    // plans.ts의 유효성 검사 함수 사용
+    // plans.ts???좏슚??寃???⑥닔 ?ъ슜
     if (!isPlanId(requestedPlan)) {
       return NextResponse.json({ error: 'Unsupported plan requested.' }, { status: 400 })
     }
 
     const planId: PlanId = requestedPlan
 
-    const alreadyActive = await hasActiveSubscription(userId)
+    const alreadyActive = await hasActiveSubscription(sessionUser.id)
     if (alreadyActive) {
       return NextResponse.json({ error: 'Subscription already active.' }, { status: 409 })
     }
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment provider is not configured.' }, { status: 500 })
     }
 
-    // plans.ts의 중앙 집중화된 함수 사용
+    // plans.ts??以묒븰 吏묒쨷?붾맂 ?⑥닔 ?ъ슜
     const productId = getProductIdForPlan(planId, interval)
 
     if (!productId) {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       const checkout = await polar.checkouts.create(
         {
           products: [productId],
-          externalCustomerId: userId,
+          externalCustomerId: sessionUser.id,
           successUrl: `${appBaseUrl}/studio/create?billing=success`,
         },
         customServerUrl ? { serverURL: customServerUrl } : undefined
@@ -83,3 +83,4 @@ export async function POST(request: Request) {
     )
   }
 }
+

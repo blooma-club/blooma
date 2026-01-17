@@ -1,14 +1,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { listUploadedAssets, deleteUploadedAsset, insertUploadedAsset } from '@/lib/db/customAssets'
 import { deleteImageFromR2 } from '@/lib/r2'
+import { getSupabaseUserAndSync } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const projectId = searchParams.get('projectId') || undefined
 
   try {
-    const assets = await listUploadedAssets('uploaded_models', userId, projectId)
+    const assets = await listUploadedAssets('uploaded_models', sessionUser.id, projectId)
     return NextResponse.json({ success: true, data: assets })
   } catch (error) {
     console.error('Failed to list models:', error)
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const newModel = await insertUploadedAsset('uploaded_models', {
       id: id || `model-${Date.now()}`,
-      user_id: userId,
+      user_id: sessionUser.id,
       project_id: projectId,
       name,
       subtitle,
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { userId } = await auth()
-  if (!userId) {
+  const sessionUser = await getSupabaseUserAndSync()
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -70,7 +70,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const imageKey = await deleteUploadedAsset('uploaded_models', id, userId)
+    const imageKey = await deleteUploadedAsset('uploaded_models', id, sessionUser.id)
 
     if (imageKey) {
       await deleteImageFromR2(imageKey).catch(console.error)
@@ -82,3 +82,4 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete model' }, { status: 500 })
   }
 }
+
