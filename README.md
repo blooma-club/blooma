@@ -70,7 +70,9 @@ Optional (feature specific):
 - NEXT_PUBLIC_APP_URL
 - POLAR_ACCESS_TOKEN (or POLAR_API_KEY)
 - POLAR_SERVER
-- POLAR_BLOOMA_1000_PRODUCT_ID, POLAR_BLOOMA_3000_PRODUCT_ID, POLAR_BLOOMA_5000_PRODUCT_ID
+- POLAR_BLOOMA_SMALL_BRANDS_PRODUCT_ID, POLAR_BLOOMA_AGENCY_PRODUCT_ID, POLAR_BLOOMA_STUDIO_PRODUCT_ID
+- POLAR_BLOOMA_SMALL_BRANDS_YEARLY_PRODUCT_ID, POLAR_BLOOMA_AGENCY_YEARLY_PRODUCT_ID, POLAR_BLOOMA_STUDIO_YEARLY_PRODUCT_ID
+- POLAR_BLOOMA_STARTER_PRODUCT_ID, POLAR_BLOOMA_PRO_PRODUCT_ID (legacy monthly fallback)
 - SUNO_API_KEY, SUNO_MODEL_ID, SUNO_DEFAULT_TAGS
 - ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID, ELEVENLABS_VOICE_ID, ELEVENLABS_VOICE_STABILITY, ELEVENLABS_VOICE_SIMILARITY, ELEVENLABS_VOICE_STYLE
 - OPENROUTER_API_KEY
@@ -82,7 +84,8 @@ Optional (feature specific):
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
 npm run start        # Start production server
-npm run lint         # ESLint (Next.js)
+npm run lint         # ESLint
+npm run typecheck    # TypeScript typecheck
 ```
 
 ## Project Structure
@@ -90,7 +93,6 @@ npm run lint         # ESLint (Next.js)
 ```
 blooma/
   docs/                 # Product and engineering docs
-  supabase/             # Supabase migrations
   public/               # Static assets
   src/
     app/                # Next.js App Router
@@ -135,7 +137,7 @@ blooma/
 
 ## Database and Migrations
 
-Supabase migrations live in `supabase/migrations/`. Apply `supabase/migrations/0001_init.sql` to your Supabase project (SQL editor or `psql`).
+The current authoritative schema snapshot lives in `docs/db-architecture.md`. This repo does not currently include a `supabase/migrations/` directory; apply schema changes via the Supabase SQL editor (or your preferred migration tooling) and keep the snapshot doc in sync.
 
 ## Deployment
 

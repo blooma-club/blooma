@@ -3,9 +3,8 @@ import { createErrorHandler, createApiResponse, requireAuth } from '@/lib/errors
 import { ApiError } from '@/lib/errors'
 import { imagePromptSchema } from '@/lib/validation'
 import { generatePromptFromImages } from '@/lib/google-ai/client'
-import { reconstructR2Url } from '@/lib/infra/storage'
 import { checkRateLimit, createRateLimitError, createRateLimitHeaders } from '@/lib/infra/ratelimit'
-import { validateImageUrl } from '@/lib/infra/security'
+import { resolveInputUrl } from '@/lib/infra/url-resolver'
 
 const handleError = createErrorHandler('api/studio/refine-prompt')
 
@@ -24,33 +23,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = imagePromptSchema.parse(body)
 
-    const resolveInputUrl = (url?: string): string | undefined => {
-      if (!url) return undefined
-      if (url.startsWith('blob:') || url.startsWith('data:')) return undefined
-      let resolved: string
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        resolved = url
-      } else if (url.startsWith('/')) {
-        resolved = new URL(url, request.url).toString()
-      } else {
-        resolved = reconstructR2Url(url)
-      }
-
-      if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
-        const validation = validateImageUrl(resolved)
-        if (!validation.valid) {
-          throw ApiError.badRequest(`Invalid image URL: ${validation.reason}`)
-        }
-      }
-
-      return resolved
-    }
-
-    const modelImageUrl = resolveInputUrl(validated.modelImageUrl)
-    const locationImageUrl = resolveInputUrl(validated.locationImageUrl)
+    const modelImageUrl = resolveInputUrl(validated.modelImageUrl, request.url)
+    const locationImageUrl = resolveInputUrl(validated.locationImageUrl, request.url)
     const outfitImageUrls =
       validated.outfitImageUrls
-        ?.map((url) => resolveInputUrl(url))
+        ?.map((url) => resolveInputUrl(url, request.url))
         .filter((url): url is string => Boolean(url)) ?? []
 
     if (!validated.isModelAutoMode && !modelImageUrl) {

@@ -12,7 +12,7 @@ export interface CreditTransaction {
     user_id: string
     amount: number
     type: CreditTransactionType
-    description: string | null
+    description: string
     reference_id: string | null
     balance_after: number | null
     created_at: string
@@ -22,7 +22,7 @@ export interface CreateCreditTransactionInput {
     user_id: string
     amount: number
     type: CreditTransactionType
-    description?: string
+    description: string
     reference_id?: string
     balance_after?: number
 }
@@ -42,7 +42,7 @@ export async function recordCreditTransaction(
         user_id: input.user_id,
         amount: input.amount,
         type: input.type,
-        description: input.description ?? null,
+        description: input.description,
         reference_id: input.reference_id ?? null,
         balance_after: input.balance_after ?? null,
         created_at: now,
@@ -54,7 +54,7 @@ export async function recordCreditTransaction(
         user_id: input.user_id,
         amount: input.amount,
         type: input.type,
-        description: input.description ?? null,
+        description: input.description,
         reference_id: input.reference_id ?? null,
         balance_after: input.balance_after ?? null,
         created_at: now,

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 
 class DbConfigurationError extends Error {
   constructor(message: string) {
@@ -21,6 +21,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
     throw new DbConfigurationError('Supabase admin client must be called from a server environment')
   }
 
+  const env = getEnv()
   const url = env.supabase.url
   const key = env.supabase.serviceRoleKey || env.supabase.anonKey
 

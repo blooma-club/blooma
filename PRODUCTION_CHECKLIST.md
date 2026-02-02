@@ -7,7 +7,7 @@
 - [x] PlanId 매핑 정확히 설정 (Small Brands, Agency, Studio)
 - [x] Webhook 핸들러 개선 (external_id 사용)
 - [x] 구독 상태별 처리 로직 구현 (canceled, revoked, active 등)
-- [x] 구독 취소/해지 시 subscription_tier를 null로 설정
+- [x] 구독 취소/해지 시 `subscription_tier`를 `'free'`로 설정
 - [x] isActiveTier 함수 개선 (실제 플랜만 확인)
 - [x] Polar.sh MCP를 통한 전체 검토 완료
 - [x] 환경변수 설정 완료
@@ -23,16 +23,17 @@
   - ✅ `subscription.created` - 구독 생성 시 크레딧 지급 + 플랜 업데이트
   - ✅ `subscription.updated` - 구독 상태 변경 시 처리 (canceled/revoked 감지 포함)
   - ✅ `subscription.active` - 구독 갱신 시 크레딧 지급 + 플랜 업데이트
-  - ✅ `subscription.canceled` - 구독 취소 시 subscription_tier를 null로 설정
-  - ✅ `subscription.revoked` - 구독 즉시 해지 시 subscription_tier를 null로 설정
+  - ✅ `subscription.canceled` - 구독 취소 시 `subscription_tier`를 `'free'`로 설정
+  - ✅ `subscription.revoked` - 구독 즉시 해지 시 `subscription_tier`를 `'free'`로 설정
   - ✅ `order.paid` - 일회성 구매 처리 (필요시 크레딧 지급)
 
 **Webhook 처리 로직:**
+
 - `subscription.created`: 크레딧 지급 + 플랜 업데이트
-- `subscription.updated`: Status 확인 후 취소/해지 시 null 처리, 활성 구독 시 플랜 업데이트
+- `subscription.updated`: Status 확인 후 취소/해지 시 `'free'` 처리, 활성 구독 시 플랜 업데이트
 - `subscription.active`: 매월 갱신 시 크레딧 지급 + 플랜 업데이트
-- `subscription.canceled`: subscription_tier → null (기간 종료까지 유지)
-- `subscription.revoked`: subscription_tier → null (즉시 해지)
+- `subscription.canceled`: `subscription_tier` → `'free'` (기간 종료까지 유지)
+- `subscription.revoked`: `subscription_tier` → `'free'` (즉시 해지)
 
 ### 2. Webhook Secret 확인
 
@@ -69,7 +70,7 @@
 6. **구독 취소/해지 테스트**
    - [ ] 구독 취소 시 `[webhook] subscription.canceled` 이벤트 수신
    - [ ] 구독 즉시 해지 시 `[webhook] subscription.revoked` 이벤트 수신
-   - [ ] subscription_tier가 null로 설정되는지 확인
+   - [ ] `subscription_tier`가 `'free'`로 설정되는지 확인
    - [ ] Credits Indicator에서 구독 상태가 정상 반영되는지 확인
 
 ## 📋 환경변수 최종 확인
@@ -91,7 +92,8 @@ POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>              # $189/mont
 # POLAR_BLOOMA_PRO_PRODUCT_ID (Agency로 매핑)
 ```
 
-**중요:** 
+**중요:**
+
 - `POLAR_API_BASE_URL`은 API 엔드포인트 URL이어야 합니다 (Customer Portal URL 아님)
 - `POLAR_WEBHOOK_SECRET`은 Polar.sh 대시보드의 Webhook Secret과 정확히 일치해야 합니다
 
@@ -103,7 +105,7 @@ POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>              # $189/mont
 - [ ] 테스트 구독을 생성하여 전체 플로우가 작동하는지 확인
 - [ ] 구독 취소/해지 플로우가 정상 작동하는지 확인
 - [ ] 서버 로그에서 에러가 없는지 확인
-- [ ] `subscription_tier`가 null로 올바르게 설정되는지 확인 (구독 없음 상태)
+- [ ] `subscription_tier`가 `'free'`로 올바르게 설정되는지 확인 (구독 없음 상태)
 
 ## 📊 모니터링
 
@@ -113,25 +115,27 @@ POLAR_BLOOMA_STUDIO_PRODUCT_ID=<YOUR_STUDIO_PRODUCT_ID>              # $189/mont
 2. **크레딧 지급**: 구독 생성/갱신 시 크레딧이 정상 지급되는지 확인
 3. **구독 상태 동기화**: subscription_tier가 Polar.sh 구독 상태와 일치하는지 확인
 4. **에러 로그**: 서버 로그에서 `[webhook]` 또는 `[customerportal]` 관련 에러 확인
-5. **구독 취소/해지**: 구독 취소/해지 시 subscription_tier가 null로 설정되는지 확인
+5. **구독 취소/해지**: 구독 취소/해지 시 `subscription_tier`가 `'free'`로 설정되는지 확인
 
 ## 🔍 주요 개선사항 (최신)
 
 ### Webhook 핸들러 개선
+
 - `subscription.updated`: Status 기반 처리 (canceled/revoked 감지)
-- `subscription.canceled`: subscription_tier → null
-- `subscription.revoked`: subscription_tier → null
+- `subscription.canceled`: `subscription_tier` → `'free'`
+- `subscription.revoked`: `subscription_tier` → `'free'`
 - `isActiveTier`: 실제 플랜만 확인 (Small Brands, Agency, Studio)
 
 ### 구독 상태 처리
+
 - **활성 구독**: `active`, `trialing` → 플랜 정보 업데이트
-- **구독 취소**: `canceled` → subscription_tier → null (기간 종료까지 유지)
-- **구독 해지**: `revoked` → subscription_tier → null (즉시 해지)
+- **구독 취소**: `canceled` → `subscription_tier` → `'free'` (기간 종료까지 유지)
+- **구독 해지**: `revoked` → `subscription_tier` → `'free'` (즉시 해지)
 - **기타 상태**: `past_due`, `unpaid` → 플랜 정보 유지
 
 ### Polar.sh MCP 검토 완료
+
 - ✅ 구독 상태별 처리 로직 검증 완료
 - ✅ Webhook 이벤트 타입 확인 완료
 - ✅ external_id 사용 확인 완료
 - ✅ 구독 취소/해지 구분 확인 완료
-

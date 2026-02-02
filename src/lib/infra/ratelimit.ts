@@ -5,6 +5,7 @@
 
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+import type { Duration } from '@upstash/ratelimit'
 
 const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL
 const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -33,7 +34,12 @@ function getRedis(): Redis | null {
 
 export type RateLimitType = 'imageGeneration' | 'scriptGeneration'
 
-const RATE_LIMIT_CONFIGS: Record<RateLimitType, { requests: number; window: string; windowMs: number }[]> = {
+type RateLimitWindow = '1 m' | '1 h'
+
+const RATE_LIMIT_CONFIGS: Record<
+  RateLimitType,
+  { requests: number; window: RateLimitWindow & Duration; windowMs: number }[]
+> = {
     imageGeneration: [
         { requests: 10, window: '1 m', windowMs: 60 * 1000 },
         { requests: 100, window: '1 h', windowMs: 60 * 60 * 1000 },
@@ -58,7 +64,7 @@ function getRateLimiter(type: RateLimitType, configIndex: number): Ratelimit | n
 
     const limiter = new Ratelimit({
         redis: redisClient,
-        limiter: Ratelimit.slidingWindow(config.requests, config.window as any),
+        limiter: Ratelimit.slidingWindow(config.requests, config.window),
         analytics: true,
         prefix: `blooma:ratelimit:${type}`,
     })

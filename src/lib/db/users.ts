@@ -153,8 +153,8 @@ async function updateAuthMapping(
 ): Promise<void> {
   const updatePayload: Record<string, unknown> = {}
 
-  if (profile.email !== undefined) {
-    updatePayload.email = profile.email ?? null
+  if (typeof profile.email === 'string') {
+    updatePayload.email = profile.email
   }
 
   if (profile.name !== undefined) {
@@ -185,6 +185,12 @@ async function updateAuthMapping(
 }
 
 async function createUser(profile: AuthUserProfile): Promise<UserRecord> {
+  if (!profile.email) {
+    throw new UsersTableError('Unable to create user record: auth profile is missing email', {
+      userId: profile.id,
+    })
+  }
+
   const nowDate = new Date()
   const now = nowDate.toISOString()
 
@@ -193,7 +199,7 @@ async function createUser(profile: AuthUserProfile): Promise<UserRecord> {
 
   const payload = {
     id: profile.id,
-    email: profile.email ?? null,
+    email: profile.email,
     name: profile.name ?? null,
     image_url: profile.imageUrl ?? null,
     avatar_url: profile.imageUrl ?? null,
@@ -298,7 +304,7 @@ export async function updateUserSubscriptionTier(
   const { error } = await supabase
     .from('users')
     .update({
-      subscription_tier: planId ?? null,
+      subscription_tier: planId ?? 'free',
       updated_at: new Date().toISOString(),
     })
     .eq('id', targetUserId)
@@ -345,7 +351,7 @@ export async function updateUserSubscription(
   const updatePayload: Record<string, unknown> = {}
 
   if (data.subscriptionTier !== undefined) {
-    updatePayload.subscription_tier = data.subscriptionTier
+    updatePayload.subscription_tier = data.subscriptionTier ?? 'free'
   }
 
   if (data.polarSubscriptionId !== undefined) {

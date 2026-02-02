@@ -1,12 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-function getSupabaseConfig() {
+let warnedMissingSupabaseEnv = false
+
+function getSupabaseConfig(): { supabaseUrl: string; supabaseAnonKey: string } | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase client is not configured')
+    if (!warnedMissingSupabaseEnv) {
+      warnedMissingSupabaseEnv = true
+      console.warn(
+        '[supabase-middleware] NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY not set; skipping auth middleware.'
+      )
+    }
+    return null
   }
 
   return { supabaseUrl, supabaseAnonKey }
@@ -19,7 +27,12 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig()
+  const config = getSupabaseConfig()
+  if (!config) {
+    return response
+  }
+
+  const { supabaseUrl, supabaseAnonKey } = config
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
