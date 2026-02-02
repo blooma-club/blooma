@@ -5,10 +5,10 @@ const require = createRequire(import.meta.url)
 
 // Dynamically allow R2 public base URL if provided
 const remotePatterns: Array<{
-  protocol: 'http' | 'https';
-  hostname: string;
-  port?: string;
-  pathname: string;
+  protocol: 'http' | 'https'
+  hostname: string
+  port?: string
+  pathname: string
 }> = []
 const r2Base = process.env.R2_PUBLIC_BASE_URL
 if (r2Base) {
@@ -18,7 +18,7 @@ if (r2Base) {
       protocol: u.protocol.replace(':', '') as 'http' | 'https',
       hostname: u.hostname,
       port: u.port || undefined,
-      pathname: '/**'
+      pathname: '/**',
     })
   } catch (e) {
     console.warn('[next.config] Invalid R2_PUBLIC_BASE_URL:', r2Base)
@@ -29,19 +29,19 @@ if (r2Base) {
 remotePatterns.push({
   protocol: 'https',
   hostname: '*.r2.dev',
-  pathname: '/**'
+  pathname: '/**',
 })
 
 remotePatterns.push({
   protocol: 'https',
   hostname: 'pub-deb00233907c47758076fa8897df6bda.r2.dev',
-  pathname: '/**'
+  pathname: '/**',
 })
 
 remotePatterns.push({
   protocol: 'https',
   hostname: '*.r2.cloudflarestorage.com',
-  pathname: '/**'
+  pathname: '/**',
 })
 
 // Add Google OAuth avatar images and AI service domains
@@ -49,55 +49,55 @@ remotePatterns.push(
   {
     protocol: 'https',
     hostname: 'lh3.googleusercontent.com',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'lh4.googleusercontent.com',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'lh5.googleusercontent.com',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'lh6.googleusercontent.com',
-    pathname: '/**'
+    pathname: '/**',
   },
-  // FAL AI 이미지 도메인
+  // FAL AI image domains
   {
     protocol: 'https',
     hostname: 'fal.media',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'v3.fal.media',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'v3b.fal.media',
-    pathname: '/**'
+    pathname: '/**',
   },
-  // 기타 AI 서비스 도메인들
+  // 기�? AI ?�비???�메?�들
   {
     protocol: 'https',
     hostname: 'replicate.delivery',
-    pathname: '/**'
+    pathname: '/**',
   },
   {
     protocol: 'https',
     hostname: 'pbxt.replicate.delivery',
-    pathname: '/**'
+    pathname: '/**',
   },
   // Midjourney CDN
   {
     protocol: 'https',
     hostname: 'cdn.midjourney.com',
-    pathname: '/**'
+    pathname: '/**',
   }
 )
 
@@ -110,19 +110,22 @@ const nextConfig: NextConfig = {
     contentDispositionType: 'inline',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  // Empty turbopack config for Next.js 16 compatibility
-  turbopack: {},
-  // Webpack 설정은 Turbopack을 사용하지 않을 때만 적용
-  ...(process.env.NODE_ENV === 'production' && {
-    webpack: (config) => {
-      config.resolve = config.resolve || {}
-      config.resolve.alias = {
-        ...(config.resolve.alias ?? {}),
-        punycode: require.resolve('punycode/'),
-      }
-      return config
-    },
-  }),
+  // Turbopack configuration for Next.js 16
+  turbopack: {
+    root: __dirname,
+  },
+  // Webpack configuration only for production builds without Turbopack
+  ...(process.env.NODE_ENV === 'production' &&
+    !process.env.TURBOPACK && {
+      webpack: config => {
+        config.resolve = config.resolve || {}
+        config.resolve.alias = {
+          ...(config.resolve.alias ?? {}),
+          punycode: require.resolve('punycode/'),
+        }
+        return config
+      },
+    }),
 }
 
 export default nextConfig

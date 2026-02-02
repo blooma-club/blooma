@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { Polar } from '@polar-sh/sdk'
-import { resolvePolarServerURL } from '@/lib/server/polar-config'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { resolvePolarServerURL } from '@/lib/billing/polar'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -77,4 +77,5 @@ export async function GET() {
     return respondWithFallback()
   }
 }
+
 

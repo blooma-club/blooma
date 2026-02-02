@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { Polar } from '@polar-sh/sdk'
-import { resolvePolarServerURL } from '@/lib/server/polar-config'
+import { resolvePolarServerURL } from '@/lib/billing/polar'
 import { getUserById } from '@/lib/db/users'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -130,4 +130,5 @@ export async function GET() {
         return NextResponse.json({ error: 'Failed to get portal info' }, { status: 500 })
     }
 }
+
 

@@ -97,7 +97,7 @@ export default function GeneratedPage() {
         detailRequestRef.current = image.id
 
         try {
-            const response = await fetch(`/api/studio/generated/${image.id}`)
+            const response = await fetch(`/api/studio/history/${image.id}`)
             const result = await response.json()
             if (result.success && result.data) {
                 if (detailRequestRef.current !== image.id) return
@@ -145,7 +145,7 @@ export default function GeneratedPage() {
         })
 
         try {
-            const response = await fetch('/api/generated-images', {
+            const response = await fetch('/api/studio/history', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id }),

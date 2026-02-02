@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react'
 
 export default function SiteNavbarSignedOut() {
   const { user } = useSupabaseUser()
-  const { openPopup } = usePopupStore()
+  const openPopup = usePopupStore((state) => state.openPopup)
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {

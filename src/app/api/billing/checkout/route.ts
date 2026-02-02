@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { Polar } from '@polar-sh/sdk'
-import { hasActiveSubscription } from '@/lib/billing/subscription'
-import { resolvePolarServerURL } from '@/lib/server/polar-config'
-import { getProductIdForPlan, isPlanId, type PlanId } from '@/lib/billing/plans'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { hasActiveSubscription } from '@/lib/billing/logic'
+import { resolvePolarServerURL } from '@/lib/billing/polar'
+import { getProductIdForPlan, isPlanId, type PlanId } from '@/lib/billing/logic'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 const DEFAULT_PLAN: PlanId = 'Small Brands'
 const polarServer =
@@ -25,7 +25,6 @@ export async function POST(request: Request) {
     const requestedPlan = typeof body.plan === 'string' ? body.plan : DEFAULT_PLAN
     const interval = (body.interval === 'year' ? 'year' : 'month') as 'month' | 'year'
 
-    // plans.ts???좏슚??寃???⑥닔 ?ъ슜
     if (!isPlanId(requestedPlan)) {
       return NextResponse.json({ error: 'Unsupported plan requested.' }, { status: 400 })
     }
@@ -43,7 +42,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment provider is not configured.' }, { status: 500 })
     }
 
-    // plans.ts??以묒븰 吏묒쨷?붾맂 ?⑥닔 ?ъ슜
     const productId = getProductIdForPlan(planId, interval)
 
     if (!productId) {
@@ -83,4 +81,6 @@ export async function POST(request: Request) {
     )
   }
 }
+
+
 

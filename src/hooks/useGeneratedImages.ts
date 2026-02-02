@@ -41,7 +41,7 @@ export function useGeneratedImages({
             params.set('favorites', 'true')
         }
 
-        return `/api/generated-images?${params.toString()}`
+        return `/api/studio/history?${params.toString()}`
     }
 
     const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite<{

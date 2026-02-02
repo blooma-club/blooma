@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AuthShell from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
-import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { getSupabaseBrowserClient } from '@/lib/db/supabase-client'
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function AuthPage() {

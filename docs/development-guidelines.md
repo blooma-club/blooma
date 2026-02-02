@@ -72,10 +72,10 @@ export async function POST(request: Request) {
 ```
 1. 클라이언트: 모델 + 의류 이미지 수집
 2. ensureR2Url()로 blob URL을 R2 URL로 변환
-3. POST /api/generate-image 호출
+3. POST /api/studio/generate 호출
 4. Gemini에서 이미지 생성
 5. 결과를 R2에 캐시
-6. POST /api/studio/generated로 메타데이터 저장
+6. POST /api/studio/history로 메타데이터 저장
 ```
 
 ---

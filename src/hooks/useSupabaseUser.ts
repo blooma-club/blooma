@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { getSupabaseBrowserClient } from '@/lib/db/supabase-client'
 
 type Snapshot = {
   user: User | null
@@ -70,3 +70,4 @@ export function useSupabaseUser() {
     isAuthenticated: Boolean(snapshot.user),
   }
 }
+

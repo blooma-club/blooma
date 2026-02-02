@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { hasActiveSubscription } from '@/lib/billing/subscription'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+﻿import { NextResponse } from 'next/server'
+import { hasActiveSubscription } from '@/lib/billing/logic'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -22,4 +22,6 @@ export async function GET() {
     )
   }
 }
+
+
 

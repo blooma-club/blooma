@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -6,12 +6,13 @@ import Image from 'next/image'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePopupStore } from '@/store/popup'
-import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { getSupabaseBrowserClient } from '@/lib/db/supabase-client'
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export function LoginModal() {
   const { user, isLoading } = useSupabaseUser()
-  const { activePopup, closePopup } = usePopupStore()
+  const activePopup = usePopupStore((state) => state.activePopup)
+  const closePopup = usePopupStore((state) => state.closePopup)
   const isOpen = activePopup === 'login'
   const [mounted, setMounted] = useState(false)
 
@@ -98,3 +99,4 @@ export function LoginModal() {
     document.body
   )
 }
+

@@ -1,7 +1,7 @@
-import 'server-only'
+﻿import 'server-only'
 
 import { getSupabaseAdminClient, throwIfSupabaseError } from './db'
-import type { AuthUserProfile } from '@/lib/auth/types'
+import type { AuthUserProfile } from '@/lib/auth'
 import { recordCreditTransaction } from '@/lib/db/creditTransactions'
 
 const FIRST_LOGIN_CREDIT_BONUS = 100
@@ -280,9 +280,9 @@ export async function grantCreditsWithResetDate(
 }
 
 /**
- * 사용자의 구독 플랜을 업데이트합니다.
+ * ?ъ슜?먯쓽 援щ룆 ?뚮옖???낅뜲?댄듃?⑸땲??
  * @param userId Auth user ID (external_id)
- * @param planId 구독 플랜 ID ('Small Brands', 'Agency', 'Studio', 또는 null로 취소/해지)
+ * @param planId 援щ룆 ?뚮옖 ID ('Small Brands', 'Agency', 'Studio', ?먮뒗 null濡?痍⑥냼/?댁?)
  */
 export async function updateUserSubscriptionTier(
   userId: string,
@@ -547,3 +547,4 @@ export async function migrateUser(oldId: string, newId: string): Promise<void> {
     throw new UsersTableError('Unable to migrate user record in database', error)
   }
 }
+

@@ -17,7 +17,7 @@ import {
   Plus,
   X,
   Upload,
-  FolderOpen
+  FolderOpen,
 } from 'lucide-react'
 import SiteFooter from '@/components/layout/footer'
 import SiteNavbarSignedOut from '@/components/layout/SiteNavbarSignedOut'
@@ -28,14 +28,16 @@ import { usePopupStore } from '@/store/popup'
 import { useState, useRef, useEffect } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import ModelLibraryDropdown, { ModelLibraryAsset } from '@/components/libraries/ModelLibraryDropdown'
+import ModelLibraryDropdown, {
+  ModelLibraryAsset,
+} from '@/components/libraries/ModelLibraryDropdown'
 
 export default function Home() {
   const router = useRouter()
   const { user, isLoading: userLoading } = useSupabaseUser()
   const { push: showToast } = useToast()
   const { remaining: creditsRemaining, isLoading: creditsLoading } = useUserCredits()
-  const { openPopup } = usePopupStore()
+  const openPopup = usePopupStore(state => state.openPopup)
 
   // Landing page interactive state
   const [modelImage, setModelImage] = useState<string | null>('/system-models/model_247.png')
@@ -43,7 +45,7 @@ export default function Home() {
     id: 'model-247',
     name: 'Model 247',
     subtitle: 'Virtual Face',
-    imageUrl: '/system-models/model_247.png'
+    imageUrl: '/system-models/model_247.png',
   })
   const [outfitImages, setOutfitImages] = useState<string[]>(['/bomber_jacket.png', '/pants.png'])
   const [detail, setDetail] = useState('')
@@ -59,7 +61,7 @@ export default function Home() {
     { label: 'Front', src: '/front-view-v2.png' },
     { label: 'Side', src: '/side-view-v2.png' },
     { label: '45° Angle', src: '/front-side-view-v2.png' },
-    { label: 'Back', src: '/behind-view-v2.png' }
+    { label: 'Back', src: '/behind-view-v2.png' },
   ]
 
   // Auto-rotate viewer (optional, pauses on hover could be added later)
@@ -113,9 +115,6 @@ export default function Home() {
     router.push('/studio/create')
   }
 
-
-
-
   return (
     <div className="flex flex-col min-h-screen bg-background selection:bg-neutral-500/20">
       <SiteNavbarSignedOut />
@@ -160,13 +159,24 @@ export default function Home() {
             <div className="flex items-start gap-10 justify-center">
               {/* Model */}
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">Model</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">
+                  Model
+                </p>
                 {modelImage ? (
                   <div className="group relative">
                     <div className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden ring-1 ring-border/50">
-                      <Image src={modelImage} alt="Model" fill className="object-cover" sizes="64px" />
+                      <Image
+                        src={modelImage}
+                        alt="Model"
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
                       <button
-                        onClick={() => { setModelImage(null); setSelectedModel(null); }}
+                        onClick={() => {
+                          setModelImage(null)
+                          setSelectedModel(null)
+                        }}
                         className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <X className="w-5 h-5 text-white" />
@@ -215,7 +225,10 @@ export default function Home() {
                   <ModelLibraryDropdown
                     selectedAsset={selectedModel}
                     onSelect={handleModelSelect}
-                    onClear={() => { setSelectedModel(null); setModelImage(null); }}
+                    onClear={() => {
+                      setSelectedModel(null)
+                      setModelImage(null)
+                    }}
                     open={isModelLibraryOpen}
                     onOpenChange={setIsModelLibraryOpen}
                   />
@@ -224,11 +237,22 @@ export default function Home() {
 
               {/* Outfit */}
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">Outfit</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">
+                  Outfit
+                </p>
                 <div className="flex gap-2">
                   {outfitImages.map((img, idx) => (
-                    <div key={idx} className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden group ring-1 ring-border/50">
-                      <Image src={img} alt={`Outfit ${idx + 1}`} fill className="object-cover" sizes="64px" />
+                    <div
+                      key={idx}
+                      className="relative w-16 aspect-[3/4] rounded-lg overflow-hidden group ring-1 ring-border/50"
+                    >
+                      <Image
+                        src={img}
+                        alt={`Outfit ${idx + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
                       <button
                         onClick={() => {
                           setOutfitImages(prev => prev.filter((_, i) => i !== idx))
@@ -256,7 +280,9 @@ export default function Home() {
 
               {/* Detail */}
               <div className="flex-1 max-w-[160px]">
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">Detail</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">
+                  Detail
+                </p>
                 {!isDetailOpen && !detail ? (
                   <button
                     onClick={() => setIsDetailOpen(true)}
@@ -270,7 +296,7 @@ export default function Home() {
                     placeholder="Describe the style..."
                     className="min-h-[80px] resize-none bg-muted/30 border-0 focus-visible:ring-1 focus-visible:ring-foreground/20 rounded-lg text-xs placeholder:text-muted-foreground/50"
                     value={detail}
-                    onChange={(e) => setDetail(e.target.value)}
+                    onChange={e => setDetail(e.target.value)}
                     autoFocus
                     onBlur={() => !detail && setIsDetailOpen(false)}
                   />
@@ -297,7 +323,6 @@ export default function Home() {
         Why does this exist? Consistency.
       */}
 
-
       {/* 
         --- SHOWCASE SECTION ---
         1. Multi-view consistency
@@ -309,7 +334,9 @@ export default function Home() {
       */}
       <section className="py-32 px-4 max-w-7xl mx-auto">
         <div className="text-center mb-20">
-          <h2 className="text-3xl sm:text-4xl font-medium mb-6">Unlimited creative possibilities.</h2>
+          <h2 className="text-3xl sm:text-4xl font-medium mb-6">
+            Unlimited creative possibilities.
+          </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             From technical product shots to high-end editorial campaigns.
           </p>
@@ -319,9 +346,12 @@ export default function Home() {
           {/* Card 1 - Consistent Views (Navigation) */}
           <div className="relative rounded-3xl bg-white border border-neutral-200/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] p-8 flex flex-col transition-all duration-500 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)]">
             <div className="mb-8">
-              <h3 className="text-2xl font-medium mb-3 text-neutral-900 font-geist-sans">Consistent Views</h3>
+              <h3 className="text-2xl font-medium mb-3 text-neutral-900 font-geist-sans">
+                Consistent Views
+              </h3>
               <p className="text-neutral-500 leading-relaxed">
-                Generate perfect front, side, and 45° angles. Maintain total consistency across every shot for your PDPs.
+                Generate perfect front, side, and 45° angles. Maintain total consistency across
+                every shot for your PDPs.
               </p>
             </div>
 
@@ -331,15 +361,19 @@ export default function Home() {
                 <button
                   key={index}
                   onClick={() => setCurrentViewIndex(index)}
-                  className={`relative rounded-2xl overflow-hidden border aspect-[3/4] group/item transition-all duration-300 ${index === currentViewIndex
-                    ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md'
-                    : 'border-neutral-200 hover:border-neutral-400'
-                    }`}
+                  className={`relative rounded-2xl overflow-hidden border aspect-[3/4] group/item transition-all duration-300 ${
+                    index === currentViewIndex
+                      ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md'
+                      : 'border-neutral-200 hover:border-neutral-400'
+                  }`}
                 >
-                  <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 backdrop-blur-md rounded-md text-[10px] font-medium transition-colors ${index === currentViewIndex
-                    ? 'bg-neutral-900/90 text-white'
-                    : 'bg-black/40 text-white'
-                    }`}>
+                  <div
+                    className={`absolute top-3 left-3 z-10 px-2.5 py-1 backdrop-blur-md rounded-md text-[10px] font-medium transition-colors ${
+                      index === currentViewIndex
+                        ? 'bg-neutral-900/90 text-white'
+                        : 'bg-black/40 text-white'
+                    }`}
+                  >
                     {view.label}
                   </div>
                   <Image
@@ -360,7 +394,6 @@ export default function Home() {
 
           {/* Card 2 - Main Viewer (Dynamic Image) */}
           <div className="relative rounded-3xl bg-white border border-neutral-200/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] p-3 flex flex-col group transition-all duration-500 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)]">
-
             {/* Image Container with Padding */}
             <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-neutral-100">
               {views.map((view, index) => (
@@ -396,10 +429,11 @@ export default function Home() {
                   <button
                     key={i}
                     onClick={() => setCurrentViewIndex(i)}
-                    className={`h-1.5 rounded-full transition-all duration-500 ease-out ${i === currentViewIndex
-                      ? 'bg-neutral-900 w-12'
-                      : 'bg-neutral-200 w-2 hover:bg-neutral-400'
-                      }`}
+                    className={`h-1.5 rounded-full transition-all duration-500 ease-out ${
+                      i === currentViewIndex
+                        ? 'bg-neutral-900 w-12'
+                        : 'bg-neutral-200 w-2 hover:bg-neutral-400'
+                    }`}
                     aria-label={`Go to view ${i + 1}`}
                   />
                 ))}
@@ -416,10 +450,10 @@ export default function Home() {
       <section className="relative py-32 px-4 overflow-hidden border-t border-border/40">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight mb-8">
-            Start your collection today.
+            Start creating today.
           </h2>
           <p className="text-lg text-muted-foreground mb-12 max-w-xl mx-auto">
-            Join the fashion revolution. Create professional, on-brand lookbooks in minutes.
+            Generate professional lookbooks in minutes. Choose a plan that works for you.
           </p>
 
           <div className="flex justify-center">
@@ -427,7 +461,7 @@ export default function Home() {
               asChild
               className="h-12 px-8 rounded-xl bg-foreground text-background font-medium text-base transition-all duration-300 hover:bg-foreground/90 hover:scale-[1.02]"
             >
-              <a href="mailto:contact@blooma.club">Talk to Sales</a>
+              <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>
         </div>

@@ -1,8 +1,8 @@
-
+﻿
 import { NextRequest, NextResponse } from 'next/server'
 import { listUploadedAssets, deleteUploadedAsset, insertUploadedAsset } from '@/lib/db/customAssets'
-import { deleteImageFromR2 } from '@/lib/r2'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { deleteImageFromR2 } from '@/lib/infra/storage'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -82,4 +82,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete model' }, { status: 500 })
   }
 }
+
+
 

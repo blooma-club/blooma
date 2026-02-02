@@ -17,7 +17,7 @@ interface ApiError {
  * Automatically opens the appropriate popup when an InsufficientCreditsError is detected
  */
 export function useHandleCreditError() {
-  const { openPopup } = usePopupStore()
+  const openPopup = usePopupStore((state) => state.openPopup)
 
   /**
    * Check if an error is an InsufficientCreditsError and open the popup if so

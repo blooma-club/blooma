@@ -1,9 +1,9 @@
-import ToasterProvider from '@/components/ui/toast' 
+import ToasterProvider from '@/components/ui/toast'
 import { Inter } from 'next/font/google'
 import { GeistSans } from 'geist/font/sans'
 import './globals.css'
 
-import { GlobalPopupProvider } from '@/components/GlobalPopupProvider'
+import { GlobalPopupProvider } from '@/components/providers/GlobalPopupProvider'
 
 const inter = Inter({
   variable: "--font-inter",

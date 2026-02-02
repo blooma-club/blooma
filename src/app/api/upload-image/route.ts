@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { uploadImageToR2, uploadModelImageToR2 } from '@/lib/r2'
+﻿import { NextRequest, NextResponse } from 'next/server'
+import { uploadImageToR2, uploadModelImageToR2 } from '@/lib/infra/storage'
 import { DbConfigurationError, DbQueryError } from '@/lib/db/db'
 import { insertUploadedAsset } from '@/lib/db/customAssets'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     if (!file || (!projectId && !isModelUpload && !isLocationUpload) || !targetId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'File exceeds upload size limit' },
+        { status: 413 }
+      )
     }
 
     // Convert file to data URL
@@ -158,4 +165,6 @@ function parseBoolean(value: FormDataEntryValue | null): boolean {
   }
   return Boolean(value)
 }
+
+
 

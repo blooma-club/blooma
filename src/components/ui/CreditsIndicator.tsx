@@ -12,8 +12,13 @@ type CreditsIndicatorProps = {
   placement?: 'top' | 'bottom'
 }
 
-export default function CreditsIndicator({ className, minimal = false, placement = 'top' }: CreditsIndicatorProps) {
-  const { total, remaining, percentage, isLoading, isAvailable, subscriptionTier } = useUserCredits()
+export default function CreditsIndicator({
+  className,
+  minimal = false,
+  placement = 'top',
+}: CreditsIndicatorProps) {
+  const { total, remaining, percentage, isLoading, isAvailable, subscriptionTier } =
+    useUserCredits()
   const [open, setOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -59,10 +64,12 @@ export default function CreditsIndicator({ className, minimal = false, placement
   // Minimal Mode: Inline progress bar without icons/popover logic (or simplified)
   if (minimal) {
     return (
-      <div className={cn("w-full space-y-2", className)}>
+      <div className={cn('w-full space-y-2', className)}>
         <div className="flex items-center justify-between text-[11px] font-medium px-0.5">
           <span className="text-muted-foreground/80">Credits</span>
-          <span className="text-foreground">{displayRemaining} <span className="text-muted-foreground/50">/ {displayTotal}</span></span>
+          <span className="text-foreground">
+            {displayRemaining} <span className="text-muted-foreground/50">/ {displayTotal}</span>
+          </span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/30 dark:bg-white/10">
           <div
@@ -77,23 +84,24 @@ export default function CreditsIndicator({ className, minimal = false, placement
   // Default Popover Mode
   return (
     <div className={cn('relative', className)} ref={containerRef}>
-      <Button
+      <button
         type="button"
-        variant="ghost"
         className={cn(
-          "h-9 px-2 text-sm font-medium transition-colors hover:bg-muted/50 text-black hover:text-black/70",
-          open && "bg-muted/50 text-foreground"
+          'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all rounded-full',
+          'bg-secondary/50 hover:bg-secondary text-foreground',
+          open && 'bg-secondary'
         )}
         onClick={() => setOpen(prev => !prev)}
       >
-        <span className="text-sm">{displayRemaining}</span>
-      </Button>
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <span>{displayRemaining}</span>
+      </button>
 
       {open && (
         <div
           className={cn(
-            "absolute right-0 z-50 w-60 rounded-xl border border-border/50 bg-popover/95 backdrop-blur-xl p-4 text-popover-foreground shadow-lg ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95",
-            placement === 'top' ? "bottom-full mb-2" : "top-full mt-2"
+            'absolute right-0 z-50 w-60 rounded-xl border border-border/50 bg-popover/95 backdrop-blur-xl p-4 text-popover-foreground shadow-lg ring-1 ring-border/5 animate-in fade-in-0 zoom-in-95',
+            placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
           )}
           onClick={e => e.stopPropagation()}
         >
@@ -106,7 +114,9 @@ export default function CreditsIndicator({ className, minimal = false, placement
             </div>
 
             <div className="mt-3 flex items-end gap-2">
-              <span className="text-3xl font-semibold tracking-tight text-foreground">{displayRemaining}</span>
+              <span className="text-3xl font-semibold tracking-tight text-foreground">
+                {displayRemaining}
+              </span>
               <span className="text-xs text-muted-foreground">/ {displayTotal}</span>
             </div>
 
@@ -118,16 +128,14 @@ export default function CreditsIndicator({ className, minimal = false, placement
             </div>
 
             <div className="mt-4">
-              {(!subscriptionTier || subscriptionTier === 'free') ? (
+              {!subscriptionTier || subscriptionTier === 'free' ? (
                 <Button
                   variant="ghost"
                   size="sm"
                   asChild
                   className="h-8 px-3 text-xs font-medium text-foreground/80 hover:text-foreground"
                 >
-                  <Link href="/pricing">
-                    Upgrade
-                  </Link>
+                  <Link href="/pricing">Upgrade</Link>
                 </Button>
               ) : (
                 <Button
@@ -136,9 +144,7 @@ export default function CreditsIndicator({ className, minimal = false, placement
                   asChild
                   className="h-8 px-3 text-xs font-medium text-foreground/80 hover:text-foreground"
                 >
-                  <Link href="/customerportal">
-                    Manage
-                  </Link>
+                  <Link href="/customerportal">Manage</Link>
                 </Button>
               )}
             </div>

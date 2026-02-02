@@ -83,9 +83,6 @@ npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
 npm run start        # Start production server
 npm run lint         # ESLint (Next.js)
-npm run test:e2e     # Playwright tests
-npm run test:e2e:ui  # Playwright UI
-npm run test:e2e:headed  # Playwright headed mode
 ```
 
 ## Project Structure
@@ -117,13 +114,13 @@ blooma/
 
 ## API Routes
 
-- /api/generate-image
+- /api/studio/generate
 - /api/image-edit
 - /api/models
 - /api/locations
 - /api/upload-image
-- /api/studio/generated
-- /api/studio/generated/[id]
+- /api/studio/history
+- /api/studio/history/[id]
 - /api/audio/voiceover
 - /api/audio/music
 - /api/audio/music/attach

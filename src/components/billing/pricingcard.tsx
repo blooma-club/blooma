@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { PLAN_CREDIT_TOPUPS } from '@/lib/billing/plans'
+import { PLAN_CREDIT_TOPUPS, type PlanId } from '@/lib/constants'
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 import { usePopupStore } from '@/store/popup'
 import {
@@ -16,7 +16,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
-export type PlanId = 'Small Brands' | 'Agency' | 'Studio'
 
 export type PlanOption = {
   id: PlanId
@@ -68,13 +67,13 @@ async function fetchSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
 
 export default function PricingCard({ className, plan, interval = 'month' }: PricingCardProps) {
   const { user, isLoading: userLoading } = useSupabaseUser()
-  const { openPopup } = usePopupStore()
+  const openPopup = usePopupStore((state) => state.openPopup)
 
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // bfcache에서 페이지가 복원될 때 checkout 상태 리셋
-  // (Polar 결제창에서 뒤로가기 시 버튼이 비활성화된 채로 유지되는 문제 해결)
+  // bfcache?먯꽌 ?섏씠吏媛 蹂듭썝????checkout ?곹깭 由ъ뀑
+  // (Polar 寃곗젣李쎌뿉???ㅻ줈媛湲???踰꾪듉??鍮꾪솢?깊솕??梨꾨줈 ?좎??섎뒗 臾몄젣 ?닿껐)
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
@@ -295,3 +294,4 @@ export default function PricingCard({ className, plan, interval = 'month' }: Pri
     </Card>
   )
 }
+

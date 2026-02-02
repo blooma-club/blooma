@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUserById } from '@/lib/db/users'
-import { syncSubscriptionCredits } from '@/lib/credits'
-import { getSupabaseUserAndSync } from '@/lib/supabase/server'
+import { syncSubscriptionCredits } from '@/lib/billing/credits'
+import { getSupabaseUserAndSync } from '@/lib/db/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -19,7 +19,9 @@ export async function GET() {
 
     const syncedUser = await syncSubscriptionCredits(user)
     const total =
-      typeof syncedUser.credits === 'number' && Number.isFinite(syncedUser.credits) ? syncedUser.credits : 0
+      typeof syncedUser.credits === 'number' && Number.isFinite(syncedUser.credits)
+        ? syncedUser.credits
+        : 0
     const used =
       typeof syncedUser.credits_used === 'number' && Number.isFinite(syncedUser.credits_used)
         ? syncedUser.credits_used
@@ -52,4 +54,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to load credits' }, { status: 500 })
   }
 }
-

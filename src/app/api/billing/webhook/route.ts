@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
 import { getUserById, grantCreditsWithResetDate, updateUserSubscription } from '@/lib/db/users'
-import { getPlanIdForProductId, getCreditsForPlan, getIntervalForProductId } from '@/lib/billing/plans'
+import { getPlanIdForProductId, getCreditsForPlan, getIntervalForProductId } from '@/lib/billing/logic'
 import {
   tryClaimWebhookEvent,
   markWebhookEventProcessed,
@@ -556,3 +556,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
 }
+
